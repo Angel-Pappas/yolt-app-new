@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     ArrowLeftRight,
     BookOpen,
+    Building2,
     FolderGit2,
     LayoutGrid,
     Users,
@@ -41,6 +42,11 @@ const financeNavItems: NavItem[] = [
         title: 'Wallets',
         href: '/wallets',
         icon: Wallet,
+    },
+    {
+        title: 'Entities',
+        href: '/entities',
+        icon: Building2,
     },
 ];
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\EntityController;
 use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,6 +17,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('wallets', [WalletController::class, 'store'])->name('wallets.store');
         Route::patch('wallets/{wallet}', [WalletController::class, 'update'])->name('wallets.update');
         Route::delete('wallets/{wallet}', [WalletController::class, 'destroy'])->name('wallets.destroy');
+
+        Route::get('entities', [EntityController::class, 'index'])->name('entities.index');
+        Route::post('entities', [EntityController::class, 'store'])->name('entities.store');
+        Route::patch('entities/{entity}', [EntityController::class, 'update'])->name('entities.update');
+        Route::delete('entities/{entity}', [EntityController::class, 'destroy'])->name('entities.destroy');
     });
 
     // Business area — gated by CRM access.
