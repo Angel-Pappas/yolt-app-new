@@ -5,6 +5,7 @@ import {
     FolderGit2,
     LayoutGrid,
     Users,
+    Wallet,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -35,6 +36,11 @@ const financeNavItems: NavItem[] = [
         title: 'Transactions',
         href: '/transactions',
         icon: ArrowLeftRight,
+    },
+    {
+        title: 'Wallets',
+        href: '/wallets',
+        icon: Wallet,
     },
 ];
 
