@@ -1,5 +1,11 @@
-import { Link } from '@inertiajs/react';
-import { BookOpen, FolderGit2, LayoutGrid } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import {
+    ArrowLeftRight,
+    BookOpen,
+    FolderGit2,
+    LayoutGrid,
+    Users,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -16,11 +22,27 @@ import {
 import { dashboard } from '@/routes';
 import type { NavItem } from '@/types';
 
-const mainNavItems: NavItem[] = [
+const platformNavItems: NavItem[] = [
     {
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+];
+
+const financeNavItems: NavItem[] = [
+    {
+        title: 'Transactions',
+        href: '/transactions',
+        icon: ArrowLeftRight,
+    },
+];
+
+const businessNavItems: NavItem[] = [
+    {
+        title: 'Leads',
+        href: '/leads',
+        icon: Users,
     },
 ];
 
@@ -38,6 +60,9 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
+    const { auth } = usePage().props;
+    const user = auth.user;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -53,7 +78,13 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={platformNavItems} />
+                {user.can_access_finance && (
+                    <NavMain items={financeNavItems} label="Finance" />
+                )}
+                {user.can_access_crm && (
+                    <NavMain items={businessNavItems} label="Business" />
+                )}
             </SidebarContent>
 
             <SidebarFooter>
