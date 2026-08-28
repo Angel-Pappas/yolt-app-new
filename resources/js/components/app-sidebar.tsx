@@ -5,6 +5,7 @@ import {
     Building2,
     FolderGit2,
     LayoutGrid,
+    Tags,
     Users,
     Wallet,
 } from 'lucide-react';
@@ -47,6 +48,11 @@ const financeNavItems: NavItem[] = [
         title: 'Entities',
         href: '/entities',
         icon: Building2,
+    },
+    {
+        title: 'Categories',
+        href: '/categories',
+        icon: Tags,
     },
 ];
 
