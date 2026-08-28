@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\VatRateController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WithheldTaxRateController;
@@ -14,7 +15,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Finance area — gated by finance access.
     Route::middleware('can:access-finance')->group(function () {
-        Route::inertia('transactions', 'transactions/index')->name('transactions.index');
+        Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
 
         Route::get('wallets', [WalletController::class, 'index'])->name('wallets.index');
         Route::post('wallets', [WalletController::class, 'store'])->name('wallets.store');
