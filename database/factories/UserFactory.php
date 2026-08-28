@@ -30,6 +30,10 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            'is_admin' => false,
+            'can_access_finance' => false,
+            'can_access_crm' => false,
+            'is_active' => true,
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
@@ -56,5 +60,37 @@ class UserFactory extends Factory
             'two_factor_recovery_codes' => encrypt(json_encode(['recovery-code-1'])),
             'two_factor_confirmed_at' => now(),
         ]);
+    }
+
+    /**
+     * Company super admin.
+     */
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => ['is_admin' => true]);
+    }
+
+    /**
+     * Grant Finance area access.
+     */
+    public function withFinanceAccess(): static
+    {
+        return $this->state(fn (array $attributes) => ['can_access_finance' => true]);
+    }
+
+    /**
+     * Grant Business (CRM) area access.
+     */
+    public function withCrmAccess(): static
+    {
+        return $this->state(fn (array $attributes) => ['can_access_crm' => true]);
+    }
+
+    /**
+     * A deactivated account.
+     */
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => ['is_active' => false]);
     }
 }
