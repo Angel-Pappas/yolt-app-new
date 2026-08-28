@@ -1,8 +1,8 @@
 packages:
-  - '.'
+    - '.'
 
 minimumReleaseAgeExclude:
-  - '@vitejs/plugin-react@6.1.1'
+    - '@vitejs/plugin-react@6.1.1'
 
 publicHoistPattern:
-  - '@inertiajs/core'
+    - '@inertiajs/core'
