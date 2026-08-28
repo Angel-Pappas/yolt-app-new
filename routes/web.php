@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\VatRateController;
 use App\Http\Controllers\WalletController;
+use App\Http\Controllers\WithheldTaxRateController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
@@ -28,6 +30,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('categories', [CategoryController::class, 'store'])->name('categories.store');
         Route::patch('categories/{category}', [CategoryController::class, 'update'])->name('categories.update');
         Route::delete('categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy');
+
+        Route::get('vat-rates', [VatRateController::class, 'index'])->name('vat-rates.index');
+        Route::post('vat-rates', [VatRateController::class, 'store'])->name('vat-rates.store');
+        Route::patch('vat-rates/{vatRate}', [VatRateController::class, 'update'])->name('vat-rates.update');
+        Route::delete('vat-rates/{vatRate}', [VatRateController::class, 'destroy'])->name('vat-rates.destroy');
+
+        Route::get('withheld-tax-rates', [WithheldTaxRateController::class, 'index'])->name('withheld-tax-rates.index');
+        Route::post('withheld-tax-rates', [WithheldTaxRateController::class, 'store'])->name('withheld-tax-rates.store');
+        Route::patch('withheld-tax-rates/{withheldTaxRate}', [WithheldTaxRateController::class, 'update'])->name('withheld-tax-rates.update');
+        Route::delete('withheld-tax-rates/{withheldTaxRate}', [WithheldTaxRateController::class, 'destroy'])->name('withheld-tax-rates.destroy');
     });
 
     // Business area — gated by CRM access.

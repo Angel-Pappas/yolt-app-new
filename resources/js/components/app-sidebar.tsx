@@ -4,7 +4,9 @@ import {
     BookOpen,
     Building2,
     FolderGit2,
+    Landmark,
     LayoutGrid,
+    Percent,
     Tags,
     Users,
     Wallet,
@@ -53,6 +55,16 @@ const financeNavItems: NavItem[] = [
         title: 'Categories',
         href: '/categories',
         icon: Tags,
+    },
+    {
+        title: 'VAT rates',
+        href: '/vat-rates',
+        icon: Percent,
+    },
+    {
+        title: 'Withheld tax',
+        href: '/withheld-tax-rates',
+        icon: Landmark,
     },
 ];
 
