@@ -16,6 +16,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Finance area — gated by finance access.
     Route::middleware('can:access-finance')->group(function () {
         Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
+        Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
 
         Route::get('wallets', [WalletController::class, 'index'])->name('wallets.index');
         Route::post('wallets', [WalletController::class, 'store'])->name('wallets.store');

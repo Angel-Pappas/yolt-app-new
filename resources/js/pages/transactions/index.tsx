@@ -1,5 +1,9 @@
 import { Head } from '@inertiajs/react';
+import { Plus } from 'lucide-react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { formatAmount, formatDate } from '@/lib/format';
+import { TransactionFormDialog } from './transaction-form-dialog';
 
 type Related = { id: number; name: string } | null;
 
@@ -18,6 +22,18 @@ type Transaction = {
     to_wallet: Related;
     entity: Related;
     category: Related;
+};
+
+type Option = { id: number; name: string };
+type Category = { id: number; name: string; type: string };
+type VatRate = { id: number; name: string; rate: string };
+
+type Props = {
+    transactions: Transaction[];
+    wallets: Option[];
+    entities: Option[];
+    categories: Category[];
+    vatRates: VatRate[];
 };
 
 const typeMeta: Record<TransactionType, { label: string; className: string }> =
@@ -39,14 +55,27 @@ function total(t: Transaction): number {
 
 export default function TransactionsIndex({
     transactions,
-}: {
-    transactions: Transaction[];
-}) {
+    wallets,
+    entities,
+    categories,
+    vatRates,
+}: Props) {
+    const [dialogOpen, setDialogOpen] = useState(false);
+
     return (
         <>
             <Head title="Transactions" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
-                <h1 className="text-2xl font-semibold">Transactions</h1>
+                <div className="flex items-center justify-between">
+                    <h1 className="text-2xl font-semibold">Transactions</h1>
+                    <Button
+                        onClick={() => setDialogOpen(true)}
+                        disabled={wallets.length === 0}
+                    >
+                        <Plus className="size-4" />
+                        Add transaction
+                    </Button>
+                </div>
 
                 <div className="overflow-x-auto rounded-lg border">
                     <table className="w-full text-sm">
@@ -130,6 +159,15 @@ export default function TransactionsIndex({
                     </table>
                 </div>
             </div>
+
+            <TransactionFormDialog
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+                wallets={wallets}
+                entities={entities}
+                categories={categories}
+                vatRates={vatRates}
+            />
         </>
     );
 }
