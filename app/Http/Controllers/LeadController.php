@@ -59,6 +59,7 @@ class LeadController extends Controller
                 'id', 'sort_order', 'name', 'origin_id', 'status_id', 'website',
                 'contact_name', 'contact_position', 'contact_email',
                 'contact_phone', 'contact_landline', 'description', 'next_step',
+                'campaign_platform', 'campaign_we_are', 'campaign_we_want',
             ]),
             'filters' => $filters,
             'statuses' => LeadStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name', 'is_conversion']),
@@ -133,6 +134,9 @@ class LeadController extends Controller
             'contact_landline' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'next_step' => ['nullable', 'string'],
+            'campaign_platform' => ['nullable', 'in:facebook,instagram'],
+            'campaign_we_are' => ['nullable', 'string'],
+            'campaign_we_want' => ['nullable', 'string'],
         ]);
     }
 }

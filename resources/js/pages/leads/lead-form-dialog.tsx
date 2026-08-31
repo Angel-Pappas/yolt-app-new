@@ -37,6 +37,9 @@ export type EditableLead = {
     contact_landline: string | null;
     description: string | null;
     next_step: string | null;
+    campaign_platform: string | null;
+    campaign_we_are: string | null;
+    campaign_we_want: string | null;
 };
 
 type Props = {
@@ -68,7 +71,16 @@ export function LeadFormDialog({
         contact_landline: editing?.contact_landline ?? '',
         description: editing?.description ?? '',
         next_step: editing?.next_step ?? '',
+        campaign_platform: editing?.campaign_platform ?? '',
+        campaign_we_are: editing?.campaign_we_are ?? '',
+        campaign_we_want: editing?.campaign_we_want ?? '',
     });
+
+    // The campaign-only fields show only while the chosen origin is "Campaign".
+    const selectedOrigin = origins.find(
+        (o) => String(o.id) === form.data.origin_id,
+    );
+    const isCampaign = selectedOrigin?.name === 'Campaign';
 
     // Hide the flagged "Converted" status from the manual picker, but keep it if
     // it's the lead's current value (so saving doesn't silently clear the status).
@@ -83,6 +95,11 @@ export function LeadFormDialog({
             ...data,
             origin_id: data.origin_id || null,
             status_id: data.status_id || null,
+            campaign_platform: isCampaign
+                ? data.campaign_platform || null
+                : null,
+            campaign_we_are: isCampaign ? data.campaign_we_are || null : null,
+            campaign_we_want: isCampaign ? data.campaign_we_want || null : null,
         }));
 
         if (editing) {
@@ -199,6 +216,72 @@ export function LeadFormDialog({
                                 }
                             />
                         </div>
+
+                        {isCampaign && (
+                            <>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="campaign_platform">
+                                        Platform
+                                    </Label>
+                                    <Select
+                                        value={
+                                            form.data.campaign_platform || NONE
+                                        }
+                                        onValueChange={(v) =>
+                                            form.setData(
+                                                'campaign_platform',
+                                                v === NONE ? '' : v,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger id="campaign_platform">
+                                            <SelectValue placeholder="— None —" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={NONE}>
+                                                — None —
+                                            </SelectItem>
+                                            <SelectItem value="facebook">
+                                                Facebook
+                                            </SelectItem>
+                                            <SelectItem value="instagram">
+                                                Instagram
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="campaign_we_are">
+                                        We are
+                                    </Label>
+                                    <Input
+                                        id="campaign_we_are"
+                                        value={form.data.campaign_we_are}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'campaign_we_are',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </div>
+                                <div className="grid gap-2 sm:col-span-2">
+                                    <Label htmlFor="campaign_we_want">
+                                        We want
+                                    </Label>
+                                    <Input
+                                        id="campaign_we_want"
+                                        value={form.data.campaign_we_want}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'campaign_we_want',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </div>
+                            </>
+                        )}
 
                         <fieldset className="grid gap-4 rounded-lg border p-4 sm:col-span-2 sm:grid-cols-2">
                             <legend className="text-muted-foreground px-1 text-xs">

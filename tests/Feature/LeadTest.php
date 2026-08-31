@@ -88,6 +88,31 @@ test('leads can be filtered by status and searched', function () {
         ->assertInertia(fn (Assert $page) => $page->has('leads', 1));
 });
 
+test('a lead can carry campaign fields', function () {
+    $user = User::factory()->withCrmAccess()->create();
+
+    $this->actingAs($user)->post('/leads', [
+        'name' => 'Campaign lead',
+        'campaign_platform' => 'facebook',
+        'campaign_we_are' => 'A bakery',
+        'campaign_we_want' => 'More orders',
+    ])->assertRedirect();
+
+    $lead = Lead::where('name', 'Campaign lead')->first();
+    expect($lead->campaign_platform)->toBe('facebook');
+    expect($lead->campaign_we_are)->toBe('A bakery');
+    expect($lead->campaign_we_want)->toBe('More orders');
+});
+
+test('an invalid campaign platform is rejected', function () {
+    $user = User::factory()->withCrmAccess()->create();
+
+    $this->actingAs($user)->post('/leads', [
+        'name' => 'X',
+        'campaign_platform' => 'tiktok',
+    ])->assertSessionHasErrors('campaign_platform');
+});
+
 test('a non-crm user cannot access leads', function () {
     $user = User::factory()->create();
 

@@ -25,6 +25,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $contact_landline
  * @property string|null $description
  * @property string|null $next_step
+ * @property string|null $campaign_platform
+ * @property string|null $campaign_we_are
+ * @property string|null $campaign_we_want
  */
 #[Fillable([
     'name',
@@ -38,6 +41,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'contact_landline',
     'description',
     'next_step',
+    'campaign_platform',
+    'campaign_we_are',
+    'campaign_we_want',
 ])]
 class Lead extends Model
 {
