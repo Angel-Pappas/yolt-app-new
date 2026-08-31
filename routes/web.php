@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\VatRateController;
 use App\Http\Controllers\WalletController;
@@ -39,6 +40,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('vat-rates', [VatRateController::class, 'store'])->name('vat-rates.store');
         Route::patch('vat-rates/{vatRate}', [VatRateController::class, 'update'])->name('vat-rates.update');
         Route::delete('vat-rates/{vatRate}', [VatRateController::class, 'destroy'])->name('vat-rates.destroy');
+
+        Route::get('taxes', [TaxController::class, 'index'])->name('taxes.index');
+        Route::get('taxes/vat', [TaxController::class, 'vat'])->name('taxes.vat');
+        Route::get('taxes/withheld', [TaxController::class, 'withheld'])->name('taxes.withheld');
 
         Route::get('withheld-tax-rates', [WithheldTaxRateController::class, 'index'])->name('withheld-tax-rates.index');
         Route::post('withheld-tax-rates', [WithheldTaxRateController::class, 'store'])->name('withheld-tax-rates.store');

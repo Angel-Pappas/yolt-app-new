@@ -7,6 +7,7 @@ import {
     Landmark,
     LayoutGrid,
     Percent,
+    Receipt,
     Tags,
     Users,
     Wallet,
@@ -45,6 +46,11 @@ const financeNavItems: NavItem[] = [
         title: 'Wallets',
         href: '/wallets',
         icon: Wallet,
+    },
+    {
+        title: 'Taxes',
+        href: '/taxes',
+        icon: Receipt,
     },
     {
         title: 'Entities',

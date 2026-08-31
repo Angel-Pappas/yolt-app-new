@@ -17,3 +17,28 @@ export function formatDate(value: string): string {
     const [year, month, day] = value.slice(0, 10).split('-');
     return `${day}/${month}/${year}`;
 }
+
+const MONTH_NAMES = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+];
+
+/**
+ * Format a "yyyy-mm" tax-period key as e.g. "July 2026". English month names by
+ * design — the UI text is English even though dates/amounts are Greek-style.
+ */
+export function formatMonthYear(key: string): string {
+    const [year, month] = key.split('-');
+    const name = MONTH_NAMES[Number(month) - 1] ?? month;
+    return `${name} ${year}`;
+}
