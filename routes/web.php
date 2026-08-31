@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\LeadOriginController;
+use App\Http\Controllers\LeadStatusController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\VatRateController;
@@ -54,6 +56,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Business area — gated by CRM access.
     Route::middleware('can:access-crm')->group(function () {
         Route::inertia('leads', 'leads/index')->name('leads.index');
+
+        Route::get('lead-statuses', [LeadStatusController::class, 'index'])->name('lead-statuses.index');
+        Route::post('lead-statuses', [LeadStatusController::class, 'store'])->name('lead-statuses.store');
+        Route::patch('lead-statuses/{leadStatus}', [LeadStatusController::class, 'update'])->name('lead-statuses.update');
+        Route::delete('lead-statuses/{leadStatus}', [LeadStatusController::class, 'destroy'])->name('lead-statuses.destroy');
+
+        Route::get('lead-origins', [LeadOriginController::class, 'index'])->name('lead-origins.index');
+        Route::post('lead-origins', [LeadOriginController::class, 'store'])->name('lead-origins.store');
+        Route::patch('lead-origins/{leadOrigin}', [LeadOriginController::class, 'update'])->name('lead-origins.update');
+        Route::delete('lead-origins/{leadOrigin}', [LeadOriginController::class, 'destroy'])->name('lead-origins.destroy');
     });
 });
 

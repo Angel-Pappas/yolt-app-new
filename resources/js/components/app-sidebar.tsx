@@ -3,11 +3,13 @@ import {
     ArrowLeftRight,
     BookOpen,
     Building2,
+    Flag,
     FolderGit2,
     Landmark,
     LayoutGrid,
     Percent,
     Receipt,
+    Signpost,
     Tags,
     Users,
     Wallet,
@@ -79,6 +81,16 @@ const businessNavItems: NavItem[] = [
         title: 'Leads',
         href: '/leads',
         icon: Users,
+    },
+    {
+        title: 'Lead statuses',
+        href: '/lead-statuses',
+        icon: Flag,
+    },
+    {
+        title: 'Lead origins',
+        href: '/lead-origins',
+        icon: Signpost,
     },
 ];
 
