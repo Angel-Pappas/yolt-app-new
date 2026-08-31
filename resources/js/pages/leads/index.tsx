@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -92,7 +92,12 @@ export default function LeadsIndex({
                                         {lead.origin?.name ?? '—'}
                                     </td>
                                     <td className="p-3 font-medium">
-                                        {lead.name}
+                                        <Link
+                                            href={`/leads/${lead.id}`}
+                                            className="hover:underline"
+                                        >
+                                            {lead.name}
+                                        </Link>
                                     </td>
                                     <td className="text-muted-foreground p-3">
                                         {lead.contact_email || '—'}

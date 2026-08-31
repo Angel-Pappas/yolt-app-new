@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\LeadActionController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadOriginController;
 use App\Http\Controllers\LeadStatusController;
@@ -58,8 +59,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('can:access-crm')->group(function () {
         Route::get('leads', [LeadController::class, 'index'])->name('leads.index');
         Route::post('leads', [LeadController::class, 'store'])->name('leads.store');
+        Route::get('leads/{lead}', [LeadController::class, 'show'])->name('leads.show');
         Route::patch('leads/{lead}', [LeadController::class, 'update'])->name('leads.update');
         Route::delete('leads/{lead}', [LeadController::class, 'destroy'])->name('leads.destroy');
+
+        Route::post('leads/{lead}/actions', [LeadActionController::class, 'store'])->name('leads.actions.store');
+        Route::patch('leads/{lead}/actions/{action}', [LeadActionController::class, 'update'])->name('leads.actions.update');
+        Route::delete('leads/{lead}/actions/{action}', [LeadActionController::class, 'destroy'])->name('leads.actions.destroy');
 
         Route::get('lead-statuses', [LeadStatusController::class, 'index'])->name('lead-statuses.index');
         Route::post('lead-statuses', [LeadStatusController::class, 'store'])->name('lead-statuses.store');

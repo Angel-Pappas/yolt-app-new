@@ -58,6 +58,21 @@ class LeadController extends Controller
         ]);
     }
 
+    public function show(Lead $lead): Response
+    {
+        $lead->load(['origin:id,name', 'status:id,name']);
+
+        return Inertia::render('leads/show', [
+            'lead' => $lead,
+            'actions' => $lead->actions()
+                ->orderByDesc('action_date')
+                ->orderByDesc('id')
+                ->get(['id', 'action_date', 'body', 'author_name']),
+            'statuses' => LeadStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
+            'origins' => LeadOrigin::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $lead = new Lead($this->validateLead($request));
