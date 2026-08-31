@@ -34,6 +34,7 @@ export type EditableTransaction = {
     entity_id: number | null;
     category_id: number | null;
     wallet_id: number;
+    to_wallet_id: number | null;
     net: string;
     vat_rate_id: number | null;
 };
@@ -84,6 +85,9 @@ export function TransactionFormDialog({
                       ? String(editing.category_id)
                       : '',
                   wallet_id: String(editing.wallet_id),
+                  to_wallet_id: editing.to_wallet_id
+                      ? String(editing.to_wallet_id)
+                      : '',
                   net: editing.net,
                   vat_rate_id: editing.vat_rate_id
                       ? String(editing.vat_rate_id)
@@ -97,10 +101,13 @@ export function TransactionFormDialog({
                   entity_id: '',
                   category_id: '',
                   wallet_id: wallets[0] ? String(wallets[0].id) : '',
+                  to_wallet_id: '',
                   net: '',
                   vat_rate_id: '',
               },
     );
+
+    const isTransfer = form.data.type === 'transfer';
 
     const availableCategories = categories.filter(
         (c) => c.type === form.data.type,
@@ -115,6 +122,9 @@ export function TransactionFormDialog({
         : 0;
     const total = round2(net + vat);
 
+    const errors = form.errors as Record<string, string | undefined>;
+    const netError = isTransfer ? form.errors.net : errors['lines.0.net'];
+
     function changeType(value: string) {
         form.setData('type', value);
         form.setData('category_id', '');
@@ -123,21 +133,35 @@ export function TransactionFormDialog({
     function submit(e: FormEvent) {
         e.preventDefault();
 
-        form.transform((data) => ({
-            type: data.type,
-            date: data.date,
-            invoice_date: data.invoice_date,
-            description: data.description,
-            entity_id: data.entity_id || null,
-            category_id: data.category_id || null,
-            wallet_id: data.wallet_id,
-            lines: [
-                {
+        form.transform((data) => {
+            if (data.type === 'transfer') {
+                return {
+                    type: data.type,
+                    date: data.date,
+                    invoice_date: data.invoice_date,
+                    description: data.description,
+                    wallet_id: data.wallet_id,
+                    to_wallet_id: data.to_wallet_id,
                     net: String(data.net).replace(',', '.'),
-                    vat_rate_id: data.vat_rate_id || null,
-                },
-            ],
-        }));
+                };
+            }
+
+            return {
+                type: data.type,
+                date: data.date,
+                invoice_date: data.invoice_date,
+                description: data.description,
+                entity_id: data.entity_id || null,
+                category_id: data.category_id || null,
+                wallet_id: data.wallet_id,
+                lines: [
+                    {
+                        net: String(data.net).replace(',', '.'),
+                        vat_rate_id: data.vat_rate_id || null,
+                    },
+                ],
+            };
+        });
 
         if (editing) {
             form.patch(`/transactions/${editing.id}`, {
@@ -164,8 +188,8 @@ export function TransactionFormDialog({
                             {editing ? 'Edit transaction' : 'Add transaction'}
                         </DialogTitle>
                         <DialogDescription>
-                            Record income or an expense. VAT is calculated from
-                            the selected rate.
+                            Income and expenses carry VAT; a transfer just moves
+                            money between two wallets.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -185,6 +209,9 @@ export function TransactionFormDialog({
                                     </SelectItem>
                                     <SelectItem value="expense">
                                         Expense
+                                    </SelectItem>
+                                    <SelectItem value="transfer">
+                                        Transfer
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
@@ -218,68 +245,74 @@ export function TransactionFormDialog({
                             <InputError message={form.errors.invoice_date} />
                         </div>
 
-                        <div className="grid gap-2">
-                            <Label htmlFor="entity_id">Entity</Label>
-                            <Select
-                                value={form.data.entity_id || NONE}
-                                onValueChange={(v) =>
-                                    form.setData(
-                                        'entity_id',
-                                        v === NONE ? '' : v,
-                                    )
-                                }
-                            >
-                                <SelectTrigger id="entity_id">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={NONE}>
-                                        — None —
-                                    </SelectItem>
-                                    {entities.map((entity) => (
-                                        <SelectItem
-                                            key={entity.id}
-                                            value={String(entity.id)}
-                                        >
-                                            {entity.name}
+                        {!isTransfer && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="entity_id">Entity</Label>
+                                <Select
+                                    value={form.data.entity_id || NONE}
+                                    onValueChange={(v) =>
+                                        form.setData(
+                                            'entity_id',
+                                            v === NONE ? '' : v,
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger id="entity_id">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={NONE}>
+                                            — None —
                                         </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                        {entities.map((entity) => (
+                                            <SelectItem
+                                                key={entity.id}
+                                                value={String(entity.id)}
+                                            >
+                                                {entity.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        {!isTransfer && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="category_id">Category</Label>
+                                <Select
+                                    value={form.data.category_id || NONE}
+                                    onValueChange={(v) =>
+                                        form.setData(
+                                            'category_id',
+                                            v === NONE ? '' : v,
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger id="category_id">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={NONE}>
+                                            — None —
+                                        </SelectItem>
+                                        {availableCategories.map((category) => (
+                                            <SelectItem
+                                                key={category.id}
+                                                value={String(category.id)}
+                                            >
+                                                {category.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
 
                         <div className="grid gap-2">
-                            <Label htmlFor="category_id">Category</Label>
-                            <Select
-                                value={form.data.category_id || NONE}
-                                onValueChange={(v) =>
-                                    form.setData(
-                                        'category_id',
-                                        v === NONE ? '' : v,
-                                    )
-                                }
-                            >
-                                <SelectTrigger id="category_id">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={NONE}>
-                                        — None —
-                                    </SelectItem>
-                                    {availableCategories.map((category) => (
-                                        <SelectItem
-                                            key={category.id}
-                                            value={String(category.id)}
-                                        >
-                                            {category.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="wallet_id">Wallet</Label>
+                            <Label htmlFor="wallet_id">
+                                {isTransfer ? 'From wallet' : 'Wallet'}
+                            </Label>
                             <Select
                                 value={form.data.wallet_id}
                                 onValueChange={(v) =>
@@ -303,8 +336,39 @@ export function TransactionFormDialog({
                             <InputError message={form.errors.wallet_id} />
                         </div>
 
+                        {isTransfer && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="to_wallet_id">To wallet</Label>
+                                <Select
+                                    value={form.data.to_wallet_id}
+                                    onValueChange={(v) =>
+                                        form.setData('to_wallet_id', v)
+                                    }
+                                >
+                                    <SelectTrigger id="to_wallet_id">
+                                        <SelectValue placeholder="Select a wallet" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {wallets.map((wallet) => (
+                                            <SelectItem
+                                                key={wallet.id}
+                                                value={String(wallet.id)}
+                                            >
+                                                {wallet.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <InputError
+                                    message={form.errors.to_wallet_id}
+                                />
+                            </div>
+                        )}
+
                         <div className="grid gap-2">
-                            <Label htmlFor="net">Net amount</Label>
+                            <Label htmlFor="net">
+                                {isTransfer ? 'Amount' : 'Net amount'}
+                            </Label>
                             <Input
                                 id="net"
                                 inputMode="decimal"
@@ -314,47 +378,40 @@ export function TransactionFormDialog({
                                 }
                                 required
                             />
-                            <InputError
-                                message={
-                                    (
-                                        form.errors as Record<
-                                            string,
-                                            string | undefined
-                                        >
-                                    )['lines.0.net']
-                                }
-                            />
+                            <InputError message={netError} />
                         </div>
 
-                        <div className="grid gap-2">
-                            <Label htmlFor="vat_rate_id">VAT rate</Label>
-                            <Select
-                                value={form.data.vat_rate_id || NONE}
-                                onValueChange={(v) =>
-                                    form.setData(
-                                        'vat_rate_id',
-                                        v === NONE ? '' : v,
-                                    )
-                                }
-                            >
-                                <SelectTrigger id="vat_rate_id">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={NONE}>
-                                        — None —
-                                    </SelectItem>
-                                    {vatRates.map((rate) => (
-                                        <SelectItem
-                                            key={rate.id}
-                                            value={String(rate.id)}
-                                        >
-                                            {rate.name}
+                        {!isTransfer && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="vat_rate_id">VAT rate</Label>
+                                <Select
+                                    value={form.data.vat_rate_id || NONE}
+                                    onValueChange={(v) =>
+                                        form.setData(
+                                            'vat_rate_id',
+                                            v === NONE ? '' : v,
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger id="vat_rate_id">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={NONE}>
+                                            — None —
                                         </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                        {vatRates.map((rate) => (
+                                            <SelectItem
+                                                key={rate.id}
+                                                value={String(rate.id)}
+                                            >
+                                                {rate.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
 
                         <div className="grid gap-2 sm:col-span-2">
                             <Label htmlFor="description">Description</Label>
@@ -367,28 +424,39 @@ export function TransactionFormDialog({
                             />
                         </div>
 
-                        <div className="bg-muted/50 grid grid-cols-3 gap-2 rounded-lg p-3 text-sm tabular-nums sm:col-span-2">
-                            <div>
-                                <div className="text-muted-foreground text-xs">
-                                    Net
-                                </div>
-                                {formatAmount(net)}
-                            </div>
-                            <div>
-                                <div className="text-muted-foreground text-xs">
-                                    VAT
-                                </div>
-                                {formatAmount(vat)}
-                            </div>
-                            <div>
-                                <div className="text-muted-foreground text-xs">
-                                    Total
-                                </div>
-                                <span className="font-medium">
-                                    {formatAmount(total)}
+                        {isTransfer ? (
+                            <div className="bg-muted/50 rounded-lg p-3 text-sm tabular-nums sm:col-span-2">
+                                <span className="text-muted-foreground text-xs">
+                                    Amount moved
                                 </span>
+                                <div className="font-medium">
+                                    {formatAmount(net)}
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="bg-muted/50 grid grid-cols-3 gap-2 rounded-lg p-3 text-sm tabular-nums sm:col-span-2">
+                                <div>
+                                    <div className="text-muted-foreground text-xs">
+                                        Net
+                                    </div>
+                                    {formatAmount(net)}
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground text-xs">
+                                        VAT
+                                    </div>
+                                    {formatAmount(vat)}
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground text-xs">
+                                        Total
+                                    </div>
+                                    <span className="font-medium">
+                                        {formatAmount(total)}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <DialogFooter>

@@ -16,10 +16,11 @@ use Inertia\Response;
 
 /**
  * Transactions — the core Finance feature. Gated by `can:access-finance`; shared
- * company data. Income/expense entry is a list of VAT "lines" (usually one) whose
- * per-rate VAT is always computed server-side from the rate at save time — never
- * trusted from the client. Transfers, multi-line editing, withholding, and
- * filtering are added in later slices.
+ * company data. `type` drives which fields apply: income/expense carry VAT
+ * "lines" (whose per-rate VAT is always computed server-side from the rate at
+ * save time — never trusted from the client); a transfer just moves a net amount
+ * from one wallet to another with no VAT/entity/category. Multi-line, withholding,
+ * and filtering come in later slices.
  */
 class TransactionController extends Controller
 {
@@ -88,28 +89,59 @@ class TransactionController extends Controller
      */
     private function validateTransaction(Request $request): array
     {
-        return $request->validate([
-            'type' => ['required', Rule::in(['income', 'expense'])],
+        $rules = [
+            'type' => ['required', Rule::in(['income', 'expense', 'transfer'])],
             'date' => ['required', 'date'],
             'invoice_date' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:255'],
-            'entity_id' => ['nullable', 'integer', 'exists:entities,id'],
-            'category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'wallet_id' => ['required', 'integer', 'exists:wallets,id'],
-            'lines' => ['required', 'array', 'min:1'],
-            'lines.*.net' => ['required', 'numeric', 'min:0'],
-            'lines.*.vat_rate_id' => ['nullable', 'integer', 'exists:vat_rates,id'],
-        ]);
+        ];
+
+        if ($request->input('type') === 'transfer') {
+            $rules['to_wallet_id'] = ['required', 'integer', 'different:wallet_id', 'exists:wallets,id'];
+            $rules['net'] = ['required', 'numeric', 'min:0'];
+        } else {
+            $rules['entity_id'] = ['nullable', 'integer', 'exists:entities,id'];
+            $rules['category_id'] = ['nullable', 'integer', 'exists:categories,id'];
+            $rules['lines'] = ['required', 'array', 'min:1'];
+            $rules['lines.*.net'] = ['required', 'numeric', 'min:0'];
+            $rules['lines.*.vat_rate_id'] = ['nullable', 'integer', 'exists:vat_rates,id'];
+        }
+
+        return $request->validate($rules);
     }
 
     /**
      * Set a transaction's fields from validated input and (re)write its VAT
-     * lines wholesale. Shared by store and update.
+     * lines wholesale. Shared by store and update; handles both a transfer and
+     * an income/expense. Fields for the other shape are nulled so a type change
+     * on edit leaves no stale data behind.
      *
      * @param  array<string, mixed>  $data
      */
     private function persist(Transaction $transaction, array $data): void
     {
+        if ($data['type'] === 'transfer') {
+            $transaction->fill([
+                'type' => 'transfer',
+                'date' => $data['date'],
+                'invoice_date' => $data['invoice_date'],
+                'description' => $data['description'] ?? '',
+                'wallet_id' => $data['wallet_id'],
+                'to_wallet_id' => $data['to_wallet_id'],
+                'entity_id' => null,
+                'category_id' => null,
+                'vat_rate_id' => null,
+                'net' => round((float) $data['net'], 2),
+                'vat_amount' => 0,
+                'withheld_amount' => 0,
+            ]);
+            $transaction->save();
+            $transaction->vatLines()->delete();
+
+            return;
+        }
+
         $resolved = $this->resolveLines($data['lines']);
 
         $transaction->fill([
@@ -120,6 +152,7 @@ class TransactionController extends Controller
             'entity_id' => $data['entity_id'] ?? null,
             'category_id' => $data['category_id'] ?? null,
             'wallet_id' => $data['wallet_id'],
+            'to_wallet_id' => null,
             'net' => $resolved['net'],
             'vat_amount' => $resolved['vat_amount'],
             // A single line keeps the (denormalized) rate; mixed rates = null.
