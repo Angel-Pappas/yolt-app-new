@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadOriginController;
 use App\Http\Controllers\LeadStatusController;
 use App\Http\Controllers\TaxController;
@@ -55,7 +56,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Business area — gated by CRM access.
     Route::middleware('can:access-crm')->group(function () {
-        Route::inertia('leads', 'leads/index')->name('leads.index');
+        Route::get('leads', [LeadController::class, 'index'])->name('leads.index');
+        Route::post('leads', [LeadController::class, 'store'])->name('leads.store');
+        Route::patch('leads/{lead}', [LeadController::class, 'update'])->name('leads.update');
+        Route::delete('leads/{lead}', [LeadController::class, 'destroy'])->name('leads.destroy');
 
         Route::get('lead-statuses', [LeadStatusController::class, 'index'])->name('lead-statuses.index');
         Route::post('lead-statuses', [LeadStatusController::class, 'store'])->name('lead-statuses.store');
