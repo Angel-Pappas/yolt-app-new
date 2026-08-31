@@ -99,6 +99,24 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
+        // The old app's Supabase/Postgres database — read-only source for the
+        // one-time `legacy:import` cutover migration. Set LEGACY_DB_* in the
+        // environment when running that command; unused otherwise.
+        'legacy' => [
+            'driver' => 'pgsql',
+            'url' => env('LEGACY_DB_URL'),
+            'host' => env('LEGACY_DB_HOST', '127.0.0.1'),
+            'port' => env('LEGACY_DB_PORT', '5432'),
+            'database' => env('LEGACY_DB_DATABASE', 'postgres'),
+            'username' => env('LEGACY_DB_USERNAME', 'postgres'),
+            'password' => env('LEGACY_DB_PASSWORD', ''),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => env('LEGACY_DB_SSLMODE', 'require'),
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),
