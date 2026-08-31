@@ -3,6 +3,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { formatAmount, formatDate } from '@/lib/format';
+import { BalanceViewControl } from './balance-view-control';
 import {
     type EditableTransaction,
     TransactionFormDialog,
@@ -36,6 +37,8 @@ type Transaction = {
     entity: Related;
     category: Related;
     withheld_lines: { net: string; withheld_rate_id: number | null }[];
+    // Present only in balance view: the running balance after this row.
+    balance?: string | number;
 };
 
 type Option = { id: number; name: string };
@@ -45,6 +48,7 @@ type Rate = { id: number; name: string; rate: string };
 type Props = {
     transactions: Transaction[];
     filters: TransactionFilters;
+    balance: { wallet_id: number; wallet_name: string } | null;
     wallets: Option[];
     entities: Option[];
     categories: Category[];
@@ -72,12 +76,14 @@ function total(t: Transaction): number {
 export default function TransactionsIndex({
     transactions,
     filters,
+    balance,
     wallets,
     entities,
     categories,
     vatRates,
     withheldRates,
 }: Props) {
+    const balanceMode = balance !== null;
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<EditableTransaction | null>(null);
     // Bumped on every open so the reused dialog remounts with a fresh form.
@@ -107,16 +113,27 @@ export default function TransactionsIndex({
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-semibold">Transactions</h1>
-                    <Button
-                        onClick={openCreate}
-                        disabled={wallets.length === 0}
-                    >
-                        <Plus className="size-4" />
-                        Add transaction
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <BalanceViewControl
+                            wallets={wallets}
+                            filters={filters}
+                            active={balance}
+                        />
+                        <Button
+                            onClick={openCreate}
+                            disabled={wallets.length === 0}
+                        >
+                            <Plus className="size-4" />
+                            Add transaction
+                        </Button>
+                    </div>
                 </div>
 
-                <TransactionsFilters filters={filters} wallets={wallets} />
+                <TransactionsFilters
+                    filters={filters}
+                    wallets={wallets}
+                    hideWallet={balanceMode}
+                />
 
                 <div className="overflow-x-auto rounded-lg border">
                     <table className="w-full text-sm">
@@ -124,7 +141,9 @@ export default function TransactionsIndex({
                             <tr className="bg-muted/50 text-left">
                                 <th className="p-3 font-medium">Type</th>
                                 <th className="p-3 font-medium">Date</th>
-                                <th className="p-3 font-medium">Wallet</th>
+                                {!balanceMode && (
+                                    <th className="p-3 font-medium">Wallet</th>
+                                )}
                                 <th className="p-3 font-medium">Category</th>
                                 <th className="p-3 font-medium">Entity</th>
                                 <th className="p-3 font-medium">Description</th>
@@ -137,6 +156,11 @@ export default function TransactionsIndex({
                                 <th className="p-3 text-right font-medium">
                                     Total
                                 </th>
+                                {balanceMode && (
+                                    <th className="p-3 text-right font-medium">
+                                        Balance
+                                    </th>
+                                )}
                                 <th className="p-3" />
                             </tr>
                         </thead>
@@ -151,20 +175,24 @@ export default function TransactionsIndex({
                                     <td className="text-muted-foreground p-3 whitespace-nowrap tabular-nums">
                                         {formatDate(t.date)}
                                     </td>
-                                    <td className="p-3">
-                                        {t.type === 'transfer' ? (
-                                            <div className="leading-tight">
-                                                <div>
-                                                    {t.wallet?.name ?? '—'}
+                                    {!balanceMode && (
+                                        <td className="p-3">
+                                            {t.type === 'transfer' ? (
+                                                <div className="leading-tight">
+                                                    <div>
+                                                        {t.wallet?.name ?? '—'}
+                                                    </div>
+                                                    <div className="text-muted-foreground text-xs">
+                                                        →{' '}
+                                                        {t.to_wallet?.name ??
+                                                            '—'}
+                                                    </div>
                                                 </div>
-                                                <div className="text-muted-foreground text-xs">
-                                                    → {t.to_wallet?.name ?? '—'}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            (t.wallet?.name ?? '—')
-                                        )}
-                                    </td>
+                                            ) : (
+                                                (t.wallet?.name ?? '—')
+                                            )}
+                                        </td>
+                                    )}
                                     <td className="text-muted-foreground p-3">
                                         {t.category?.name ?? '—'}
                                     </td>
@@ -185,6 +213,13 @@ export default function TransactionsIndex({
                                     <td className="p-3 text-right font-medium tabular-nums">
                                         {formatAmount(total(t))}
                                     </td>
+                                    {balanceMode && (
+                                        <td className="p-3 text-right font-medium tabular-nums">
+                                            {t.balance != null
+                                                ? formatAmount(t.balance)
+                                                : '—'}
+                                        </td>
+                                    )}
                                     <td className="p-3">
                                         <div className="flex justify-end gap-1">
                                             <Button

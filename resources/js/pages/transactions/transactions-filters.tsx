@@ -24,11 +24,16 @@ export type TransactionFilters = {
 type Props = {
     filters: TransactionFilters;
     wallets: Option[];
+    hideWallet?: boolean;
 };
 
 const ALL = 'all';
 
-export function TransactionsFilters({ filters, wallets }: Props) {
+export function TransactionsFilters({
+    filters,
+    wallets,
+    hideWallet = false,
+}: Props) {
     const [search, setSearch] = useState(filters.q ?? '');
     const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -98,24 +103,29 @@ export function TransactionsFilters({ filters, wallets }: Props) {
                 </SelectContent>
             </Select>
 
-            <Select
-                value={filters.wallet ? String(filters.wallet) : ALL}
-                onValueChange={(v) =>
-                    apply({ wallet: v === ALL ? null : Number(v) })
-                }
-            >
-                <SelectTrigger className="w-40">
-                    <SelectValue placeholder="All wallets" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value={ALL}>All wallets</SelectItem>
-                    {wallets.map((wallet) => (
-                        <SelectItem key={wallet.id} value={String(wallet.id)}>
-                            {wallet.name}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+            {!hideWallet && (
+                <Select
+                    value={filters.wallet ? String(filters.wallet) : ALL}
+                    onValueChange={(v) =>
+                        apply({ wallet: v === ALL ? null : Number(v) })
+                    }
+                >
+                    <SelectTrigger className="w-40">
+                        <SelectValue placeholder="All wallets" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value={ALL}>All wallets</SelectItem>
+                        {wallets.map((wallet) => (
+                            <SelectItem
+                                key={wallet.id}
+                                value={String(wallet.id)}
+                            >
+                                {wallet.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            )}
 
             <Input
                 type="date"

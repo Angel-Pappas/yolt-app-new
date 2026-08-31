@@ -8,9 +8,12 @@ use App\Models\Transaction;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
+use App\Support\WalletBalances;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -37,6 +40,36 @@ class TransactionController extends Controller
             'to' => $request->filled('to') ? (string) $request->input('to') : null,
         ];
 
+        $balanceWallet = $request->filled('balance')
+            ? Wallet::query()->find((int) $request->input('balance'), ['id', 'name', 'starting_balance'])
+            : null;
+
+        $transactions = $balanceWallet !== null
+            ? $this->balanceRows($balanceWallet, $filters)
+            : $this->listRows($filters);
+
+        return Inertia::render('transactions/index', [
+            'transactions' => $transactions,
+            'filters' => $filters,
+            'balance' => $balanceWallet !== null
+                ? ['wallet_id' => $balanceWallet->id, 'wallet_name' => $balanceWallet->name]
+                : null,
+            'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
+            'entities' => Entity::query()->orderBy('name')->get(['id', 'name']),
+            'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
+            'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+            'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+        ]);
+    }
+
+    /**
+     * The normal transaction list: filters applied at the database level.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return \Illuminate\Database\Eloquent\Collection<int, Transaction>
+     */
+    private function listRows(array $filters): \Illuminate\Database\Eloquent\Collection
+    {
         $query = Transaction::query()->with([
             'wallet:id,name',
             'toWallet:id,name',
@@ -68,23 +101,45 @@ class TransactionController extends Controller
             $query->whereDate('date', '<=', $filters['to']);
         }
 
-        return Inertia::render('transactions/index', [
-            'transactions' => $query
-                ->orderBy('date')
-                ->orderBy('id')
-                ->get([
-                    'id', 'date', 'invoice_date', 'description', 'type',
-                    'net', 'vat_amount', 'withheld_amount', 'wallet_id',
-                    'to_wallet_id', 'entity_id', 'category_id', 'vat_rate_id',
-                    'is_reconciled',
-                ]),
-            'filters' => $filters,
-            'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
-            'entities' => Entity::query()->orderBy('name')->get(['id', 'name']),
-            'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
-            'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
-            'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
-        ]);
+        return $query->orderBy('date')->orderBy('id')->get();
+    }
+
+    /**
+     * Balance view: one wallet's history with a running balance. The balance is
+     * computed over the wallet's complete history first (see WalletBalances), then
+     * the display filters are applied in PHP — so a filtered view still shows the
+     * correct cumulative balances. The wallet filter is ignored here (the list is
+     * already scoped to the balance wallet).
+     *
+     * @param  array<string, mixed>  $filters
+     * @return Collection<int, Transaction>
+     */
+    private function balanceRows(Wallet $wallet, array $filters): Collection
+    {
+        $rows = WalletBalances::runningFor($wallet->id, (float) $wallet->starting_balance);
+
+        if ($filters['q'] !== null) {
+            $needle = Str::lower($filters['q']);
+            $rows = $rows->filter(function (Transaction $t) use ($needle) {
+                if (Str::contains(Str::lower($t->description), $needle)) {
+                    return true;
+                }
+
+                return $t->entity_id !== null
+                    && Str::contains(Str::lower($t->entity->name), $needle);
+            });
+        }
+        if ($filters['type'] !== null) {
+            $rows = $rows->where('type', $filters['type']);
+        }
+        if ($filters['from'] !== null) {
+            $rows = $rows->filter(fn (Transaction $t) => substr((string) $t->date, 0, 10) >= $filters['from']);
+        }
+        if ($filters['to'] !== null) {
+            $rows = $rows->filter(fn (Transaction $t) => substr((string) $t->date, 0, 10) <= $filters['to']);
+        }
+
+        return $rows->values();
     }
 
     public function store(Request $request): RedirectResponse
