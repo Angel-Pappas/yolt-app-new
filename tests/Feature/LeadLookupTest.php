@@ -2,6 +2,7 @@
 
 use App\Models\LeadOrigin;
 use App\Models\LeadStatus;
+use App\Models\ProjectStatus;
 use App\Models\User;
 use Database\Seeders\LeadLookupSeeder;
 
@@ -73,4 +74,5 @@ test('the lookup seeder is idempotent', function () {
 
     expect(LeadStatus::count())->toBe(6);
     expect(LeadOrigin::count())->toBe(5);
+    expect(ProjectStatus::count())->toBe(6);
 });

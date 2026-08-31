@@ -7,6 +7,8 @@ use App\Http\Controllers\LeadContactController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadOriginController;
 use App\Http\Controllers\LeadStatusController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectStatusController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\VatRateController;
@@ -81,6 +83,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('lead-origins', [LeadOriginController::class, 'store'])->name('lead-origins.store');
         Route::patch('lead-origins/{leadOrigin}', [LeadOriginController::class, 'update'])->name('lead-origins.update');
         Route::delete('lead-origins/{leadOrigin}', [LeadOriginController::class, 'destroy'])->name('lead-origins.destroy');
+
+        Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
+        Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
+        Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+        Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+
+        Route::get('project-statuses', [ProjectStatusController::class, 'index'])->name('project-statuses.index');
+        Route::post('project-statuses', [ProjectStatusController::class, 'store'])->name('project-statuses.store');
+        Route::patch('project-statuses/{projectStatus}', [ProjectStatusController::class, 'update'])->name('project-statuses.update');
+        Route::delete('project-statuses/{projectStatus}', [ProjectStatusController::class, 'destroy'])->name('project-statuses.destroy');
     });
 });
 

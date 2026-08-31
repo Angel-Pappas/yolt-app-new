@@ -2,11 +2,13 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     ArrowLeftRight,
     BookOpen,
+    Briefcase,
     Building2,
     Flag,
     FolderGit2,
     Landmark,
     LayoutGrid,
+    ListChecks,
     Percent,
     Receipt,
     Signpost,
@@ -83,6 +85,11 @@ const businessNavItems: NavItem[] = [
         icon: Users,
     },
     {
+        title: 'Projects',
+        href: '/projects',
+        icon: Briefcase,
+    },
+    {
         title: 'Lead statuses',
         href: '/lead-statuses',
         icon: Flag,
@@ -91,6 +98,11 @@ const businessNavItems: NavItem[] = [
         title: 'Lead origins',
         href: '/lead-origins',
         icon: Signpost,
+    },
+    {
+        title: 'Project statuses',
+        href: '/project-statuses',
+        icon: ListChecks,
     },
 ];
 
