@@ -38,6 +38,8 @@ class TransactionController extends Controller
             'wallet' => $request->filled('wallet') ? (int) $request->input('wallet') : null,
             'from' => $request->filled('from') ? (string) $request->input('from') : null,
             'to' => $request->filled('to') ? (string) $request->input('to') : null,
+            'unreconciled' => $request->boolean('unreconciled'),
+            'no_invoice' => $request->boolean('no_invoice'),
         ];
 
         $balanceWallet = $request->filled('balance')
@@ -100,6 +102,13 @@ class TransactionController extends Controller
         if ($filters['to'] !== null) {
             $query->whereDate('date', '<=', $filters['to']);
         }
+        if ($filters['unreconciled']) {
+            $query->where('is_reconciled', false);
+        }
+        if ($filters['no_invoice']) {
+            // "Not yet worked on" — excludes both a filed month and a not-needed row.
+            $query->whereNull('invoice_month')->where('invoice_not_required', false);
+        }
 
         return $query->orderBy('date')->orderBy('id')->get();
     }
@@ -138,6 +147,12 @@ class TransactionController extends Controller
         if ($filters['to'] !== null) {
             $rows = $rows->filter(fn (Transaction $t) => substr((string) $t->date, 0, 10) <= $filters['to']);
         }
+        if ($filters['unreconciled']) {
+            $rows = $rows->filter(fn (Transaction $t) => ! $t->is_reconciled);
+        }
+        if ($filters['no_invoice']) {
+            $rows = $rows->filter(fn (Transaction $t) => $t->invoice_month === null && ! $t->invoice_not_required);
+        }
 
         return $rows->values();
     }
@@ -173,6 +188,38 @@ class TransactionController extends Controller
         $transaction->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction deleted.')]);
+
+        return back();
+    }
+
+    /**
+     * Toggle a transaction's reconciled flag — the record that the user has checked
+     * it (built ahead of automatic recurring-transaction generation).
+     */
+    public function reconcile(Transaction $transaction): RedirectResponse
+    {
+        $transaction->update(['is_reconciled' => ! $transaction->is_reconciled]);
+
+        return back();
+    }
+
+    /**
+     * Set a transaction's invoice-filing state from a single 1–13 input: 1–12 files
+     * it under that month's folder; 13 marks it as needing no invoice; anything else
+     * (blank) clears both back to unreviewed. Keeping one input means the rest of the
+     * app never has to know about the "13" convention.
+     */
+    public function invoice(Request $request, Transaction $transaction): RedirectResponse
+    {
+        $data = $request->validate([
+            'month' => ['nullable', 'integer', 'between:1,13'],
+        ]);
+        $input = $data['month'] ?? null;
+
+        $transaction->update([
+            'invoice_month' => $input !== null && $input <= 12 ? $input : null,
+            'invoice_not_required' => $input === 13,
+        ]);
 
         return back();
     }

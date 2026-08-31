@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { X } from 'lucide-react';
+import { CircleCheck, FileText, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 type Option = { id: number; name: string };
 
@@ -19,6 +20,8 @@ export type TransactionFilters = {
     wallet: number | null;
     from: string | null;
     to: string | null;
+    unreconciled: boolean;
+    no_invoice: boolean;
 };
 
 type Props = {
@@ -45,6 +48,8 @@ export function TransactionsFilters({
         if (merged.wallet) params.wallet = String(merged.wallet);
         if (merged.from) params.from = merged.from;
         if (merged.to) params.to = merged.to;
+        if (merged.unreconciled) params.unreconciled = '1';
+        if (merged.no_invoice) params.no_invoice = '1';
 
         router.get('/transactions', params, {
             preserveState: true,
@@ -75,7 +80,9 @@ export function TransactionsFilters({
         filters.type ||
         filters.wallet ||
         filters.from ||
-        filters.to,
+        filters.to ||
+        filters.unreconciled ||
+        filters.no_invoice,
     );
 
     return (
@@ -141,6 +148,31 @@ export function TransactionsFilters({
                 className="w-40"
                 aria-label="To date"
             />
+
+            <Button
+                variant="outline"
+                size="icon"
+                aria-label="Show only unreconciled"
+                aria-pressed={filters.unreconciled}
+                className={cn(
+                    filters.unreconciled && 'text-primary border-primary',
+                )}
+                onClick={() => apply({ unreconciled: !filters.unreconciled })}
+            >
+                <CircleCheck className="size-4" />
+            </Button>
+            <Button
+                variant="outline"
+                size="icon"
+                aria-label="Show only missing invoice"
+                aria-pressed={filters.no_invoice}
+                className={cn(
+                    filters.no_invoice && 'text-primary border-primary',
+                )}
+                onClick={() => apply({ no_invoice: !filters.no_invoice })}
+            >
+                <FileText className="size-4" />
+            </Button>
 
             {hasFilters && (
                 <Button variant="ghost" size="sm" onClick={clearAll}>

@@ -1,9 +1,11 @@
 import { Head, router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { CircleCheck, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { formatAmount, formatDate } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { BalanceViewControl } from './balance-view-control';
+import { InvoiceDialog } from './invoice-dialog';
 import {
     type EditableTransaction,
     TransactionFormDialog,
@@ -27,6 +29,8 @@ type Transaction = {
     vat_amount: string;
     withheld_amount: string;
     is_reconciled: boolean;
+    invoice_month: number | null;
+    invoice_not_required: boolean;
     entity_id: number | null;
     category_id: number | null;
     wallet_id: number;
@@ -88,6 +92,30 @@ export default function TransactionsIndex({
     const [editing, setEditing] = useState<EditableTransaction | null>(null);
     // Bumped on every open so the reused dialog remounts with a fresh form.
     const [formKey, setFormKey] = useState(0);
+    const [invoiceFor, setInvoiceFor] = useState<Transaction | null>(null);
+    const [invoiceKey, setInvoiceKey] = useState(0);
+
+    function toggleReconcile(t: Transaction) {
+        router.post(
+            `/transactions/${t.id}/reconcile`,
+            {},
+            { preserveScroll: true },
+        );
+    }
+
+    function openInvoice(t: Transaction) {
+        setInvoiceFor(t);
+        setInvoiceKey((k) => k + 1);
+    }
+
+    function invoiceValue(t: Transaction): string {
+        if (t.invoice_not_required) return '13';
+        return t.invoice_month != null ? String(t.invoice_month) : '';
+    }
+
+    function invoiceLit(t: Transaction): boolean {
+        return t.invoice_not_required || t.invoice_month != null;
+    }
 
     function openCreate() {
         setEditing(null);
@@ -225,6 +253,38 @@ export default function TransactionsIndex({
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
+                                                onClick={() =>
+                                                    toggleReconcile(t)
+                                                }
+                                                aria-label="Toggle reconciled"
+                                                aria-pressed={t.is_reconciled}
+                                                className={cn(
+                                                    t.is_reconciled &&
+                                                        'text-emerald-600 dark:text-emerald-500',
+                                                )}
+                                            >
+                                                <CircleCheck className="size-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => openInvoice(t)}
+                                                aria-label="Set invoice folder"
+                                                className={cn(
+                                                    invoiceLit(t) &&
+                                                        'text-primary',
+                                                )}
+                                            >
+                                                <FileText className="size-4" />
+                                                {t.invoice_month != null && (
+                                                    <span className="ml-0.5 text-xs tabular-nums">
+                                                        {t.invoice_month}
+                                                    </span>
+                                                )}
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
                                                 onClick={() => openEdit(t)}
                                                 aria-label="Edit transaction"
                                             >
@@ -268,6 +328,16 @@ export default function TransactionsIndex({
                 vatRates={vatRates}
                 withheldRates={withheldRates}
             />
+
+            {invoiceFor && (
+                <InvoiceDialog
+                    key={invoiceKey}
+                    open={invoiceFor !== null}
+                    onOpenChange={(open) => !open && setInvoiceFor(null)}
+                    transactionId={invoiceFor.id}
+                    current={invoiceValue(invoiceFor)}
+                />
+            )}
         </>
     );
 }

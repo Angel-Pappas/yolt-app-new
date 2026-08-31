@@ -28,6 +28,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
         Route::patch('transactions/{transaction}', [TransactionController::class, 'update'])->name('transactions.update');
         Route::delete('transactions/{transaction}', [TransactionController::class, 'destroy'])->name('transactions.destroy');
+        Route::post('transactions/{transaction}/reconcile', [TransactionController::class, 'reconcile'])->name('transactions.reconcile');
+        Route::post('transactions/{transaction}/invoice', [TransactionController::class, 'invoice'])->name('transactions.invoice');
 
         Route::get('wallets', [WalletController::class, 'index'])->name('wallets.index');
         Route::post('wallets', [WalletController::class, 'store'])->name('wallets.store');
