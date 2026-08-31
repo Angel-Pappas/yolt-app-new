@@ -68,6 +68,9 @@ class LeadController extends Controller
                 ->orderByDesc('action_date')
                 ->orderByDesc('id')
                 ->get(['id', 'action_date', 'body', 'author_name']),
+            'contacts' => $lead->contacts()
+                ->orderBy('name')
+                ->get(['id', 'name', 'position', 'phone', 'landline', 'website', 'email']),
             'statuses' => LeadStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
             'origins' => LeadOrigin::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
         ]);

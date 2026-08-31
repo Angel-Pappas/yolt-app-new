@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDate } from '@/lib/format';
 import { type EditableAction, ActionFormDialog } from './action-form-dialog';
+import { type EditableContact, ContactFormDialog } from './contact-form-dialog';
 import { type EditableLead, LeadFormDialog } from './lead-form-dialog';
 
 type Related = { id: number; name: string } | null;
@@ -27,6 +28,7 @@ type Option = { id: number; name: string };
 type Props = {
     lead: Lead;
     actions: Action[];
+    contacts: EditableContact[];
     statuses: Option[];
     origins: Option[];
 };
@@ -40,7 +42,13 @@ function Detail({ label, value }: { label: string; value: string | null }) {
     );
 }
 
-export default function LeadShow({ lead, actions, statuses, origins }: Props) {
+export default function LeadShow({
+    lead,
+    actions,
+    contacts,
+    statuses,
+    origins,
+}: Props) {
     const [editOpen, setEditOpen] = useState(false);
     const [editKey, setEditKey] = useState(0);
     const [actionOpen, setActionOpen] = useState(false);
@@ -48,6 +56,10 @@ export default function LeadShow({ lead, actions, statuses, origins }: Props) {
         null,
     );
     const [actionKey, setActionKey] = useState(0);
+    const [contactOpen, setContactOpen] = useState(false);
+    const [editingContact, setEditingContact] =
+        useState<EditableContact | null>(null);
+    const [contactKey, setContactKey] = useState(0);
 
     function openAddAction() {
         setEditingAction(null);
@@ -64,6 +76,26 @@ export default function LeadShow({ lead, actions, statuses, origins }: Props) {
     function destroyAction(action: Action) {
         if (confirm('Delete this action?')) {
             router.delete(`/leads/${lead.id}/actions/${action.id}`, {
+                preserveScroll: true,
+            });
+        }
+    }
+
+    function openAddContact() {
+        setEditingContact(null);
+        setContactKey((k) => k + 1);
+        setContactOpen(true);
+    }
+
+    function openEditContact(contact: EditableContact) {
+        setEditingContact(contact);
+        setContactKey((k) => k + 1);
+        setContactOpen(true);
+    }
+
+    function destroyContact(contact: EditableContact) {
+        if (confirm('Delete this contact?')) {
+            router.delete(`/leads/${lead.id}/contacts/${contact.id}`, {
                 preserveScroll: true,
             });
         }
@@ -223,6 +255,98 @@ export default function LeadShow({ lead, actions, statuses, origins }: Props) {
                         </div>
                     </CardContent>
                 </Card>
+
+                <Card>
+                    <CardHeader className="flex-row items-center justify-between space-y-0">
+                        <CardTitle>Contacts</CardTitle>
+                        <Button size="sm" onClick={openAddContact}>
+                            <Plus className="size-4" />
+                            Add contact
+                        </Button>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="text-muted-foreground text-left">
+                                        <th className="pb-2 font-medium">
+                                            Name
+                                        </th>
+                                        <th className="pb-2 font-medium">
+                                            Position
+                                        </th>
+                                        <th className="pb-2 font-medium">
+                                            Phone
+                                        </th>
+                                        <th className="pb-2 font-medium">
+                                            Email
+                                        </th>
+                                        <th className="pb-2" />
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {contacts.map((contact) => (
+                                        <tr
+                                            key={contact.id}
+                                            className="border-t"
+                                        >
+                                            <td className="py-2 font-medium">
+                                                {contact.name}
+                                            </td>
+                                            <td className="text-muted-foreground py-2">
+                                                {contact.position || '—'}
+                                            </td>
+                                            <td className="text-muted-foreground py-2 whitespace-nowrap">
+                                                {contact.phone || '—'}
+                                            </td>
+                                            <td className="text-muted-foreground py-2">
+                                                {contact.email || '—'}
+                                            </td>
+                                            <td className="py-2">
+                                                <div className="flex justify-end gap-1">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                            openEditContact(
+                                                                contact,
+                                                            )
+                                                        }
+                                                        aria-label="Edit contact"
+                                                    >
+                                                        <Pencil className="size-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                            destroyContact(
+                                                                contact,
+                                                            )
+                                                        }
+                                                        aria-label="Delete contact"
+                                                    >
+                                                        <Trash2 className="size-4" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {contacts.length === 0 && (
+                                        <tr>
+                                            <td
+                                                colSpan={5}
+                                                className="text-muted-foreground py-4 text-center"
+                                            >
+                                                No additional contacts yet.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
 
             <LeadFormDialog
@@ -240,6 +364,14 @@ export default function LeadShow({ lead, actions, statuses, origins }: Props) {
                 onOpenChange={setActionOpen}
                 leadId={lead.id}
                 editing={editingAction}
+            />
+
+            <ContactFormDialog
+                key={contactKey}
+                open={contactOpen}
+                onOpenChange={setContactOpen}
+                leadId={lead.id}
+                editing={editingContact}
             />
         </>
     );

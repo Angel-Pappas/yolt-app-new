@@ -68,4 +68,10 @@ class Lead extends Model
     {
         return $this->hasMany(LeadAction::class);
     }
+
+    /** @return HasMany<LeadContact, $this> */
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(LeadContact::class);
+    }
 }
