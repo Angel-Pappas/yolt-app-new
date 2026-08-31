@@ -66,7 +66,7 @@ test('changing an expense to a transfer clears its VAT lines', function () {
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $from->id,
-        'lines' => [['net' => '100', 'vat_rate_id' => $rate->id]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '100', 'vat_rate_id' => $rate->id]],
     ]);
     $transaction = Transaction::first();
     expect($transaction->vatLines)->toHaveCount(1);

@@ -16,7 +16,7 @@ test('a wallet balance is its starting balance plus transaction effects', functi
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '100', 'vat_rate_id' => $vatRate->id]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '100', 'vat_rate_id' => $vatRate->id]],
     ]);
 
     // Expense of 50 net, no VAT => -50.
@@ -25,7 +25,7 @@ test('a wallet balance is its starting balance plus transaction effects', functi
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '50', 'vat_rate_id' => null]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '50', 'vat_rate_id' => null]],
     ]);
 
     expect(WalletBalances::all()[$wallet->id])->toBe(1074.0);

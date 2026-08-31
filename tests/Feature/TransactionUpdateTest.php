@@ -17,7 +17,7 @@ test('a finance user can update a transaction and its VAT is recomputed', functi
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '100', 'vat_rate_id' => $rate24->id]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '100', 'vat_rate_id' => $rate24->id]],
     ]);
     $transaction = Transaction::first();
     expect($transaction->vat_amount)->toBe('24.00');
@@ -28,7 +28,7 @@ test('a finance user can update a transaction and its VAT is recomputed', functi
         'invoice_date' => '2026-08-02',
         'description' => 'Updated',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '200', 'vat_rate_id' => $rate13->id]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '200', 'vat_rate_id' => $rate13->id]],
     ])->assertRedirect();
 
     $transaction->refresh();
@@ -61,7 +61,7 @@ test('a non-finance user cannot update or delete a transaction', function () {
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $transaction->wallet_id,
-        'lines' => [['net' => '1', 'vat_rate_id' => null]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '1', 'vat_rate_id' => null]],
     ])->assertForbidden();
 
     $this->actingAs($user)

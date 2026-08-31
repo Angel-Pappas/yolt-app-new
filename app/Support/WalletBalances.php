@@ -33,6 +33,7 @@ class WalletBalances
                 'toWallet:id,name',
                 'entity:id,name',
                 'category:id,name',
+                'vatLines:id,transaction_id,net,vat_rate_id',
                 'withheldLines:id,transaction_id,net,withheld_rate_id',
             ])
             ->where(fn ($q) => $q->where('wallet_id', $walletId)->orWhere('to_wallet_id', $walletId))

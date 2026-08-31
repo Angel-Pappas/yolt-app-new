@@ -16,7 +16,7 @@ test('a finance user can add a transaction with server-computed VAT', function (
         'invoice_date' => '2026-08-01',
         'description' => 'Fuel',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '100', 'vat_rate_id' => $vatRate->id]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '100', 'vat_rate_id' => $vatRate->id]],
     ])->assertRedirect();
 
     $transaction = Transaction::first();
@@ -39,7 +39,7 @@ test('VAT is recomputed from the rate regardless of client input', function () {
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '200', 'vat_rate_id' => $vatRate->id]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '200', 'vat_rate_id' => $vatRate->id]],
     ])->assertRedirect();
 
     expect(Transaction::first()->vat_amount)->toBe('26.00');
@@ -54,7 +54,7 @@ test('a transaction with no VAT rate has zero VAT', function () {
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '50', 'vat_rate_id' => null]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '50', 'vat_rate_id' => null]],
     ])->assertRedirect();
 
     $transaction = Transaction::first();
@@ -81,6 +81,6 @@ test('a non-finance user cannot add a transaction', function () {
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '10', 'vat_rate_id' => null]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '10', 'vat_rate_id' => null]],
     ])->assertForbidden();
 });

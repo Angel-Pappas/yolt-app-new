@@ -18,7 +18,7 @@ test('an expense can carry withholding computed server-side', function () {
         'invoice_date' => '2026-08-01',
         'description' => 'Contractor fee',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '1000', 'vat_rate_id' => $vatRate->id]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '1000', 'vat_rate_id' => $vatRate->id]],
         'withheld_lines' => [['net' => '1000', 'withheld_rate_id' => $withheldRate->id]],
     ])->assertRedirect();
 
@@ -42,7 +42,7 @@ test('withholding is recomputed from the rate regardless of client input', funct
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '500', 'vat_rate_id' => null]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '500', 'vat_rate_id' => null]],
         'withheld_lines' => [['net' => '500', 'withheld_rate_id' => $withheldRate->id]],
     ])->assertRedirect();
 
@@ -58,7 +58,7 @@ test('withholding is optional', function () {
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '80', 'vat_rate_id' => null]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '80', 'vat_rate_id' => null]],
     ])->assertRedirect();
 
     $transaction = Transaction::first();
@@ -76,7 +76,7 @@ test('editing away withholding clears the withheld lines', function () {
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '300', 'vat_rate_id' => null]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '300', 'vat_rate_id' => null]],
         'withheld_lines' => [['net' => '300', 'withheld_rate_id' => $withheldRate->id]],
     ])->assertRedirect();
 
@@ -88,7 +88,7 @@ test('editing away withholding clears the withheld lines', function () {
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
-        'lines' => [['net' => '300', 'vat_rate_id' => null]],
+        'amount_mode' => 'net', 'lines' => [['amount' => '300', 'vat_rate_id' => null]],
     ])->assertRedirect();
 
     $transaction->refresh();

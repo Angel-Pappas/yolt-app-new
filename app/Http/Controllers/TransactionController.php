@@ -77,6 +77,7 @@ class TransactionController extends Controller
             'toWallet:id,name',
             'entity:id,name',
             'category:id,name',
+            'vatLines:id,transaction_id,net,vat_rate_id',
             'withheldLines:id,transaction_id,net,withheld_rate_id',
         ]);
 
@@ -243,8 +244,9 @@ class TransactionController extends Controller
         } else {
             $rules['entity_id'] = ['nullable', 'integer', 'exists:entities,id'];
             $rules['category_id'] = ['nullable', 'integer', 'exists:categories,id'];
+            $rules['amount_mode'] = ['required', 'in:net,total'];
             $rules['lines'] = ['required', 'array', 'min:1'];
-            $rules['lines.*.net'] = ['required', 'numeric', 'min:0'];
+            $rules['lines.*.amount'] = ['required', 'numeric', 'min:0'];
             $rules['lines.*.vat_rate_id'] = ['nullable', 'integer', 'exists:vat_rates,id'];
             $rules['withheld_lines'] = ['nullable', 'array'];
             $rules['withheld_lines.*.net'] = ['required', 'numeric', 'min:0'];
@@ -286,7 +288,7 @@ class TransactionController extends Controller
             return;
         }
 
-        $resolvedVat = $this->resolveVatLines($data['lines']);
+        $resolvedVat = $this->resolveVatLines($data['lines'], $data['amount_mode']);
         $resolvedWithheld = $this->resolveWithheldLines($data['withheld_lines'] ?? []);
 
         $transaction->fill([
@@ -315,13 +317,17 @@ class TransactionController extends Controller
     }
 
     /**
-     * Compute each VAT line's amount from the rate's current percentage (never
-     * trusted from the client) and the summed net / vat_amount across all lines.
+     * Resolve each VAT line's net and amount from the rate's current percentage
+     * (never trusted from the client), interpreting the typed amount by the single
+     * Net/Total mode: in "net" the amount is the net and VAT = net × rate; in
+     * "total" the amount is the gross and net = total ÷ (1 + rate), with VAT
+     * anchored to (total − net) so a line reconstructs exactly without
+     * double-rounding drift. Returns the summed net / vat_amount too.
      *
-     * @param  array<int, array{net: mixed, vat_rate_id?: mixed}>  $lines
+     * @param  array<int, array{amount: mixed, vat_rate_id?: mixed}>  $lines
      * @return array{net: float, vat_amount: float, lines: array<int, array{net: float, vat_rate_id: int|null, vat_amount: float, position: int}>}
      */
-    private function resolveVatLines(array $lines): array
+    private function resolveVatLines(array $lines, string $mode): array
     {
         $rateIds = collect($lines)->pluck('vat_rate_id')->filter()->all();
         $rates = VatRate::query()->whereIn('id', $rateIds)->pluck('rate', 'id');
@@ -331,10 +337,17 @@ class TransactionController extends Controller
         $resolved = [];
 
         foreach (array_values($lines) as $i => $line) {
-            $lineNet = round((float) $line['net'], 2);
+            $amount = round((float) $line['amount'], 2);
             $rateId = ($line['vat_rate_id'] ?? null) ? (int) $line['vat_rate_id'] : null;
             $rate = $rateId !== null ? (float) $rates[$rateId] : 0.0;
-            $lineVat = round($lineNet * $rate / 100, 2);
+
+            if ($mode === 'total') {
+                $lineNet = round($amount / (1 + $rate / 100), 2);
+                $lineVat = round($amount - $lineNet, 2);
+            } else {
+                $lineNet = $amount;
+                $lineVat = round($lineNet * $rate / 100, 2);
+            }
 
             $net += $lineNet;
             $vatAmount += $lineVat;

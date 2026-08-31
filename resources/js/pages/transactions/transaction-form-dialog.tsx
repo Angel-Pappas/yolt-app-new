@@ -1,4 +1,5 @@
 import { useForm } from '@inertiajs/react';
+import { X } from 'lucide-react';
 import { type FormEvent } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -20,10 +21,12 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { formatAmount } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 type Option = { id: number; name: string };
 type Category = { id: number; name: string; type: string };
 type Rate = { id: number; name: string; rate: string };
+type VatLine = { net: string; vat_rate_id: number | null };
 type WithheldLine = { net: string; withheld_rate_id: number | null };
 
 export type EditableTransaction = {
@@ -38,6 +41,7 @@ export type EditableTransaction = {
     to_wallet_id: number | null;
     net: string;
     vat_rate_id: number | null;
+    vat_lines: VatLine[];
     withheld_lines: WithheldLine[];
 };
 
@@ -95,9 +99,23 @@ export function TransactionFormDialog({
                       ? String(editing.to_wallet_id)
                       : '',
                   net: editing.net,
-                  vat_rate_id: editing.vat_rate_id
-                      ? String(editing.vat_rate_id)
-                      : '',
+                  amount_mode: 'net' as 'net' | 'total',
+                  lines:
+                      editing.vat_lines.length > 0
+                          ? editing.vat_lines.map((l) => ({
+                                amount: l.net,
+                                vat_rate_id: l.vat_rate_id
+                                    ? String(l.vat_rate_id)
+                                    : '',
+                            }))
+                          : [
+                                {
+                                    amount: editing.net,
+                                    vat_rate_id: editing.vat_rate_id
+                                        ? String(editing.vat_rate_id)
+                                        : '',
+                                },
+                            ],
                   withheld_net: editingWithheld ? editingWithheld.net : '',
                   withheld_rate_id: editingWithheld?.withheld_rate_id
                       ? String(editingWithheld.withheld_rate_id)
@@ -113,7 +131,8 @@ export function TransactionFormDialog({
                   wallet_id: wallets[0] ? String(wallets[0].id) : '',
                   to_wallet_id: '',
                   net: '',
-                  vat_rate_id: '',
+                  amount_mode: 'net' as 'net' | 'total',
+                  lines: [{ amount: '', vat_rate_id: '' }],
                   withheld_net: '',
                   withheld_rate_id: '',
               },
@@ -125,11 +144,28 @@ export function TransactionFormDialog({
         (c) => c.type === form.data.type,
     );
 
-    const net = parseAmount(form.data.net);
-    const vatRate = vatRates.find(
-        (r) => String(r.id) === form.data.vat_rate_id,
-    );
-    const vat = vatRate ? round2((net * Number(vatRate.rate)) / 100) : 0;
+    const transferAmount = parseAmount(form.data.net);
+
+    // Net/VAT summed across the VAT lines, interpreting each typed amount by the
+    // single Net/Total mode. Total mode anchors VAT to (total − net) so a line
+    // reconstructs exactly and never drifts a cent from double-rounding.
+    let net = 0;
+    let vat = 0;
+    for (const line of form.data.lines) {
+        const amount = parseAmount(line.amount);
+        const rate = vatRates.find((r) => String(r.id) === line.vat_rate_id);
+        const pct = rate ? Number(rate.rate) : 0;
+        if (form.data.amount_mode === 'total') {
+            const lineNet = round2(amount / (1 + pct / 100));
+            net += lineNet;
+            vat += round2(amount - lineNet);
+        } else {
+            net += amount;
+            vat += round2((amount * pct) / 100);
+        }
+    }
+    net = round2(net);
+    vat = round2(vat);
 
     const withheldBase = parseAmount(form.data.withheld_net);
     const withheldRate = withheldRates.find(
@@ -142,11 +178,34 @@ export function TransactionFormDialog({
     const total = round2(net + vat - withheld);
 
     const errors = form.errors as Record<string, string | undefined>;
-    const netError = isTransfer ? form.errors.net : errors['lines.0.net'];
+    const netError = isTransfer ? form.errors.net : errors['lines.0.amount'];
 
     function changeType(value: string) {
         form.setData('type', value);
         form.setData('category_id', '');
+    }
+
+    function setLine(i: number, patch: Partial<(typeof form.data.lines)[0]>) {
+        form.setData(
+            'lines',
+            form.data.lines.map((l, idx) =>
+                idx === i ? { ...l, ...patch } : l,
+            ),
+        );
+    }
+
+    function addLine() {
+        form.setData('lines', [
+            ...form.data.lines,
+            { amount: '', vat_rate_id: '' },
+        ]);
+    }
+
+    function removeLine(i: number) {
+        form.setData(
+            'lines',
+            form.data.lines.filter((_, idx) => idx !== i),
+        );
     }
 
     function submit(e: FormEvent) {
@@ -173,12 +232,11 @@ export function TransactionFormDialog({
                 entity_id: data.entity_id || null,
                 category_id: data.category_id || null,
                 wallet_id: data.wallet_id,
-                lines: [
-                    {
-                        net: String(data.net).replace(',', '.'),
-                        vat_rate_id: data.vat_rate_id || null,
-                    },
-                ],
+                amount_mode: data.amount_mode,
+                lines: data.lines.map((l) => ({
+                    amount: String(l.amount).replace(',', '.'),
+                    vat_rate_id: l.vat_rate_id || null,
+                })),
                 withheld_lines: data.withheld_net
                     ? [
                           {
@@ -393,51 +451,120 @@ export function TransactionFormDialog({
                             </div>
                         )}
 
-                        <div className="grid gap-2">
-                            <Label htmlFor="net">
-                                {isTransfer ? 'Amount' : 'Net amount'}
-                            </Label>
-                            <Input
-                                id="net"
-                                inputMode="decimal"
-                                value={form.data.net}
-                                onChange={(e) =>
-                                    form.setData('net', e.target.value)
-                                }
-                                required
-                            />
-                            <InputError message={netError} />
-                        </div>
-
-                        {!isTransfer && (
+                        {isTransfer ? (
                             <div className="grid gap-2">
-                                <Label htmlFor="vat_rate_id">VAT rate</Label>
-                                <Select
-                                    value={form.data.vat_rate_id || NONE}
-                                    onValueChange={(v) =>
-                                        form.setData(
-                                            'vat_rate_id',
-                                            v === NONE ? '' : v,
-                                        )
+                                <Label htmlFor="net">Amount</Label>
+                                <Input
+                                    id="net"
+                                    inputMode="decimal"
+                                    value={form.data.net}
+                                    onChange={(e) =>
+                                        form.setData('net', e.target.value)
                                     }
-                                >
-                                    <SelectTrigger id="vat_rate_id">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value={NONE}>
-                                            — None —
-                                        </SelectItem>
-                                        {vatRates.map((rate) => (
-                                            <SelectItem
-                                                key={rate.id}
-                                                value={String(rate.id)}
+                                    required
+                                />
+                                <InputError message={netError} />
+                            </div>
+                        ) : (
+                            <div className="grid gap-2 sm:col-span-2">
+                                <div className="flex items-center justify-between">
+                                    <Label>Amount</Label>
+                                    <div className="inline-flex rounded-md border p-0.5 text-xs">
+                                        {(['net', 'total'] as const).map(
+                                            (mode) => (
+                                                <button
+                                                    key={mode}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        form.setData(
+                                                            'amount_mode',
+                                                            mode,
+                                                        )
+                                                    }
+                                                    className={cn(
+                                                        'rounded px-2 py-1 capitalize',
+                                                        form.data
+                                                            .amount_mode ===
+                                                            mode &&
+                                                            'bg-muted font-medium',
+                                                    )}
+                                                >
+                                                    {mode}
+                                                </button>
+                                            ),
+                                        )}
+                                    </div>
+                                </div>
+
+                                {form.data.lines.map((line, i) => (
+                                    <div
+                                        key={i}
+                                        className="flex items-center gap-2"
+                                    >
+                                        <Input
+                                            inputMode="decimal"
+                                            value={line.amount}
+                                            onChange={(e) =>
+                                                setLine(i, {
+                                                    amount: e.target.value,
+                                                })
+                                            }
+                                            placeholder={
+                                                form.data.amount_mode ===
+                                                'total'
+                                                    ? 'Total'
+                                                    : 'Net'
+                                            }
+                                            required
+                                            className="flex-1"
+                                        />
+                                        <Select
+                                            value={line.vat_rate_id || NONE}
+                                            onValueChange={(v) =>
+                                                setLine(i, {
+                                                    vat_rate_id:
+                                                        v === NONE ? '' : v,
+                                                })
+                                            }
+                                        >
+                                            <SelectTrigger className="w-32">
+                                                <SelectValue placeholder="VAT" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value={NONE}>
+                                                    No VAT
+                                                </SelectItem>
+                                                {vatRates.map((rate) => (
+                                                    <SelectItem
+                                                        key={rate.id}
+                                                        value={String(rate.id)}
+                                                    >
+                                                        {rate.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {form.data.lines.length > 1 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => removeLine(i)}
+                                                aria-label="Remove VAT line"
                                             >
-                                                {rate.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                                <X className="size-4" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+                                <InputError message={netError} />
+                                <button
+                                    type="button"
+                                    onClick={addLine}
+                                    className="text-primary self-start text-sm"
+                                >
+                                    + Add VAT line
+                                </button>
                             </div>
                         )}
 
@@ -514,7 +641,7 @@ export function TransactionFormDialog({
                                     Amount moved
                                 </span>
                                 <div className="font-medium">
-                                    {formatAmount(net)}
+                                    {formatAmount(transferAmount)}
                                 </div>
                             </div>
                         ) : (
