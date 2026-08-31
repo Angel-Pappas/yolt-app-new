@@ -25,6 +25,19 @@ type Option = { id: number; name: string };
 type Category = { id: number; name: string; type: string };
 type VatRate = { id: number; name: string; rate: string };
 
+export type EditableTransaction = {
+    id: number;
+    type: string;
+    date: string;
+    invoice_date: string;
+    description: string;
+    entity_id: number | null;
+    category_id: number | null;
+    wallet_id: number;
+    net: string;
+    vat_rate_id: number | null;
+};
+
 type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -32,6 +45,7 @@ type Props = {
     entities: Option[];
     categories: Category[];
     vatRates: VatRate[];
+    editing?: EditableTransaction | null;
 };
 
 function today(): string {
@@ -56,18 +70,37 @@ export function TransactionFormDialog({
     entities,
     categories,
     vatRates,
+    editing,
 }: Props) {
-    const form = useForm({
-        type: 'expense',
-        date: today(),
-        invoice_date: today(),
-        description: '',
-        entity_id: '',
-        category_id: '',
-        wallet_id: wallets[0] ? String(wallets[0].id) : '',
-        net: '',
-        vat_rate_id: '',
-    });
+    const form = useForm(
+        editing
+            ? {
+                  type: editing.type,
+                  date: editing.date.slice(0, 10),
+                  invoice_date: editing.invoice_date.slice(0, 10),
+                  description: editing.description,
+                  entity_id: editing.entity_id ? String(editing.entity_id) : '',
+                  category_id: editing.category_id
+                      ? String(editing.category_id)
+                      : '',
+                  wallet_id: String(editing.wallet_id),
+                  net: editing.net,
+                  vat_rate_id: editing.vat_rate_id
+                      ? String(editing.vat_rate_id)
+                      : '',
+              }
+            : {
+                  type: 'expense',
+                  date: today(),
+                  invoice_date: today(),
+                  description: '',
+                  entity_id: '',
+                  category_id: '',
+                  wallet_id: wallets[0] ? String(wallets[0].id) : '',
+                  net: '',
+                  vat_rate_id: '',
+              },
+    );
 
     const availableCategories = categories.filter(
         (c) => c.type === form.data.type,
@@ -106,13 +139,20 @@ export function TransactionFormDialog({
             ],
         }));
 
-        form.post('/transactions', {
-            preserveScroll: true,
-            onSuccess: () => {
-                onOpenChange(false);
-                form.reset();
-            },
-        });
+        if (editing) {
+            form.patch(`/transactions/${editing.id}`, {
+                preserveScroll: true,
+                onSuccess: () => onOpenChange(false),
+            });
+        } else {
+            form.post('/transactions', {
+                preserveScroll: true,
+                onSuccess: () => {
+                    onOpenChange(false);
+                    form.reset();
+                },
+            });
+        }
     }
 
     return (
@@ -120,7 +160,9 @@ export function TransactionFormDialog({
             <DialogContent className="sm:max-w-2xl">
                 <form onSubmit={submit}>
                     <DialogHeader>
-                        <DialogTitle>Add transaction</DialogTitle>
+                        <DialogTitle>
+                            {editing ? 'Edit transaction' : 'Add transaction'}
+                        </DialogTitle>
                         <DialogDescription>
                             Record income or an expense. VAT is calculated from
                             the selected rate.
@@ -358,7 +400,7 @@ export function TransactionFormDialog({
                             Cancel
                         </Button>
                         <Button type="submit" disabled={form.processing}>
-                            Add
+                            {editing ? 'Save' : 'Add'}
                         </Button>
                     </DialogFooter>
                 </form>

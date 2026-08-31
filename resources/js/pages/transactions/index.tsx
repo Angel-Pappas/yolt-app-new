@@ -1,9 +1,12 @@
-import { Head } from '@inertiajs/react';
-import { Plus } from 'lucide-react';
+import { Head, router } from '@inertiajs/react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { formatAmount, formatDate } from '@/lib/format';
-import { TransactionFormDialog } from './transaction-form-dialog';
+import {
+    type EditableTransaction,
+    TransactionFormDialog,
+} from './transaction-form-dialog';
 
 type Related = { id: number; name: string } | null;
 
@@ -12,12 +15,18 @@ type TransactionType = 'income' | 'expense' | 'transfer';
 type Transaction = {
     id: number;
     date: string;
+    invoice_date: string;
     description: string;
     type: TransactionType;
     net: string;
     vat_amount: string;
     withheld_amount: string;
     is_reconciled: boolean;
+    entity_id: number | null;
+    category_id: number | null;
+    wallet_id: number;
+    to_wallet_id: number | null;
+    vat_rate_id: number | null;
     wallet: Related;
     to_wallet: Related;
     entity: Related;
@@ -61,6 +70,27 @@ export default function TransactionsIndex({
     vatRates,
 }: Props) {
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [editing, setEditing] = useState<EditableTransaction | null>(null);
+    // Bumped on every open so the reused dialog remounts with a fresh form.
+    const [formKey, setFormKey] = useState(0);
+
+    function openCreate() {
+        setEditing(null);
+        setFormKey((k) => k + 1);
+        setDialogOpen(true);
+    }
+
+    function openEdit(t: Transaction) {
+        setEditing(t);
+        setFormKey((k) => k + 1);
+        setDialogOpen(true);
+    }
+
+    function destroy(t: Transaction) {
+        if (confirm('Delete this transaction?')) {
+            router.delete(`/transactions/${t.id}`, { preserveScroll: true });
+        }
+    }
 
     return (
         <>
@@ -69,7 +99,7 @@ export default function TransactionsIndex({
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-semibold">Transactions</h1>
                     <Button
-                        onClick={() => setDialogOpen(true)}
+                        onClick={openCreate}
                         disabled={wallets.length === 0}
                     >
                         <Plus className="size-4" />
@@ -96,6 +126,7 @@ export default function TransactionsIndex({
                                 <th className="p-3 text-right font-medium">
                                     Total
                                 </th>
+                                <th className="p-3" />
                             </tr>
                         </thead>
                         <tbody>
@@ -143,12 +174,32 @@ export default function TransactionsIndex({
                                     <td className="p-3 text-right font-medium tabular-nums">
                                         {formatAmount(total(t))}
                                     </td>
+                                    <td className="p-3">
+                                        <div className="flex justify-end gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => openEdit(t)}
+                                                aria-label="Edit transaction"
+                                            >
+                                                <Pencil className="size-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => destroy(t)}
+                                                aria-label="Delete transaction"
+                                            >
+                                                <Trash2 className="size-4" />
+                                            </Button>
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
                             {transactions.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={9}
+                                        colSpan={10}
                                         className="text-muted-foreground p-6 text-center"
                                     >
                                         No transactions yet.
@@ -161,8 +212,10 @@ export default function TransactionsIndex({
             </div>
 
             <TransactionFormDialog
+                key={formKey}
                 open={dialogOpen}
                 onOpenChange={setDialogOpen}
+                editing={editing}
                 wallets={wallets}
                 entities={entities}
                 categories={categories}

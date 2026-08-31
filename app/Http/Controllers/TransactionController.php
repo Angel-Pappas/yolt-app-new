@@ -38,7 +38,8 @@ class TransactionController extends Controller
                 ->get([
                     'id', 'date', 'invoice_date', 'description', 'type',
                     'net', 'vat_amount', 'withheld_amount', 'wallet_id',
-                    'to_wallet_id', 'entity_id', 'category_id', 'is_reconciled',
+                    'to_wallet_id', 'entity_id', 'category_id', 'vat_rate_id',
+                    'is_reconciled',
                 ]),
             'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
             'entities' => Entity::query()->orderBy('name')->get(['id', 'name']),
@@ -49,7 +50,45 @@ class TransactionController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->validateTransaction($request);
+
+        DB::transaction(function () use ($data, $request) {
+            $transaction = new Transaction;
+            $transaction->user_id = $request->user()->id;
+            $this->persist($transaction, $data);
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction added.')]);
+
+        return back();
+    }
+
+    public function update(Request $request, Transaction $transaction): RedirectResponse
+    {
+        $data = $this->validateTransaction($request);
+
+        DB::transaction(fn () => $this->persist($transaction, $data));
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction updated.')]);
+
+        return back();
+    }
+
+    public function destroy(Transaction $transaction): RedirectResponse
+    {
+        $transaction->delete();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction deleted.')]);
+
+        return back();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validateTransaction(Request $request): array
+    {
+        return $request->validate([
             'type' => ['required', Rule::in(['income', 'expense'])],
             'date' => ['required', 'date'],
             'invoice_date' => ['required', 'date'],
@@ -61,34 +100,37 @@ class TransactionController extends Controller
             'lines.*.net' => ['required', 'numeric', 'min:0'],
             'lines.*.vat_rate_id' => ['nullable', 'integer', 'exists:vat_rates,id'],
         ]);
+    }
 
-        DB::transaction(function () use ($data, $request) {
-            $resolved = $this->resolveLines($data['lines']);
+    /**
+     * Set a transaction's fields from validated input and (re)write its VAT
+     * lines wholesale. Shared by store and update.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function persist(Transaction $transaction, array $data): void
+    {
+        $resolved = $this->resolveLines($data['lines']);
 
-            $transaction = new Transaction([
-                'type' => $data['type'],
-                'date' => $data['date'],
-                'invoice_date' => $data['invoice_date'],
-                'description' => $data['description'] ?? '',
-                'entity_id' => $data['entity_id'] ?? null,
-                'category_id' => $data['category_id'] ?? null,
-                'wallet_id' => $data['wallet_id'],
-                'net' => $resolved['net'],
-                'vat_amount' => $resolved['vat_amount'],
-                // A single line keeps the (denormalized) rate; mixed rates = null.
-                'vat_rate_id' => count($resolved['lines']) === 1
-                    ? $resolved['lines'][0]['vat_rate_id']
-                    : null,
-            ]);
-            $transaction->user_id = $request->user()->id;
-            $transaction->save();
+        $transaction->fill([
+            'type' => $data['type'],
+            'date' => $data['date'],
+            'invoice_date' => $data['invoice_date'],
+            'description' => $data['description'] ?? '',
+            'entity_id' => $data['entity_id'] ?? null,
+            'category_id' => $data['category_id'] ?? null,
+            'wallet_id' => $data['wallet_id'],
+            'net' => $resolved['net'],
+            'vat_amount' => $resolved['vat_amount'],
+            // A single line keeps the (denormalized) rate; mixed rates = null.
+            'vat_rate_id' => count($resolved['lines']) === 1
+                ? $resolved['lines'][0]['vat_rate_id']
+                : null,
+        ]);
+        $transaction->save();
 
-            $transaction->vatLines()->createMany($resolved['lines']);
-        });
-
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction added.')]);
-
-        return back();
+        $transaction->vatLines()->delete();
+        $transaction->vatLines()->createMany($resolved['lines']);
     }
 
     /**
