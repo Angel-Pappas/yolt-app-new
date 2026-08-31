@@ -23,7 +23,8 @@ import { formatAmount } from '@/lib/format';
 
 type Option = { id: number; name: string };
 type Category = { id: number; name: string; type: string };
-type VatRate = { id: number; name: string; rate: string };
+type Rate = { id: number; name: string; rate: string };
+type WithheldLine = { net: string; withheld_rate_id: number | null };
 
 export type EditableTransaction = {
     id: number;
@@ -37,6 +38,7 @@ export type EditableTransaction = {
     to_wallet_id: number | null;
     net: string;
     vat_rate_id: number | null;
+    withheld_lines: WithheldLine[];
 };
 
 type Props = {
@@ -45,7 +47,8 @@ type Props = {
     wallets: Option[];
     entities: Option[];
     categories: Category[];
-    vatRates: VatRate[];
+    vatRates: Rate[];
+    withheldRates: Rate[];
     editing?: EditableTransaction | null;
 };
 
@@ -71,8 +74,11 @@ export function TransactionFormDialog({
     entities,
     categories,
     vatRates,
+    withheldRates,
     editing,
 }: Props) {
+    const editingWithheld = editing?.withheld_lines?.[0];
+
     const form = useForm(
         editing
             ? {
@@ -92,6 +98,10 @@ export function TransactionFormDialog({
                   vat_rate_id: editing.vat_rate_id
                       ? String(editing.vat_rate_id)
                       : '',
+                  withheld_net: editingWithheld ? editingWithheld.net : '',
+                  withheld_rate_id: editingWithheld?.withheld_rate_id
+                      ? String(editingWithheld.withheld_rate_id)
+                      : '',
               }
             : {
                   type: 'expense',
@@ -104,6 +114,8 @@ export function TransactionFormDialog({
                   to_wallet_id: '',
                   net: '',
                   vat_rate_id: '',
+                  withheld_net: '',
+                  withheld_rate_id: '',
               },
     );
 
@@ -114,13 +126,20 @@ export function TransactionFormDialog({
     );
 
     const net = parseAmount(form.data.net);
-    const selectedRate = vatRates.find(
+    const vatRate = vatRates.find(
         (r) => String(r.id) === form.data.vat_rate_id,
     );
-    const vat = selectedRate
-        ? round2((net * Number(selectedRate.rate)) / 100)
+    const vat = vatRate ? round2((net * Number(vatRate.rate)) / 100) : 0;
+
+    const withheldBase = parseAmount(form.data.withheld_net);
+    const withheldRate = withheldRates.find(
+        (r) => String(r.id) === form.data.withheld_rate_id,
+    );
+    const withheld = withheldRate
+        ? round2((withheldBase * Number(withheldRate.rate)) / 100)
         : 0;
-    const total = round2(net + vat);
+
+    const total = round2(net + vat - withheld);
 
     const errors = form.errors as Record<string, string | undefined>;
     const netError = isTransfer ? form.errors.net : errors['lines.0.net'];
@@ -160,6 +179,14 @@ export function TransactionFormDialog({
                         vat_rate_id: data.vat_rate_id || null,
                     },
                 ],
+                withheld_lines: data.withheld_net
+                    ? [
+                          {
+                              net: String(data.withheld_net).replace(',', '.'),
+                              withheld_rate_id: data.withheld_rate_id || null,
+                          },
+                      ]
+                    : [],
             };
         });
 
@@ -188,8 +215,9 @@ export function TransactionFormDialog({
                             {editing ? 'Edit transaction' : 'Add transaction'}
                         </DialogTitle>
                         <DialogDescription>
-                            Income and expenses carry VAT; a transfer just moves
-                            money between two wallets.
+                            Income and expenses carry VAT (and optional
+                            withholding); a transfer moves money between
+                            wallets.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -413,6 +441,62 @@ export function TransactionFormDialog({
                             </div>
                         )}
 
+                        {!isTransfer && (
+                            <>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="withheld_net">
+                                        Withholding base (optional)
+                                    </Label>
+                                    <Input
+                                        id="withheld_net"
+                                        inputMode="decimal"
+                                        value={form.data.withheld_net}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'withheld_net',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="0"
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="withheld_rate_id">
+                                        Withholding rate
+                                    </Label>
+                                    <Select
+                                        value={
+                                            form.data.withheld_rate_id || NONE
+                                        }
+                                        onValueChange={(v) =>
+                                            form.setData(
+                                                'withheld_rate_id',
+                                                v === NONE ? '' : v,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger id="withheld_rate_id">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={NONE}>
+                                                — None —
+                                            </SelectItem>
+                                            {withheldRates.map((rate) => (
+                                                <SelectItem
+                                                    key={rate.id}
+                                                    value={String(rate.id)}
+                                                >
+                                                    {rate.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </>
+                        )}
+
                         <div className="grid gap-2 sm:col-span-2">
                             <Label htmlFor="description">Description</Label>
                             <Input
@@ -434,7 +518,7 @@ export function TransactionFormDialog({
                                 </div>
                             </div>
                         ) : (
-                            <div className="bg-muted/50 grid grid-cols-3 gap-2 rounded-lg p-3 text-sm tabular-nums sm:col-span-2">
+                            <div className="bg-muted/50 grid grid-cols-4 gap-2 rounded-lg p-3 text-sm tabular-nums sm:col-span-2">
                                 <div>
                                     <div className="text-muted-foreground text-xs">
                                         Net
@@ -446,6 +530,12 @@ export function TransactionFormDialog({
                                         VAT
                                     </div>
                                     {formatAmount(vat)}
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground text-xs">
+                                        Withheld
+                                    </div>
+                                    {formatAmount(withheld)}
                                 </div>
                                 <div>
                                     <div className="text-muted-foreground text-xs">

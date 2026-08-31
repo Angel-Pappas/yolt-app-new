@@ -35,11 +35,12 @@ type Transaction = {
     to_wallet: Related;
     entity: Related;
     category: Related;
+    withheld_lines: { net: string; withheld_rate_id: number | null }[];
 };
 
 type Option = { id: number; name: string };
 type Category = { id: number; name: string; type: string };
-type VatRate = { id: number; name: string; rate: string };
+type Rate = { id: number; name: string; rate: string };
 
 type Props = {
     transactions: Transaction[];
@@ -47,7 +48,8 @@ type Props = {
     wallets: Option[];
     entities: Option[];
     categories: Category[];
-    vatRates: VatRate[];
+    vatRates: Rate[];
+    withheldRates: Rate[];
 };
 
 const typeMeta: Record<TransactionType, { label: string; className: string }> =
@@ -74,6 +76,7 @@ export default function TransactionsIndex({
     entities,
     categories,
     vatRates,
+    withheldRates,
 }: Props) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<EditableTransaction | null>(null);
@@ -228,6 +231,7 @@ export default function TransactionsIndex({
                 entities={entities}
                 categories={categories}
                 vatRates={vatRates}
+                withheldRates={withheldRates}
             />
         </>
     );

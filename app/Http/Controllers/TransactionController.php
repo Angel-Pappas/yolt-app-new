@@ -7,6 +7,7 @@ use App\Models\Entity;
 use App\Models\Transaction;
 use App\Models\VatRate;
 use App\Models\Wallet;
+use App\Models\WithheldTaxRate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,10 +18,10 @@ use Inertia\Response;
 /**
  * Transactions — the core Finance feature. Gated by `can:access-finance`; shared
  * company data. `type` drives which fields apply: income/expense carry VAT
- * "lines" (whose per-rate VAT is always computed server-side from the rate at
- * save time — never trusted from the client); a transfer just moves a net amount
- * from one wallet to another with no VAT/entity/category. Multi-line, withholding,
- * and filtering come in later slices.
+ * "lines" and optional withholding "lines" (whose per-rate amounts are always
+ * computed server-side from the rate at save time — never trusted from the
+ * client); a transfer just moves a net amount between two wallets. The cash total
+ * of an income/expense is net + VAT − withheld.
  */
 class TransactionController extends Controller
 {
@@ -41,6 +42,7 @@ class TransactionController extends Controller
             'toWallet:id,name',
             'entity:id,name',
             'category:id,name',
+            'withheldLines:id,transaction_id,net,withheld_rate_id',
         ]);
 
         if ($filters['q'] !== null) {
@@ -81,6 +83,7 @@ class TransactionController extends Controller
             'entities' => Entity::query()->orderBy('name')->get(['id', 'name']),
             'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
             'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+            'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
         ]);
     }
 
@@ -141,16 +144,19 @@ class TransactionController extends Controller
             $rules['lines'] = ['required', 'array', 'min:1'];
             $rules['lines.*.net'] = ['required', 'numeric', 'min:0'];
             $rules['lines.*.vat_rate_id'] = ['nullable', 'integer', 'exists:vat_rates,id'];
+            $rules['withheld_lines'] = ['nullable', 'array'];
+            $rules['withheld_lines.*.net'] = ['required', 'numeric', 'min:0'];
+            $rules['withheld_lines.*.withheld_rate_id'] = ['nullable', 'integer', 'exists:withheld_tax_rates,id'];
         }
 
         return $request->validate($rules);
     }
 
     /**
-     * Set a transaction's fields from validated input and (re)write its VAT
-     * lines wholesale. Shared by store and update; handles both a transfer and
-     * an income/expense. Fields for the other shape are nulled so a type change
-     * on edit leaves no stale data behind.
+     * Set a transaction's fields from validated input and (re)write its VAT and
+     * withholding lines wholesale. Shared by store and update; handles both a
+     * transfer and an income/expense, nulling the other shape's fields so a type
+     * change on edit leaves no stale data behind.
      *
      * @param  array<string, mixed>  $data
      */
@@ -173,11 +179,13 @@ class TransactionController extends Controller
             ]);
             $transaction->save();
             $transaction->vatLines()->delete();
+            $transaction->withheldLines()->delete();
 
             return;
         }
 
-        $resolved = $this->resolveLines($data['lines']);
+        $resolvedVat = $this->resolveVatLines($data['lines']);
+        $resolvedWithheld = $this->resolveWithheldLines($data['withheld_lines'] ?? []);
 
         $transaction->fill([
             'type' => $data['type'],
@@ -188,35 +196,33 @@ class TransactionController extends Controller
             'category_id' => $data['category_id'] ?? null,
             'wallet_id' => $data['wallet_id'],
             'to_wallet_id' => null,
-            'net' => $resolved['net'],
-            'vat_amount' => $resolved['vat_amount'],
+            'net' => $resolvedVat['net'],
+            'vat_amount' => $resolvedVat['vat_amount'],
+            'withheld_amount' => $resolvedWithheld['withheld_amount'],
             // A single line keeps the (denormalized) rate; mixed rates = null.
-            'vat_rate_id' => count($resolved['lines']) === 1
-                ? $resolved['lines'][0]['vat_rate_id']
+            'vat_rate_id' => count($resolvedVat['lines']) === 1
+                ? $resolvedVat['lines'][0]['vat_rate_id']
                 : null,
         ]);
         $transaction->save();
 
         $transaction->vatLines()->delete();
-        $transaction->vatLines()->createMany($resolved['lines']);
+        $transaction->vatLines()->createMany($resolvedVat['lines']);
+        $transaction->withheldLines()->delete();
+        $transaction->withheldLines()->createMany($resolvedWithheld['lines']);
     }
 
     /**
-     * Compute each line's VAT from the rate's current percentage (never trusted
-     * from the client) and the summed net / vat_amount across all lines.
+     * Compute each VAT line's amount from the rate's current percentage (never
+     * trusted from the client) and the summed net / vat_amount across all lines.
      *
      * @param  array<int, array{net: mixed, vat_rate_id?: mixed}>  $lines
      * @return array{net: float, vat_amount: float, lines: array<int, array{net: float, vat_rate_id: int|null, vat_amount: float, position: int}>}
      */
-    private function resolveLines(array $lines): array
+    private function resolveVatLines(array $lines): array
     {
-        $rateIds = collect($lines)
-            ->pluck('vat_rate_id')
-            ->filter()
-            ->all();
-        $rates = VatRate::query()
-            ->whereIn('id', $rateIds)
-            ->pluck('rate', 'id');
+        $rateIds = collect($lines)->pluck('vat_rate_id')->filter()->all();
+        $rates = VatRate::query()->whereIn('id', $rateIds)->pluck('rate', 'id');
 
         $net = 0.0;
         $vatAmount = 0.0;
@@ -242,6 +248,43 @@ class TransactionController extends Controller
         return [
             'net' => round($net, 2),
             'vat_amount' => round($vatAmount, 2),
+            'lines' => $resolved,
+        ];
+    }
+
+    /**
+     * The withholding parallel of resolveVatLines: each line's withheld amount is
+     * base × rate, summed into withheld_amount. Withholding is optional (0 lines).
+     *
+     * @param  array<int, array{net: mixed, withheld_rate_id?: mixed}>  $lines
+     * @return array{withheld_amount: float, lines: array<int, array{net: float, withheld_rate_id: int|null, withheld_amount: float, position: int}>}
+     */
+    private function resolveWithheldLines(array $lines): array
+    {
+        $rateIds = collect($lines)->pluck('withheld_rate_id')->filter()->all();
+        $rates = WithheldTaxRate::query()->whereIn('id', $rateIds)->pluck('rate', 'id');
+
+        $withheldAmount = 0.0;
+        $resolved = [];
+
+        foreach (array_values($lines) as $i => $line) {
+            $base = round((float) $line['net'], 2);
+            $rateId = ($line['withheld_rate_id'] ?? null) ? (int) $line['withheld_rate_id'] : null;
+            $rate = $rateId !== null ? (float) $rates[$rateId] : 0.0;
+            $lineWithheld = round($base * $rate / 100, 2);
+
+            $withheldAmount += $lineWithheld;
+
+            $resolved[] = [
+                'net' => $base,
+                'withheld_rate_id' => $rateId,
+                'withheld_amount' => $lineWithheld,
+                'position' => $i,
+            ];
+        }
+
+        return [
+            'withheld_amount' => round($withheldAmount, 2),
             'lines' => $resolved,
         ];
     }
