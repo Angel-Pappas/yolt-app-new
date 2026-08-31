@@ -13,17 +13,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatAmount } from '@/lib/format';
 
 type Wallet = {
     id: number;
     name: string;
     starting_balance: string;
+    balance: number;
 };
-
-// Simple money display for now; Greek-style formatting arrives with Transactions.
-function formatAmount(value: string): string {
-    return `€ ${Number(value).toFixed(2)}`;
-}
 
 export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
     const [open, setOpen] = useState(false);
@@ -95,6 +92,9 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
                                 <th className="p-3 text-right font-medium">
                                     Starting balance
                                 </th>
+                                <th className="p-3 text-right font-medium">
+                                    Balance
+                                </th>
                                 <th className="p-3" />
                             </tr>
                         </thead>
@@ -104,8 +104,11 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
                                     <td className="p-3 font-medium">
                                         {wallet.name}
                                     </td>
-                                    <td className="p-3 text-right tabular-nums">
+                                    <td className="text-muted-foreground p-3 text-right tabular-nums">
                                         {formatAmount(wallet.starting_balance)}
+                                    </td>
+                                    <td className="p-3 text-right font-medium tabular-nums">
+                                        {formatAmount(wallet.balance)}
                                     </td>
                                     <td className="p-3">
                                         <div className="flex justify-end gap-1">
@@ -132,7 +135,7 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
                             {wallets.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={3}
+                                        colSpan={4}
                                         className="text-muted-foreground p-6 text-center"
                                     >
                                         No wallets yet.
