@@ -72,7 +72,9 @@ test('the lookup seeder is idempotent', function () {
     $this->seed(LeadLookupSeeder::class);
     $this->seed(LeadLookupSeeder::class);
 
-    expect(LeadStatus::count())->toBe(6);
+    // 6 pipeline stages + the two done-states ("Project Agreed", "Converted").
+    expect(LeadStatus::count())->toBe(8);
+    expect(LeadStatus::where('is_conversion', true)->count())->toBe(1);
     expect(LeadOrigin::count())->toBe(5);
     expect(ProjectStatus::count())->toBe(6);
 });

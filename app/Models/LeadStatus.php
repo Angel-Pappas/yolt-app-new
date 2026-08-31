@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int|null $user_id
  * @property string $name
  * @property int $position
+ * @property bool $is_conversion
  */
 #[Fillable(['name', 'position'])]
 class LeadStatus extends Model
@@ -24,6 +25,7 @@ class LeadStatus extends Model
     {
         return [
             'position' => 'integer',
+            'is_conversion' => 'boolean',
         ];
     }
 }

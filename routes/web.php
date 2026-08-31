@@ -71,6 +71,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('leads/{lead}/actions/{action}', [LeadActionController::class, 'update'])->name('leads.actions.update');
         Route::delete('leads/{lead}/actions/{action}', [LeadActionController::class, 'destroy'])->name('leads.actions.destroy');
 
+        Route::post('leads/{lead}/convert', [ProjectController::class, 'convert'])->name('leads.convert');
+
         Route::post('leads/{lead}/contacts', [LeadContactController::class, 'store'])->name('leads.contacts.store');
         Route::patch('leads/{lead}/contacts/{contact}', [LeadContactController::class, 'update'])->name('leads.contacts.update');
         Route::delete('leads/{lead}/contacts/{contact}', [LeadContactController::class, 'destroy'])->name('leads.contacts.destroy');

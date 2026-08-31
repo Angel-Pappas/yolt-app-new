@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Lead;
 use App\Models\LeadOrigin;
 use App\Models\LeadStatus;
+use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -39,8 +40,15 @@ class LeadController extends Controller
                     ->orWhere('description', 'like', $term);
             });
         }
+        $conversionId = LeadStatus::query()->where('is_conversion', true)->value('id');
         if ($filters['status'] !== null) {
             $query->where('status_id', $filters['status']);
+        } elseif ($conversionId !== null) {
+            // Hide converted leads unless the status filter explicitly asks for them.
+            // The is-null half is required — a bare != also drops null-status rows.
+            $query->where(function ($q) use ($conversionId) {
+                $q->whereNull('status_id')->orWhere('status_id', '!=', $conversionId);
+            });
         }
         if ($filters['origin'] !== null) {
             $query->where('origin_id', $filters['origin']);
@@ -53,7 +61,7 @@ class LeadController extends Controller
                 'contact_phone', 'contact_landline', 'description', 'next_step',
             ]),
             'filters' => $filters,
-            'statuses' => LeadStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
+            'statuses' => LeadStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name', 'is_conversion']),
             'origins' => LeadOrigin::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
         ]);
     }
@@ -71,7 +79,8 @@ class LeadController extends Controller
             'contacts' => $lead->contacts()
                 ->orderBy('name')
                 ->get(['id', 'name', 'position', 'phone', 'landline', 'website', 'email']),
-            'statuses' => LeadStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
+            'project' => Project::query()->where('lead_id', $lead->id)->first(['id', 'name']),
+            'statuses' => LeadStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name', 'is_conversion']),
             'origins' => LeadOrigin::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
         ]);
     }

@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Lead;
+use App\Models\LeadStatus;
 use App\Models\Project;
 use App\Models\ProjectStatus;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -95,6 +98,42 @@ class ProjectController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Project deleted.')]);
 
         return back();
+    }
+
+    /**
+     * Graduate a lead into a project: create the project linked to the lead and
+     * flip the lead to the flagged "Converted" status (so it drops out of the
+     * chasing pipeline). A lead only converts once — if a project already exists
+     * for it, redirect to that one instead of creating a duplicate.
+     */
+    public function convert(Request $request, Lead $lead): RedirectResponse
+    {
+        $existing = Project::query()->where('lead_id', $lead->id)->first();
+        if ($existing !== null) {
+            return to_route('projects.show', $existing);
+        }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $project = DB::transaction(function () use ($data, $lead, $request) {
+            $project = new Project(['name' => $data['name'], 'lead_id' => $lead->id]);
+            $project->user_id = $request->user()->id;
+            $project->sort_order = (int) Project::withTrashed()->max('sort_order') + 1;
+            $project->save();
+
+            $conversionId = LeadStatus::query()->where('is_conversion', true)->value('id');
+            if ($conversionId !== null) {
+                $lead->update(['status_id' => $conversionId]);
+            }
+
+            return $project;
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Lead converted to a project.')]);
+
+        return to_route('projects.show', $project);
     }
 
     /**

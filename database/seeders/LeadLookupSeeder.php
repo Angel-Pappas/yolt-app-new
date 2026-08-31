@@ -21,6 +21,12 @@ class LeadLookupSeeder extends Seeder
             LeadStatus::query()->firstOrCreate(['name' => $name], ['position' => $position]);
         }
 
+        // The two done-states: "Project Agreed" is a normal manual stage a
+        // salesperson picks; "Converted" is the flagged state the Convert action
+        // sets (hidden from the default list and manual editors).
+        LeadStatus::query()->firstOrCreate(['name' => 'Project Agreed'], ['position' => 100, 'is_conversion' => false]);
+        LeadStatus::query()->firstOrCreate(['name' => 'Converted'], ['position' => 101, 'is_conversion' => true]);
+
         $origins = ['Campaign', 'Ads', 'Expo', 'Referral', 'Website'];
         foreach ($origins as $position => $name) {
             LeadOrigin::query()->firstOrCreate(['name' => $name], ['position' => $position]);

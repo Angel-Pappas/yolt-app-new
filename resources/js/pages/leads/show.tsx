@@ -9,6 +9,7 @@ import {
     ActionFormDialog,
 } from '@/components/crm/action-form-dialog';
 import { type EditableContact, ContactFormDialog } from './contact-form-dialog';
+import { ConvertToProjectDialog } from './convert-to-project-dialog';
 import { type EditableLead, LeadFormDialog } from './lead-form-dialog';
 
 type Related = { id: number; name: string } | null;
@@ -27,12 +28,14 @@ type Action = {
 };
 
 type Option = { id: number; name: string };
+type StatusOption = { id: number; name: string; is_conversion?: boolean };
 
 type Props = {
     lead: Lead;
     actions: Action[];
     contacts: EditableContact[];
-    statuses: Option[];
+    project: { id: number; name: string } | null;
+    statuses: StatusOption[];
     origins: Option[];
 };
 
@@ -49,11 +52,13 @@ export default function LeadShow({
     lead,
     actions,
     contacts,
+    project,
     statuses,
     origins,
 }: Props) {
     const [editOpen, setEditOpen] = useState(false);
     const [editKey, setEditKey] = useState(0);
+    const [convertOpen, setConvertOpen] = useState(false);
     const [actionOpen, setActionOpen] = useState(false);
     const [editingAction, setEditingAction] = useState<EditableAction | null>(
         null,
@@ -124,16 +129,32 @@ export default function LeadShow({
                             </p>
                         </div>
                     </div>
-                    <Button
-                        variant="outline"
-                        onClick={() => {
-                            setEditKey((k) => k + 1);
-                            setEditOpen(true);
-                        }}
-                    >
-                        <Pencil className="size-4" />
-                        Edit lead
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        {project ? (
+                            <Button variant="ghost" asChild>
+                                <Link href={`/projects/${project.id}`}>
+                                    View project →
+                                </Link>
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="ghost"
+                                onClick={() => setConvertOpen(true)}
+                            >
+                                Convert to project
+                            </Button>
+                        )}
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setEditKey((k) => k + 1);
+                                setEditOpen(true);
+                            }}
+                        >
+                            <Pencil className="size-4" />
+                            Edit lead
+                        </Button>
+                    </div>
                 </div>
 
                 <Card>
@@ -375,6 +396,13 @@ export default function LeadShow({
                 onOpenChange={setContactOpen}
                 leadId={lead.id}
                 editing={editingContact}
+            />
+
+            <ConvertToProjectDialog
+                open={convertOpen}
+                onOpenChange={setConvertOpen}
+                leadId={lead.id}
+                defaultName={lead.name}
             />
         </>
     );

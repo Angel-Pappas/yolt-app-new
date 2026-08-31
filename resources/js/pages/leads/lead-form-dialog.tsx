@@ -22,6 +22,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 
 type Option = { id: number; name: string };
+type StatusOption = { id: number; name: string; is_conversion?: boolean };
 
 export type EditableLead = {
     id: number;
@@ -41,7 +42,7 @@ export type EditableLead = {
 type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    statuses: Option[];
+    statuses: StatusOption[];
     origins: Option[];
     editing?: EditableLead | null;
 };
@@ -68,6 +69,12 @@ export function LeadFormDialog({
         description: editing?.description ?? '',
         next_step: editing?.next_step ?? '',
     });
+
+    // Hide the flagged "Converted" status from the manual picker, but keep it if
+    // it's the lead's current value (so saving doesn't silently clear the status).
+    const pickableStatuses = statuses.filter(
+        (s) => !s.is_conversion || String(s.id) === form.data.status_id,
+    );
 
     function submit(e: FormEvent) {
         e.preventDefault();
@@ -170,7 +177,7 @@ export function LeadFormDialog({
                                     <SelectItem value={NONE}>
                                         — None —
                                     </SelectItem>
-                                    {statuses.map((s) => (
+                                    {pickableStatuses.map((s) => (
                                         <SelectItem
                                             key={s.id}
                                             value={String(s.id)}
