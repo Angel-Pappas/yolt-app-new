@@ -24,16 +24,50 @@ use Inertia\Response;
  */
 class TransactionController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $filters = [
+            'q' => trim((string) $request->input('q')) ?: null,
+            'type' => in_array($request->input('type'), ['income', 'expense', 'transfer'], true)
+                ? $request->input('type')
+                : null,
+            'wallet' => $request->filled('wallet') ? (int) $request->input('wallet') : null,
+            'from' => $request->filled('from') ? (string) $request->input('from') : null,
+            'to' => $request->filled('to') ? (string) $request->input('to') : null,
+        ];
+
+        $query = Transaction::query()->with([
+            'wallet:id,name',
+            'toWallet:id,name',
+            'entity:id,name',
+            'category:id,name',
+        ]);
+
+        if ($filters['q'] !== null) {
+            $term = '%'.addcslashes($filters['q'], '%_\\').'%';
+            $query->where(function ($q) use ($term) {
+                $q->where('description', 'like', $term)
+                    ->orWhereHas('entity', fn ($e) => $e->where('name', 'like', $term));
+            });
+        }
+        if ($filters['type'] !== null) {
+            $query->where('type', $filters['type']);
+        }
+        if ($filters['wallet'] !== null) {
+            $query->where(function ($q) use ($filters) {
+                $q->where('wallet_id', $filters['wallet'])
+                    ->orWhere('to_wallet_id', $filters['wallet']);
+            });
+        }
+        if ($filters['from'] !== null) {
+            $query->whereDate('date', '>=', $filters['from']);
+        }
+        if ($filters['to'] !== null) {
+            $query->whereDate('date', '<=', $filters['to']);
+        }
+
         return Inertia::render('transactions/index', [
-            'transactions' => Transaction::query()
-                ->with([
-                    'wallet:id,name',
-                    'toWallet:id,name',
-                    'entity:id,name',
-                    'category:id,name',
-                ])
+            'transactions' => $query
                 ->orderBy('date')
                 ->orderBy('id')
                 ->get([
@@ -42,6 +76,7 @@ class TransactionController extends Controller
                     'to_wallet_id', 'entity_id', 'category_id', 'vat_rate_id',
                     'is_reconciled',
                 ]),
+            'filters' => $filters,
             'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
             'entities' => Entity::query()->orderBy('name')->get(['id', 'name']),
             'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),

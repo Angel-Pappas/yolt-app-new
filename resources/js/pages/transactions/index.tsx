@@ -7,6 +7,10 @@ import {
     type EditableTransaction,
     TransactionFormDialog,
 } from './transaction-form-dialog';
+import {
+    type TransactionFilters,
+    TransactionsFilters,
+} from './transactions-filters';
 
 type Related = { id: number; name: string } | null;
 
@@ -39,6 +43,7 @@ type VatRate = { id: number; name: string; rate: string };
 
 type Props = {
     transactions: Transaction[];
+    filters: TransactionFilters;
     wallets: Option[];
     entities: Option[];
     categories: Category[];
@@ -64,6 +69,7 @@ function total(t: Transaction): number {
 
 export default function TransactionsIndex({
     transactions,
+    filters,
     wallets,
     entities,
     categories,
@@ -106,6 +112,8 @@ export default function TransactionsIndex({
                         Add transaction
                     </Button>
                 </div>
+
+                <TransactionsFilters filters={filters} wallets={wallets} />
 
                 <div className="overflow-x-auto rounded-lg border">
                     <table className="w-full text-sm">
