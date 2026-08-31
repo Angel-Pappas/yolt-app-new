@@ -52,6 +52,20 @@ class ProjectController extends Controller
         ]);
     }
 
+    public function show(Project $project): Response
+    {
+        $project->load(['status:id,name', 'lead:id,contact_name']);
+
+        return Inertia::render('projects/show', [
+            'project' => $project,
+            'actions' => $project->actions()
+                ->orderByDesc('action_date')
+                ->orderByDesc('id')
+                ->get(['id', 'action_date', 'body', 'author_name']),
+            'statuses' => ProjectStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $project = new Project($this->validateProject($request));

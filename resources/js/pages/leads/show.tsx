@@ -4,7 +4,10 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDate } from '@/lib/format';
-import { type EditableAction, ActionFormDialog } from './action-form-dialog';
+import {
+    type EditableAction,
+    ActionFormDialog,
+} from '@/components/crm/action-form-dialog';
 import { type EditableContact, ContactFormDialog } from './contact-form-dialog';
 import { type EditableLead, LeadFormDialog } from './lead-form-dialog';
 
@@ -362,7 +365,7 @@ export default function LeadShow({
                 key={actionKey}
                 open={actionOpen}
                 onOpenChange={setActionOpen}
-                leadId={lead.id}
+                baseUrl={`/leads/${lead.id}/actions`}
                 editing={editingAction}
             />
 

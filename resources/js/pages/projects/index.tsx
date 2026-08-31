@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -82,7 +82,12 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
                                         {project.sort_order}
                                     </td>
                                     <td className="p-3 font-medium">
-                                        {project.name}
+                                        <Link
+                                            href={`/projects/${project.id}`}
+                                            className="hover:underline"
+                                        >
+                                            {project.name}
+                                        </Link>
                                     </td>
                                     <td className="text-muted-foreground p-3">
                                         {project.lead?.contact_name ?? '—'}

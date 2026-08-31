@@ -22,7 +22,8 @@ export type EditableAction = {
 type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    leadId: number;
+    /** Collection URL for the parent's actions, e.g. `/leads/12/actions`. */
+    baseUrl: string;
     editing?: EditableAction | null;
 };
 
@@ -30,10 +31,14 @@ function today(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * The History activity-log entry dialog, shared by Leads and Projects. `baseUrl`
+ * is the parent's actions collection; edits post to `${baseUrl}/${id}`.
+ */
 export function ActionFormDialog({
     open,
     onOpenChange,
-    leadId,
+    baseUrl,
     editing,
 }: Props) {
     const form = useForm({
@@ -45,12 +50,12 @@ export function ActionFormDialog({
         e.preventDefault();
 
         if (editing) {
-            form.patch(`/leads/${leadId}/actions/${editing.id}`, {
+            form.patch(`${baseUrl}/${editing.id}`, {
                 preserveScroll: true,
                 onSuccess: () => onOpenChange(false),
             });
         } else {
-            form.post(`/leads/${leadId}/actions`, {
+            form.post(baseUrl, {
                 preserveScroll: true,
                 onSuccess: () => {
                     onOpenChange(false);

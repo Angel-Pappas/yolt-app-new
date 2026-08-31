@@ -7,6 +7,7 @@ use App\Http\Controllers\LeadContactController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadOriginController;
 use App\Http\Controllers\LeadStatusController;
+use App\Http\Controllers\ProjectActionController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectStatusController;
 use App\Http\Controllers\TaxController;
@@ -86,8 +87,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
+        Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
         Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+
+        Route::post('projects/{project}/actions', [ProjectActionController::class, 'store'])->name('projects.actions.store');
+        Route::patch('projects/{project}/actions/{action}', [ProjectActionController::class, 'update'])->name('projects.actions.update');
+        Route::delete('projects/{project}/actions/{action}', [ProjectActionController::class, 'destroy'])->name('projects.actions.destroy');
 
         Route::get('project-statuses', [ProjectStatusController::class, 'index'])->name('project-statuses.index');
         Route::post('project-statuses', [ProjectStatusController::class, 'store'])->name('project-statuses.store');
