@@ -2,20 +2,67 @@
 
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\VatRate;
 use App\Models\Wallet;
 use Inertia\Testing\AssertableInertia as Assert;
 
-test('reconcile toggles the reconciled flag', function () {
+test('reconcile marks reconciled and can correct the fields', function () {
+    $user = User::factory()->withFinanceAccess()->create();
+    $wallet = Wallet::factory()->create();
+    $other = Wallet::factory()->create();
+    $t = Transaction::factory()->create([
+        'wallet_id' => $wallet->id, 'type' => 'expense', 'net' => 100,
+        'vat_amount' => 0, 'is_reconciled' => false, 'date' => '2026-05-01',
+    ]);
+
+    $this->actingAs($user)->post("/transactions/{$t->id}/reconcile", [
+        'date' => '2026-05-10',
+        'net' => '120',
+        'wallet_id' => $other->id,
+        'is_reconciled' => true,
+    ])->assertRedirect();
+
+    $t->refresh();
+    expect($t->is_reconciled)->toBeTrue();
+    expect($t->net)->toBe('120.00');
+    expect($t->wallet_id)->toBe($other->id);
+    expect($t->date->toDateString())->toBe('2026-05-10');
+});
+
+test('reconcile rescales VAT proportionally when the amount changes', function () {
+    $user = User::factory()->withFinanceAccess()->create();
+    $wallet = Wallet::factory()->create();
+    $vatRate = VatRate::factory()->create(['rate' => 24]);
+    // A single-line 100 @ 24% expense.
+    $this->actingAs($user)->post('/transactions', [
+        'type' => 'expense', 'date' => '2026-05-01', 'invoice_date' => '2026-05-01',
+        'wallet_id' => $wallet->id, 'amount_mode' => 'net',
+        'lines' => [['amount' => '100', 'vat_rate_id' => $vatRate->id]],
+    ])->assertRedirect();
+    $t = Transaction::first();
+
+    $this->actingAs($user)->post("/transactions/{$t->id}/reconcile", [
+        'date' => '2026-05-01', 'net' => '200', 'wallet_id' => $wallet->id,
+    ])->assertRedirect();
+
+    $t->refresh();
+    expect($t->net)->toBe('200.00');
+    expect($t->vat_amount)->toBe('48.00'); // 200 * 24%
+});
+
+test('reconcile can unmark a transaction', function () {
     $user = User::factory()->withFinanceAccess()->create();
     $wallet = Wallet::factory()->create();
     $t = Transaction::factory()->create([
-        'wallet_id' => $wallet->id, 'is_reconciled' => false,
+        'wallet_id' => $wallet->id, 'type' => 'expense', 'net' => 50,
+        'vat_amount' => 0, 'is_reconciled' => true,
     ]);
 
-    $this->actingAs($user)->post("/transactions/{$t->id}/reconcile")->assertRedirect();
-    expect($t->refresh()->is_reconciled)->toBeTrue();
+    $this->actingAs($user)->post("/transactions/{$t->id}/reconcile", [
+        'date' => '2026-05-01', 'net' => '50', 'wallet_id' => $wallet->id,
+        'is_reconciled' => false,
+    ])->assertRedirect();
 
-    $this->actingAs($user)->post("/transactions/{$t->id}/reconcile")->assertRedirect();
     expect($t->refresh()->is_reconciled)->toBeFalse();
 });
 

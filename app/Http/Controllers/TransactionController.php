@@ -223,14 +223,95 @@ class TransactionController extends Controller
     }
 
     /**
-     * Toggle a transaction's reconciled flag — the record that the user has checked
-     * it (built ahead of automatic recurring-transaction generation).
+     * Reconcile a transaction: a reduced edit of just the fields that drift when a
+     * (future/projected) transaction actually happens — date, amount, and wallet(s)
+     * — plus the reconciled flag. Reconciling is itself the record that the user
+     * checked the row, whether or not anything changed. When the amount changes on
+     * an income/expense, its VAT lines are rescaled proportionally and their VAT
+     * re-derived from each line's rate, so the breakdown never goes stale.
      */
-    public function reconcile(Transaction $transaction): RedirectResponse
+    public function reconcile(Request $request, Transaction $transaction): RedirectResponse
     {
-        $transaction->update(['is_reconciled' => ! $transaction->is_reconciled]);
+        $rules = [
+            'date' => ['required', 'date'],
+            'net' => ['required', 'numeric', 'min:0'],
+            'wallet_id' => ['required', 'integer', 'exists:wallets,id'],
+            'is_reconciled' => ['boolean'],
+        ];
+        if ($transaction->type === 'transfer') {
+            $rules['to_wallet_id'] = ['required', 'integer', 'different:wallet_id', 'exists:wallets,id'];
+        }
+        $data = $request->validate($rules);
+
+        DB::transaction(function () use ($data, $transaction) {
+            $newNet = round((float) $data['net'], 2);
+
+            $transaction->fill([
+                'date' => $data['date'],
+                'wallet_id' => $data['wallet_id'],
+                'is_reconciled' => $data['is_reconciled'] ?? true,
+            ]);
+
+            if ($transaction->type === 'transfer') {
+                $transaction->to_wallet_id = $data['to_wallet_id'];
+                $transaction->net = number_format($newNet, 2, '.', '');
+            } else {
+                $this->rescaleVatLines($transaction, $newNet);
+            }
+
+            $transaction->save();
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction reconciled.')]);
 
         return back();
+    }
+
+    /**
+     * Distribute a new net across a transaction's VAT lines in proportion to their
+     * current share (the last line absorbs any rounding remainder so the parts sum
+     * exactly), re-deriving each line's VAT from its rate, and update the summed
+     * net/vat_amount on the transaction.
+     */
+    private function rescaleVatLines(Transaction $transaction, float $newNet): void
+    {
+        $lines = $transaction->vatLines()->orderBy('position')->get();
+        if ($lines->isEmpty()) {
+            $transaction->net = number_format($newNet, 2, '.', '');
+
+            return;
+        }
+
+        $oldNet = (float) $lines->sum(fn ($l) => (float) $l->net);
+        $rates = VatRate::query()
+            ->whereIn('id', $lines->pluck('vat_rate_id')->filter())
+            ->pluck('rate', 'id');
+
+        $count = $lines->count();
+        $remaining = $newNet;
+        $sumNet = 0.0;
+        $sumVat = 0.0;
+
+        foreach ($lines->values() as $i => $line) {
+            if ($i === $count - 1) {
+                $lineNet = round($remaining, 2);
+            } elseif ($oldNet > 0) {
+                $lineNet = round($newNet * (float) $line->net / $oldNet, 2);
+            } else {
+                $lineNet = $i === 0 ? $newNet : 0.0;
+            }
+            $remaining -= $lineNet;
+
+            $rate = $line->vat_rate_id !== null ? (float) $rates[$line->vat_rate_id] : 0.0;
+            $lineVat = round($lineNet * $rate / 100, 2);
+            $line->update(['net' => $lineNet, 'vat_amount' => $lineVat]);
+
+            $sumNet += $lineNet;
+            $sumVat += $lineVat;
+        }
+
+        $transaction->net = number_format($sumNet, 2, '.', '');
+        $transaction->vat_amount = number_format($sumVat, 2, '.', '');
     }
 
     /**

@@ -9,6 +9,7 @@ import { formatAmount, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { BalanceViewControl } from './balance-view-control';
 import { InvoiceDialog } from './invoice-dialog';
+import { ReconcileModal } from './reconcile-modal';
 import {
     type EditableTransaction,
     TransactionFormDialog,
@@ -98,13 +99,12 @@ export default function TransactionsIndex({
     const [formKey, setFormKey] = useState(0);
     const [invoiceFor, setInvoiceFor] = useState<Transaction | null>(null);
     const [invoiceKey, setInvoiceKey] = useState(0);
+    const [reconcileFor, setReconcileFor] = useState<Transaction | null>(null);
+    const [reconcileKey, setReconcileKey] = useState(0);
 
-    function toggleReconcile(t: Transaction) {
-        router.post(
-            `/transactions/${t.id}/reconcile`,
-            {},
-            { preserveScroll: true },
-        );
+    function openReconcile(t: Transaction) {
+        setReconcileFor(t);
+        setReconcileKey((k) => k + 1);
     }
 
     function openInvoice(t: Transaction) {
@@ -284,8 +284,8 @@ export default function TransactionsIndex({
                         <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => toggleReconcile(t)}
-                            aria-label="Toggle reconciled"
+                            onClick={() => openReconcile(t)}
+                            aria-label="Reconcile transaction"
                             aria-pressed={t.is_reconciled}
                             className={cn(
                                 t.is_reconciled &&
@@ -385,6 +385,16 @@ export default function TransactionsIndex({
                     onOpenChange={(open) => !open && setInvoiceFor(null)}
                     transactionId={invoiceFor.id}
                     current={invoiceValue(invoiceFor)}
+                />
+            )}
+
+            {reconcileFor && (
+                <ReconcileModal
+                    key={reconcileKey}
+                    open={reconcileFor !== null}
+                    onOpenChange={(open) => !open && setReconcileFor(null)}
+                    transaction={reconcileFor}
+                    wallets={wallets}
                 />
             )}
         </>
