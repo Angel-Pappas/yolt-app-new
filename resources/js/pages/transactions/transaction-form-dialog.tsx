@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { type FormEvent } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/ui/combobox';
 import {
     Dialog,
     DialogContent,
@@ -334,64 +335,44 @@ export function TransactionFormDialog({
                         {!isTransfer && (
                             <div className="grid gap-2">
                                 <Label htmlFor="entity_id">Entity</Label>
-                                <Select
-                                    value={form.data.entity_id || NONE}
-                                    onValueChange={(v) =>
-                                        form.setData(
-                                            'entity_id',
-                                            v === NONE ? '' : v,
-                                        )
+                                <Combobox
+                                    id="entity_id"
+                                    value={form.data.entity_id}
+                                    onChange={(v) =>
+                                        form.setData('entity_id', v)
                                     }
-                                >
-                                    <SelectTrigger id="entity_id">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value={NONE}>
-                                            — None —
-                                        </SelectItem>
-                                        {entities.map((entity) => (
-                                            <SelectItem
-                                                key={entity.id}
-                                                value={String(entity.id)}
-                                            >
-                                                {entity.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    options={entities.map((entity) => ({
+                                        value: String(entity.id),
+                                        label: entity.name,
+                                    }))}
+                                    placeholder="— None —"
+                                    searchPlaceholder="Search entities…"
+                                    emptyText="No entities found."
+                                    allowNone
+                                />
                             </div>
                         )}
 
                         {!isTransfer && (
                             <div className="grid gap-2">
                                 <Label htmlFor="category_id">Category</Label>
-                                <Select
-                                    value={form.data.category_id || NONE}
-                                    onValueChange={(v) =>
-                                        form.setData(
-                                            'category_id',
-                                            v === NONE ? '' : v,
-                                        )
+                                <Combobox
+                                    id="category_id"
+                                    value={form.data.category_id}
+                                    onChange={(v) =>
+                                        form.setData('category_id', v)
                                     }
-                                >
-                                    <SelectTrigger id="category_id">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value={NONE}>
-                                            — None —
-                                        </SelectItem>
-                                        {availableCategories.map((category) => (
-                                            <SelectItem
-                                                key={category.id}
-                                                value={String(category.id)}
-                                            >
-                                                {category.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    options={availableCategories.map(
+                                        (category) => ({
+                                            value: String(category.id),
+                                            label: category.name,
+                                        }),
+                                    )}
+                                    placeholder="— None —"
+                                    searchPlaceholder="Search categories…"
+                                    emptyText="No categories found."
+                                    allowNone
+                                />
                             </div>
                         )}
 
