@@ -3,7 +3,7 @@ import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatPhone } from '@/lib/format';
 import {
     type EditableAction,
     ActionFormDialog,
@@ -177,10 +177,13 @@ export default function LeadShow({
                             value={lead.contact_position}
                         />
                         <Detail label="Email" value={lead.contact_email} />
-                        <Detail label="Phone" value={lead.contact_phone} />
+                        <Detail
+                            label="Phone"
+                            value={formatPhone(lead.contact_phone) || null}
+                        />
                         <Detail
                             label="Landline"
-                            value={lead.contact_landline}
+                            value={formatPhone(lead.contact_landline) || null}
                         />
                         <div className="sm:col-span-3">
                             <Detail
@@ -321,7 +324,8 @@ export default function LeadShow({
                                                 {contact.position || '—'}
                                             </td>
                                             <td className="text-muted-foreground py-2 whitespace-nowrap">
-                                                {contact.phone || '—'}
+                                                {formatPhone(contact.phone) ||
+                                                    '—'}
                                             </td>
                                             <td className="text-muted-foreground py-2">
                                                 {contact.email || '—'}

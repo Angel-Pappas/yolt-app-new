@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
+import { formatPhone } from '@/lib/format';
 import { type EditableLead, LeadFormDialog } from './lead-form-dialog';
 import { type LeadFilters, LeadsFilters } from './leads-filters';
 
@@ -109,7 +110,7 @@ export default function LeadsIndex({
             ),
             cell: ({ row }) => (
                 <span className="text-muted-foreground whitespace-nowrap">
-                    {row.original.contact_phone || '—'}
+                    {formatPhone(row.original.contact_phone) || '—'}
                 </span>
             ),
         },

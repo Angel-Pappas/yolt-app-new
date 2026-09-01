@@ -18,6 +18,14 @@ export function formatDate(value: string): string {
     return `${day}/${month}/${year}`;
 }
 
+/** Group a phone number's digits for display, e.g. "2101234567" → "210 123 4567". */
+export function formatPhone(value: string | null | undefined): string {
+    if (!value) return '';
+    const digits = value.replace(/\D/g, '');
+    if (digits.length < 7) return digits;
+    return digits.replace(/(\d{3})(\d{3})(\d+)/, '$1 $2 $3');
+}
+
 const MONTH_NAMES = [
     'January',
     'February',

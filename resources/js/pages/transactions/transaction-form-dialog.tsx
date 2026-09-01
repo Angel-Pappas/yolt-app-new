@@ -1,6 +1,6 @@
 import { useForm } from '@inertiajs/react';
 import { X } from 'lucide-react';
-import { type FormEvent } from 'react';
+import { type FormEvent, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
@@ -137,6 +137,14 @@ export function TransactionFormDialog({
                   withheld_net: '',
                   withheld_rate_id: '',
               },
+    );
+
+    // Invoice date follows the transaction date until the user edits it directly
+    // (re-derived on edit: an already-diverged invoice date stays independent).
+    const [invoiceDateTouched, setInvoiceDateTouched] = useState(
+        editing
+            ? editing.invoice_date.slice(0, 10) !== editing.date.slice(0, 10)
+            : false,
     );
 
     const isTransfer = form.data.type === 'transfer';
@@ -310,9 +318,15 @@ export function TransactionFormDialog({
                                 id="date"
                                 type="date"
                                 value={form.data.date}
-                                onChange={(e) =>
-                                    form.setData('date', e.target.value)
-                                }
+                                onChange={(e) => {
+                                    form.setData('date', e.target.value);
+                                    if (!invoiceDateTouched) {
+                                        form.setData(
+                                            'invoice_date',
+                                            e.target.value,
+                                        );
+                                    }
+                                }}
                                 required
                             />
                             <InputError message={form.errors.date} />
@@ -324,9 +338,13 @@ export function TransactionFormDialog({
                                 id="invoice_date"
                                 type="date"
                                 value={form.data.invoice_date}
-                                onChange={(e) =>
-                                    form.setData('invoice_date', e.target.value)
-                                }
+                                onChange={(e) => {
+                                    form.setData(
+                                        'invoice_date',
+                                        e.target.value,
+                                    );
+                                    setInvoiceDateTouched(true);
+                                }}
                                 required
                             />
                             <InputError message={form.errors.invoice_date} />
