@@ -2,7 +2,8 @@ import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDate, formatPhone } from '@/lib/format';
 import {
     type EditableAction,
@@ -198,181 +199,202 @@ export default function LeadShow({
                 </Card>
 
                 <Card>
-                    <CardHeader className="flex-row items-center justify-between space-y-0">
-                        <CardTitle>History</CardTitle>
-                        <Button size="sm" onClick={openAddAction}>
-                            <Plus className="size-4" />
-                            Log action
-                        </Button>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="text-muted-foreground text-left">
-                                        <th className="pb-2 font-medium">
-                                            Date
-                                        </th>
-                                        <th className="pb-2 font-medium">
-                                            User
-                                        </th>
-                                        <th className="pb-2 font-medium">
-                                            Action
-                                        </th>
-                                        <th className="pb-2" />
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {actions.map((action) => (
-                                        <tr
-                                            key={action.id}
-                                            className="border-t"
-                                        >
-                                            <td className="py-2 whitespace-nowrap tabular-nums">
-                                                {formatDate(action.action_date)}
-                                            </td>
-                                            <td className="text-muted-foreground py-2 whitespace-nowrap">
-                                                {action.author_name ?? '—'}
-                                            </td>
-                                            <td className="py-2 whitespace-pre-wrap">
-                                                {action.body}
-                                            </td>
-                                            <td className="py-2">
-                                                <div className="flex justify-end gap-1">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            openEditAction(
-                                                                action,
-                                                            )
-                                                        }
-                                                        aria-label="Edit action"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            destroyAction(
-                                                                action,
-                                                            )
-                                                        }
-                                                        aria-label="Delete action"
-                                                    >
-                                                        <Trash2 className="size-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {actions.length === 0 && (
-                                        <tr>
-                                            <td
-                                                colSpan={4}
-                                                className="text-muted-foreground py-4 text-center"
-                                            >
-                                                No actions logged yet.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </CardContent>
-                </Card>
+                    <CardContent className="pt-6">
+                        <Tabs defaultValue="history">
+                            <TabsList>
+                                <TabsTrigger value="history">
+                                    History
+                                </TabsTrigger>
+                                <TabsTrigger value="contacts">
+                                    Contacts
+                                </TabsTrigger>
+                            </TabsList>
 
-                <Card>
-                    <CardHeader className="flex-row items-center justify-between space-y-0">
-                        <CardTitle>Contacts</CardTitle>
-                        <Button size="sm" onClick={openAddContact}>
-                            <Plus className="size-4" />
-                            Add contact
-                        </Button>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="text-muted-foreground text-left">
-                                        <th className="pb-2 font-medium">
-                                            Name
-                                        </th>
-                                        <th className="pb-2 font-medium">
-                                            Position
-                                        </th>
-                                        <th className="pb-2 font-medium">
-                                            Phone
-                                        </th>
-                                        <th className="pb-2 font-medium">
-                                            Email
-                                        </th>
-                                        <th className="pb-2" />
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {contacts.map((contact) => (
-                                        <tr
-                                            key={contact.id}
-                                            className="border-t"
-                                        >
-                                            <td className="py-2 font-medium">
-                                                {contact.name}
-                                            </td>
-                                            <td className="text-muted-foreground py-2">
-                                                {contact.position || '—'}
-                                            </td>
-                                            <td className="text-muted-foreground py-2 whitespace-nowrap">
-                                                {formatPhone(contact.phone) ||
-                                                    '—'}
-                                            </td>
-                                            <td className="text-muted-foreground py-2">
-                                                {contact.email || '—'}
-                                            </td>
-                                            <td className="py-2">
-                                                <div className="flex justify-end gap-1">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            openEditContact(
-                                                                contact,
-                                                            )
-                                                        }
-                                                        aria-label="Edit contact"
+                            <TabsContent
+                                value="history"
+                                className="mt-4 space-y-3"
+                            >
+                                <div className="flex justify-end">
+                                    <Button size="sm" onClick={openAddAction}>
+                                        <Plus className="size-4" />
+                                        Log action
+                                    </Button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="text-muted-foreground text-left">
+                                                <th className="pb-2 font-medium">
+                                                    Date
+                                                </th>
+                                                <th className="pb-2 font-medium">
+                                                    User
+                                                </th>
+                                                <th className="pb-2 font-medium">
+                                                    Action
+                                                </th>
+                                                <th className="pb-2" />
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {actions.map((action) => (
+                                                <tr
+                                                    key={action.id}
+                                                    className="border-t"
+                                                >
+                                                    <td className="py-2 whitespace-nowrap tabular-nums">
+                                                        {formatDate(
+                                                            action.action_date,
+                                                        )}
+                                                    </td>
+                                                    <td className="text-muted-foreground py-2 whitespace-nowrap">
+                                                        {action.author_name ??
+                                                            '—'}
+                                                    </td>
+                                                    <td className="py-2 whitespace-pre-wrap">
+                                                        {action.body}
+                                                    </td>
+                                                    <td className="py-2">
+                                                        <div className="flex justify-end gap-1">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() =>
+                                                                    openEditAction(
+                                                                        action,
+                                                                    )
+                                                                }
+                                                                aria-label="Edit action"
+                                                            >
+                                                                <Pencil className="size-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() =>
+                                                                    destroyAction(
+                                                                        action,
+                                                                    )
+                                                                }
+                                                                aria-label="Delete action"
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {actions.length === 0 && (
+                                                <tr>
+                                                    <td
+                                                        colSpan={4}
+                                                        className="text-muted-foreground py-4 text-center"
                                                     >
-                                                        <Pencil className="size-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            destroyContact(
-                                                                contact,
-                                                            )
-                                                        }
-                                                        aria-label="Delete contact"
+                                                        No actions logged yet.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </TabsContent>
+
+                            <TabsContent
+                                value="contacts"
+                                className="mt-4 space-y-3"
+                            >
+                                <div className="flex justify-end">
+                                    <Button size="sm" onClick={openAddContact}>
+                                        <Plus className="size-4" />
+                                        Add contact
+                                    </Button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="text-muted-foreground text-left">
+                                                <th className="pb-2 font-medium">
+                                                    Name
+                                                </th>
+                                                <th className="pb-2 font-medium">
+                                                    Position
+                                                </th>
+                                                <th className="pb-2 font-medium">
+                                                    Phone
+                                                </th>
+                                                <th className="pb-2 font-medium">
+                                                    Email
+                                                </th>
+                                                <th className="pb-2" />
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {contacts.map((contact) => (
+                                                <tr
+                                                    key={contact.id}
+                                                    className="border-t"
+                                                >
+                                                    <td className="py-2 font-medium">
+                                                        {contact.name}
+                                                    </td>
+                                                    <td className="text-muted-foreground py-2">
+                                                        {contact.position ||
+                                                            '—'}
+                                                    </td>
+                                                    <td className="text-muted-foreground py-2 whitespace-nowrap">
+                                                        {formatPhone(
+                                                            contact.phone,
+                                                        ) || '—'}
+                                                    </td>
+                                                    <td className="text-muted-foreground py-2">
+                                                        {contact.email || '—'}
+                                                    </td>
+                                                    <td className="py-2">
+                                                        <div className="flex justify-end gap-1">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() =>
+                                                                    openEditContact(
+                                                                        contact,
+                                                                    )
+                                                                }
+                                                                aria-label="Edit contact"
+                                                            >
+                                                                <Pencil className="size-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() =>
+                                                                    destroyContact(
+                                                                        contact,
+                                                                    )
+                                                                }
+                                                                aria-label="Delete contact"
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {contacts.length === 0 && (
+                                                <tr>
+                                                    <td
+                                                        colSpan={5}
+                                                        className="text-muted-foreground py-4 text-center"
                                                     >
-                                                        <Trash2 className="size-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {contacts.length === 0 && (
-                                        <tr>
-                                            <td
-                                                colSpan={5}
-                                                className="text-muted-foreground py-4 text-center"
-                                            >
-                                                No additional contacts yet.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                                        No additional contacts
+                                                        yet.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </TabsContent>
+                        </Tabs>
                     </CardContent>
                 </Card>
             </div>
