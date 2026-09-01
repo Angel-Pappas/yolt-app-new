@@ -2,6 +2,7 @@ import { router } from '@inertiajs/react';
 import { CircleCheck, FileText, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { DateField } from '@/components/ui/date-field';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -143,20 +144,18 @@ export function TransactionsFilters({
                 </Select>
             )}
 
-            <Input
-                type="date"
-                value={filters.from ?? ''}
-                onChange={(e) => apply({ from: e.target.value || null })}
-                className="w-40"
-                aria-label="From date"
-            />
-            <Input
-                type="date"
-                value={filters.to ?? ''}
-                onChange={(e) => apply({ to: e.target.value || null })}
-                className="w-40"
-                aria-label="To date"
-            />
+            <div className="w-40">
+                <DateField
+                    value={filters.from ?? ''}
+                    onChange={(iso) => apply({ from: iso || null })}
+                />
+            </div>
+            <div className="w-40">
+                <DateField
+                    value={filters.to ?? ''}
+                    onChange={(iso) => apply({ to: iso || null })}
+                />
+            </div>
 
             <Button
                 variant="outline"

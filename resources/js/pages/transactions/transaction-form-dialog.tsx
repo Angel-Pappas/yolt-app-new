@@ -4,6 +4,7 @@ import { type FormEvent, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
+import { DateField } from '@/components/ui/date-field';
 import {
     Dialog,
     DialogContent,
@@ -314,38 +315,32 @@ export function TransactionFormDialog({
 
                         <div className="grid gap-2">
                             <Label htmlFor="date">Date</Label>
-                            <Input
+                            <DateField
                                 id="date"
-                                type="date"
                                 value={form.data.date}
-                                onChange={(e) => {
-                                    form.setData('date', e.target.value);
+                                showCalendar={false}
+                                required
+                                onChange={(iso) => {
+                                    form.setData('date', iso);
                                     if (!invoiceDateTouched) {
-                                        form.setData(
-                                            'invoice_date',
-                                            e.target.value,
-                                        );
+                                        form.setData('invoice_date', iso);
                                     }
                                 }}
-                                required
                             />
                             <InputError message={form.errors.date} />
                         </div>
 
                         <div className="grid gap-2">
                             <Label htmlFor="invoice_date">Invoice date</Label>
-                            <Input
+                            <DateField
                                 id="invoice_date"
-                                type="date"
                                 value={form.data.invoice_date}
-                                onChange={(e) => {
-                                    form.setData(
-                                        'invoice_date',
-                                        e.target.value,
-                                    );
+                                showCalendar={false}
+                                required
+                                onChange={(iso) => {
+                                    form.setData('invoice_date', iso);
                                     setInvoiceDateTouched(true);
                                 }}
-                                required
                             />
                             <InputError message={form.errors.invoice_date} />
                         </div>

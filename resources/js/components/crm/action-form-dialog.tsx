@@ -9,7 +9,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { DateField } from '@/components/ui/date-field';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -78,14 +78,14 @@ export function ActionFormDialog({
                     <div className="grid gap-4 py-4">
                         <div className="grid gap-2">
                             <Label htmlFor="action_date">Date</Label>
-                            <Input
+                            <DateField
                                 id="action_date"
-                                type="date"
                                 value={form.data.action_date}
-                                onChange={(e) =>
-                                    form.setData('action_date', e.target.value)
-                                }
+                                showCalendar={false}
                                 required
+                                onChange={(iso) =>
+                                    form.setData('action_date', iso)
+                                }
                             />
                             <InputError message={form.errors.action_date} />
                         </div>
