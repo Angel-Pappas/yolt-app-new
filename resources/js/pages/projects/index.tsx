@@ -1,6 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { type ColumnDef } from '@tanstack/react-table';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { ColumnHeader } from '@/components/data-table/column-header';
+import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { formatAmount } from '@/lib/format';
 import { type EditableProject, ProjectFormDialog } from './project-form-dialog';
@@ -46,6 +49,107 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
         }
     }
 
+    const columns: ColumnDef<Project>[] = [
+        {
+            accessorKey: 'sort_order',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="No." />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground tabular-nums">
+                    {row.original.sort_order}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'name',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Name" />
+            ),
+            cell: ({ row }) => (
+                <Link
+                    href={`/projects/${row.original.id}`}
+                    className="font-medium hover:underline"
+                >
+                    {row.original.name}
+                </Link>
+            ),
+        },
+        {
+            id: 'client',
+            accessorFn: (row) => row.lead?.contact_name ?? '',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Client" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground">
+                    {row.original.lead?.contact_name ?? '—'}
+                </span>
+            ),
+        },
+        {
+            id: 'status',
+            accessorFn: (row) => row.status?.name ?? '',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Status" />
+            ),
+            cell: ({ row }) => (
+                <span className="whitespace-nowrap">
+                    {row.original.status?.name ?? '—'}
+                </span>
+            ),
+        },
+        {
+            id: 'value',
+            accessorFn: (row) => (row.value != null ? Number(row.value) : 0),
+            meta: { align: 'right' },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Value" align="right" />
+            ),
+            cell: ({ row }) =>
+                row.original.value != null
+                    ? formatAmount(row.original.value)
+                    : '—',
+        },
+        {
+            accessorKey: 'next_step',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Next step" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground">
+                    {row.original.next_step || '—'}
+                </span>
+            ),
+        },
+        {
+            id: 'actions',
+            enableSorting: false,
+            meta: { align: 'right' },
+            header: () => null,
+            cell: ({ row }) => (
+                <div className="flex justify-end gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(row.original)}
+                        aria-label="Edit project"
+                    >
+                        <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => destroy(row.original)}
+                        aria-label="Delete project"
+                    >
+                        <Trash2 className="size-4" />
+                    </Button>
+                </div>
+            ),
+        },
+    ];
+
     return (
         <>
             <Head title="Projects" />
@@ -60,86 +164,12 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
 
                 <ProjectsFilters filters={filters} statuses={statuses} />
 
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-muted/50 text-left">
-                                <th className="p-3 font-medium">No.</th>
-                                <th className="p-3 font-medium">Name</th>
-                                <th className="p-3 font-medium">Client</th>
-                                <th className="p-3 font-medium">Status</th>
-                                <th className="p-3 text-right font-medium">
-                                    Value
-                                </th>
-                                <th className="p-3 font-medium">Next step</th>
-                                <th className="p-3" />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {projects.map((project) => (
-                                <tr key={project.id} className="border-t">
-                                    <td className="text-muted-foreground p-3 tabular-nums">
-                                        {project.sort_order}
-                                    </td>
-                                    <td className="p-3 font-medium">
-                                        <Link
-                                            href={`/projects/${project.id}`}
-                                            className="hover:underline"
-                                        >
-                                            {project.name}
-                                        </Link>
-                                    </td>
-                                    <td className="text-muted-foreground p-3">
-                                        {project.lead?.contact_name ?? '—'}
-                                    </td>
-                                    <td className="p-3 whitespace-nowrap">
-                                        {project.status?.name ?? '—'}
-                                    </td>
-                                    <td className="p-3 text-right tabular-nums">
-                                        {project.value != null
-                                            ? formatAmount(project.value)
-                                            : '—'}
-                                    </td>
-                                    <td className="text-muted-foreground max-w-xs p-3">
-                                        {project.next_step || '—'}
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="flex justify-end gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    openEdit(project)
-                                                }
-                                                aria-label="Edit project"
-                                            >
-                                                <Pencil className="size-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => destroy(project)}
-                                                aria-label="Delete project"
-                                            >
-                                                <Trash2 className="size-4" />
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {projects.length === 0 && (
-                                <tr>
-                                    <td
-                                        colSpan={7}
-                                        className="text-muted-foreground p-6 text-center"
-                                    >
-                                        No projects yet.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={projects}
+                    emptyMessage="No projects yet."
+                    pageSize={50}
+                />
             </div>
 
             <ProjectFormDialog

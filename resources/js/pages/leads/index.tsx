@@ -1,6 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { type ColumnDef } from '@tanstack/react-table';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { ColumnHeader } from '@/components/data-table/column-header';
+import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { type EditableLead, LeadFormDialog } from './lead-form-dialog';
 import { type LeadFilters, LeadsFilters } from './leads-filters';
@@ -50,6 +53,117 @@ export default function LeadsIndex({
         }
     }
 
+    const columns: ColumnDef<Lead>[] = [
+        {
+            accessorKey: 'sort_order',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="No." />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground tabular-nums">
+                    {row.original.sort_order}
+                </span>
+            ),
+        },
+        {
+            id: 'origin',
+            accessorFn: (row) => row.origin?.name ?? '',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Origin" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground whitespace-nowrap">
+                    {row.original.origin?.name ?? '—'}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'name',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Name" />
+            ),
+            cell: ({ row }) => (
+                <Link
+                    href={`/leads/${row.original.id}`}
+                    className="font-medium hover:underline"
+                >
+                    {row.original.name}
+                </Link>
+            ),
+        },
+        {
+            accessorKey: 'contact_email',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Email" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground">
+                    {row.original.contact_email || '—'}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'contact_phone',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Phone" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground whitespace-nowrap">
+                    {row.original.contact_phone || '—'}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'next_step',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Next step" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground">
+                    {row.original.next_step || '—'}
+                </span>
+            ),
+        },
+        {
+            id: 'status',
+            accessorFn: (row) => row.status?.name ?? '',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Status" />
+            ),
+            cell: ({ row }) => (
+                <span className="whitespace-nowrap">
+                    {row.original.status?.name ?? '—'}
+                </span>
+            ),
+        },
+        {
+            id: 'actions',
+            enableSorting: false,
+            meta: { align: 'right' },
+            header: () => null,
+            cell: ({ row }) => (
+                <div className="flex justify-end gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(row.original)}
+                        aria-label="Edit lead"
+                    >
+                        <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => destroy(row.original)}
+                        aria-label="Delete lead"
+                    >
+                        <Trash2 className="size-4" />
+                    </Button>
+                </div>
+            ),
+        },
+    ];
+
     return (
         <>
             <Head title="Leads" />
@@ -68,84 +182,12 @@ export default function LeadsIndex({
                     origins={origins}
                 />
 
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-muted/50 text-left">
-                                <th className="p-3 font-medium">No.</th>
-                                <th className="p-3 font-medium">Origin</th>
-                                <th className="p-3 font-medium">Name</th>
-                                <th className="p-3 font-medium">Email</th>
-                                <th className="p-3 font-medium">Phone</th>
-                                <th className="p-3 font-medium">Next step</th>
-                                <th className="p-3 font-medium">Status</th>
-                                <th className="p-3" />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {leads.map((lead) => (
-                                <tr key={lead.id} className="border-t">
-                                    <td className="text-muted-foreground p-3 tabular-nums">
-                                        {lead.sort_order}
-                                    </td>
-                                    <td className="text-muted-foreground p-3 whitespace-nowrap">
-                                        {lead.origin?.name ?? '—'}
-                                    </td>
-                                    <td className="p-3 font-medium">
-                                        <Link
-                                            href={`/leads/${lead.id}`}
-                                            className="hover:underline"
-                                        >
-                                            {lead.name}
-                                        </Link>
-                                    </td>
-                                    <td className="text-muted-foreground p-3">
-                                        {lead.contact_email || '—'}
-                                    </td>
-                                    <td className="text-muted-foreground p-3 whitespace-nowrap">
-                                        {lead.contact_phone || '—'}
-                                    </td>
-                                    <td className="text-muted-foreground max-w-xs p-3">
-                                        {lead.next_step || '—'}
-                                    </td>
-                                    <td className="p-3 whitespace-nowrap">
-                                        {lead.status?.name ?? '—'}
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="flex justify-end gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => openEdit(lead)}
-                                                aria-label="Edit lead"
-                                            >
-                                                <Pencil className="size-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => destroy(lead)}
-                                                aria-label="Delete lead"
-                                            >
-                                                <Trash2 className="size-4" />
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {leads.length === 0 && (
-                                <tr>
-                                    <td
-                                        colSpan={8}
-                                        className="text-muted-foreground p-6 text-center"
-                                    >
-                                        No leads yet.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={leads}
+                    emptyMessage="No leads yet."
+                    pageSize={50}
+                />
             </div>
 
             <LeadFormDialog
