@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ type Action = {
     action_date: string;
     body: string;
     author_name: string | null;
+    user_id: number | null;
 };
 
 type Option = { id: number; name: string };
@@ -36,6 +37,7 @@ type Props = {
     actions: Action[];
     contacts: EditableContact[];
     project: { id: number; name: string } | null;
+    users: Option[];
     statuses: StatusOption[];
     origins: Option[];
 };
@@ -54,9 +56,11 @@ export default function LeadShow({
     actions,
     contacts,
     project,
+    users,
     statuses,
     origins,
 }: Props) {
+    const currentUserId = usePage().props.auth.user.id;
     const [editOpen, setEditOpen] = useState(false);
     const [editKey, setEditKey] = useState(0);
     const [convertOpen, setConvertOpen] = useState(false);
@@ -414,6 +418,8 @@ export default function LeadShow({
                 onOpenChange={setActionOpen}
                 baseUrl={`/leads/${lead.id}/actions`}
                 editing={editingAction}
+                users={users}
+                currentUserId={currentUserId}
             />
 
             <ContactFormDialog

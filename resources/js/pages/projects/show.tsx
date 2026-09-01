@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -25,6 +25,7 @@ type Action = {
     action_date: string;
     body: string;
     author_name: string | null;
+    user_id: number | null;
 };
 
 type Option = { id: number; name: string };
@@ -32,6 +33,7 @@ type Option = { id: number; name: string };
 type Props = {
     project: Project;
     actions: Action[];
+    users: Option[];
     statuses: Option[];
 };
 
@@ -44,7 +46,13 @@ function Detail({ label, value }: { label: string; value: string | null }) {
     );
 }
 
-export default function ProjectShow({ project, actions, statuses }: Props) {
+export default function ProjectShow({
+    project,
+    actions,
+    users,
+    statuses,
+}: Props) {
+    const currentUserId = usePage().props.auth.user.id;
     const [editOpen, setEditOpen] = useState(false);
     const [editKey, setEditKey] = useState(0);
     const [actionOpen, setActionOpen] = useState(false);
@@ -258,6 +266,8 @@ export default function ProjectShow({ project, actions, statuses }: Props) {
                 onOpenChange={setActionOpen}
                 baseUrl={`/projects/${project.id}/actions`}
                 editing={editingAction}
+                users={users}
+                currentUserId={currentUserId}
             />
         </>
     );

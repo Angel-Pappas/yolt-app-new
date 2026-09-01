@@ -6,6 +6,7 @@ use App\Models\Lead;
 use App\Models\LeadOrigin;
 use App\Models\LeadStatus;
 use App\Models\Project;
+use App\Support\Crm;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -67,7 +68,7 @@ class LeadController extends Controller
         ]);
     }
 
-    public function show(Lead $lead): Response
+    public function show(Request $request, Lead $lead): Response
     {
         $lead->load(['origin:id,name', 'status:id,name']);
 
@@ -76,7 +77,8 @@ class LeadController extends Controller
             'actions' => $lead->actions()
                 ->orderByDesc('action_date')
                 ->orderByDesc('id')
-                ->get(['id', 'action_date', 'body', 'author_name']),
+                ->get(['id', 'action_date', 'body', 'author_name', 'user_id']),
+            'users' => Crm::usersForPicker($request->user()),
             'contacts' => $lead->contacts()
                 ->orderBy('name')
                 ->get(['id', 'name', 'position', 'phone', 'landline', 'website', 'email']),

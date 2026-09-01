@@ -11,13 +11,23 @@ import {
 } from '@/components/ui/dialog';
 import { DateField } from '@/components/ui/date-field';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 export type EditableAction = {
     id: number;
     action_date: string;
     body: string;
+    user_id?: number | null;
 };
+
+type UserOption = { id: number; name: string };
 
 type Props = {
     open: boolean;
@@ -25,6 +35,9 @@ type Props = {
     /** Collection URL for the parent's actions, e.g. `/leads/12/actions`. */
     baseUrl: string;
     editing?: EditableAction | null;
+    /** Non-empty only for admins — lets them attribute the action to a colleague. */
+    users?: UserOption[];
+    currentUserId: number;
 };
 
 function today(): string {
@@ -40,10 +53,13 @@ export function ActionFormDialog({
     onOpenChange,
     baseUrl,
     editing,
+    users = [],
+    currentUserId,
 }: Props) {
     const form = useForm({
         action_date: editing?.action_date.slice(0, 10) ?? today(),
         body: editing?.body ?? '',
+        user_id: String(editing?.user_id ?? currentUserId),
     });
 
     function submit(e: FormEvent) {
@@ -89,6 +105,32 @@ export function ActionFormDialog({
                             />
                             <InputError message={form.errors.action_date} />
                         </div>
+
+                        {users.length > 0 && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="user_id">User</Label>
+                                <Select
+                                    value={form.data.user_id}
+                                    onValueChange={(v) =>
+                                        form.setData('user_id', v)
+                                    }
+                                >
+                                    <SelectTrigger id="user_id">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {users.map((u) => (
+                                            <SelectItem
+                                                key={u.id}
+                                                value={String(u.id)}
+                                            >
+                                                {u.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
 
                         <div className="grid gap-2">
                             <Label htmlFor="body">Action</Label>

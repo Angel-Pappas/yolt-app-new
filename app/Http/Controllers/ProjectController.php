@@ -6,6 +6,7 @@ use App\Models\Lead;
 use App\Models\LeadStatus;
 use App\Models\Project;
 use App\Models\ProjectStatus;
+use App\Support\Crm;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,7 +56,7 @@ class ProjectController extends Controller
         ]);
     }
 
-    public function show(Project $project): Response
+    public function show(Request $request, Project $project): Response
     {
         $project->load(['status:id,name', 'lead:id,contact_name']);
 
@@ -64,7 +65,8 @@ class ProjectController extends Controller
             'actions' => $project->actions()
                 ->orderByDesc('action_date')
                 ->orderByDesc('id')
-                ->get(['id', 'action_date', 'body', 'author_name']),
+                ->get(['id', 'action_date', 'body', 'author_name', 'user_id']),
+            'users' => Crm::usersForPicker($request->user()),
             'statuses' => ProjectStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
         ]);
     }

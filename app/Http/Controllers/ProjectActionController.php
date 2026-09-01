@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectAction;
+use App\Support\Crm;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -17,8 +18,10 @@ class ProjectActionController extends Controller
     public function store(Request $request, Project $project): RedirectResponse
     {
         $action = new ProjectAction($this->validateAction($request));
-        $action->user_id = $request->user()->id;
-        $action->author_name = $request->user()->name;
+        [$action->user_id, $action->author_name] = Crm::resolveActor(
+            $request->user(),
+            $request->filled('user_id') ? (int) $request->input('user_id') : null,
+        );
         $project->actions()->save($action);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Action logged.')]);
@@ -30,7 +33,12 @@ class ProjectActionController extends Controller
     {
         abort_unless($action->project_id === $project->id, 404);
 
-        $action->update($this->validateAction($request));
+        $action->fill($this->validateAction($request));
+        [$action->user_id, $action->author_name] = Crm::resolveActor(
+            $request->user(),
+            $request->filled('user_id') ? (int) $request->input('user_id') : null,
+        );
+        $action->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Action updated.')]);
 
@@ -56,6 +64,7 @@ class ProjectActionController extends Controller
         return $request->validate([
             'action_date' => ['required', 'date'],
             'body' => ['required', 'string'],
+            'user_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
     }
 }

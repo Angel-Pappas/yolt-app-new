@@ -73,6 +73,50 @@ test('an action cannot be edited through the wrong lead', function () {
     ])->assertNotFound();
 });
 
+test('an admin can attribute an action to another user', function () {
+    $admin = User::factory()->admin()->withCrmAccess()->create(['name' => 'Boss']);
+    $colleague = User::factory()->withCrmAccess()->create(['name' => 'Colleague']);
+    $lead = Lead::factory()->create();
+
+    $this->actingAs($admin)->post("/leads/{$lead->id}/actions", [
+        'action_date' => '2026-08-01',
+        'body' => 'On behalf',
+        'user_id' => $colleague->id,
+    ])->assertRedirect();
+
+    $action = LeadAction::first();
+    expect($action->user_id)->toBe($colleague->id);
+    expect($action->author_name)->toBe('Colleague');
+});
+
+test('a non-admin is always the author regardless of user_id', function () {
+    $user = User::factory()->withCrmAccess()->create(['name' => 'Me']);
+    $other = User::factory()->create(['name' => 'Other']);
+    $lead = Lead::factory()->create();
+
+    $this->actingAs($user)->post("/leads/{$lead->id}/actions", [
+        'action_date' => '2026-08-01',
+        'body' => 'Tried to spoof',
+        'user_id' => $other->id,
+    ])->assertRedirect();
+
+    $action = LeadAction::first();
+    expect($action->user_id)->toBe($user->id);
+    expect($action->author_name)->toBe('Me');
+});
+
+test('the lead detail exposes users only to admins', function () {
+    $lead = Lead::factory()->create();
+
+    $this->actingAs(User::factory()->admin()->withCrmAccess()->create())
+        ->get("/leads/{$lead->id}")
+        ->assertInertia(fn (Assert $page) => $page->has('users'));
+
+    $this->actingAs(User::factory()->withCrmAccess()->create())
+        ->get("/leads/{$lead->id}")
+        ->assertInertia(fn (Assert $page) => $page->where('users', []));
+});
+
 test('a non-crm user cannot access lead actions', function () {
     $user = User::factory()->create();
     $lead = Lead::factory()->create();
