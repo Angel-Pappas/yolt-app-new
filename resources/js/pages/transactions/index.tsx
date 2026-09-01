@@ -1,6 +1,9 @@
 import { Head, router } from '@inertiajs/react';
+import { type ColumnDef } from '@tanstack/react-table';
 import { CircleCheck, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { ColumnHeader } from '@/components/data-table/column-header';
+import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { formatAmount, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -136,6 +139,197 @@ export default function TransactionsIndex({
         }
     }
 
+    const walletColumn: ColumnDef<Transaction> = {
+        id: 'wallet',
+        accessorFn: (row) => row.wallet?.name ?? '',
+        header: ({ column }) => <ColumnHeader column={column} title="Wallet" />,
+        cell: ({ row }) =>
+            row.original.type === 'transfer' ? (
+                <div className="leading-tight">
+                    <div>{row.original.wallet?.name ?? '—'}</div>
+                    <div className="text-muted-foreground text-xs">
+                        → {row.original.to_wallet?.name ?? '—'}
+                    </div>
+                </div>
+            ) : (
+                (row.original.wallet?.name ?? '—')
+            ),
+    };
+
+    const balanceColumn: ColumnDef<Transaction> = {
+        id: 'balance',
+        accessorFn: (row) => (row.balance != null ? Number(row.balance) : 0),
+        meta: { align: 'right' },
+        header: ({ column }) => (
+            <ColumnHeader column={column} title="Balance" align="right" />
+        ),
+        cell: ({ row }) =>
+            row.original.balance != null ? (
+                <span className="font-medium">
+                    {formatAmount(row.original.balance)}
+                </span>
+            ) : (
+                '—'
+            ),
+    };
+
+    const columns: ColumnDef<Transaction>[] = [
+        {
+            accessorKey: 'type',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Type" />
+            ),
+            cell: ({ row }) => (
+                <span
+                    className={cn(
+                        'font-medium',
+                        typeMeta[row.original.type].className,
+                    )}
+                >
+                    {typeMeta[row.original.type].label}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'date',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Date" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground whitespace-nowrap tabular-nums">
+                    {formatDate(row.original.date)}
+                </span>
+            ),
+        },
+        ...(balanceMode ? [] : [walletColumn]),
+        {
+            id: 'category',
+            accessorFn: (row) => row.category?.name ?? '',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Category" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground">
+                    {row.original.category?.name ?? '—'}
+                </span>
+            ),
+        },
+        {
+            id: 'entity',
+            accessorFn: (row) =>
+                row.type === 'transfer' ? 'Transfer' : (row.entity?.name ?? ''),
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Entity" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground">
+                    {row.original.type === 'transfer'
+                        ? 'Transfer'
+                        : (row.original.entity?.name ?? '—')}
+                </span>
+            ),
+        },
+        {
+            accessorKey: 'description',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Description" />
+            ),
+            cell: ({ row }) => row.original.description || '—',
+        },
+        {
+            id: 'net',
+            accessorFn: (row) => Number(row.net),
+            meta: { align: 'right' },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Net" align="right" />
+            ),
+            cell: ({ row }) => formatAmount(row.original.net),
+        },
+        {
+            id: 'vat',
+            accessorFn: (row) => Number(row.vat_amount),
+            meta: { align: 'right' },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="VAT" align="right" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground">
+                    {formatAmount(row.original.vat_amount)}
+                </span>
+            ),
+        },
+        {
+            id: 'total',
+            accessorFn: (row) => total(row),
+            meta: { align: 'right' },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Total" align="right" />
+            ),
+            cell: ({ row }) => (
+                <span className="font-medium">
+                    {formatAmount(total(row.original))}
+                </span>
+            ),
+        },
+        ...(balanceMode ? [balanceColumn] : []),
+        {
+            id: 'actions',
+            enableSorting: false,
+            meta: { align: 'right' },
+            header: () => null,
+            cell: ({ row }) => {
+                const t = row.original;
+                return (
+                    <div className="flex justify-end gap-1">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleReconcile(t)}
+                            aria-label="Toggle reconciled"
+                            aria-pressed={t.is_reconciled}
+                            className={cn(
+                                t.is_reconciled &&
+                                    'text-emerald-600 dark:text-emerald-500',
+                            )}
+                        >
+                            <CircleCheck className="size-4" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openInvoice(t)}
+                            aria-label="Set invoice folder"
+                            className={cn(invoiceLit(t) && 'text-primary')}
+                        >
+                            <FileText className="size-4" />
+                            {t.invoice_month != null && (
+                                <span className="ml-0.5 text-xs tabular-nums">
+                                    {t.invoice_month}
+                                </span>
+                            )}
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEdit(t)}
+                            aria-label="Edit transaction"
+                        >
+                            <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => destroy(t)}
+                            aria-label="Delete transaction"
+                        >
+                            <Trash2 className="size-4" />
+                        </Button>
+                    </div>
+                );
+            },
+        },
+    ];
+
     return (
         <>
             <Head title="Transactions" />
@@ -164,158 +358,12 @@ export default function TransactionsIndex({
                     hideWallet={balanceMode}
                 />
 
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-muted/50 text-left">
-                                <th className="p-3 font-medium">Type</th>
-                                <th className="p-3 font-medium">Date</th>
-                                {!balanceMode && (
-                                    <th className="p-3 font-medium">Wallet</th>
-                                )}
-                                <th className="p-3 font-medium">Category</th>
-                                <th className="p-3 font-medium">Entity</th>
-                                <th className="p-3 font-medium">Description</th>
-                                <th className="p-3 text-right font-medium">
-                                    Net
-                                </th>
-                                <th className="p-3 text-right font-medium">
-                                    VAT
-                                </th>
-                                <th className="p-3 text-right font-medium">
-                                    Total
-                                </th>
-                                {balanceMode && (
-                                    <th className="p-3 text-right font-medium">
-                                        Balance
-                                    </th>
-                                )}
-                                <th className="p-3" />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {transactions.map((t) => (
-                                <tr key={t.id} className="border-t">
-                                    <td
-                                        className={`p-3 font-medium ${typeMeta[t.type].className}`}
-                                    >
-                                        {typeMeta[t.type].label}
-                                    </td>
-                                    <td className="text-muted-foreground p-3 whitespace-nowrap tabular-nums">
-                                        {formatDate(t.date)}
-                                    </td>
-                                    {!balanceMode && (
-                                        <td className="p-3">
-                                            {t.type === 'transfer' ? (
-                                                <div className="leading-tight">
-                                                    <div>
-                                                        {t.wallet?.name ?? '—'}
-                                                    </div>
-                                                    <div className="text-muted-foreground text-xs">
-                                                        →{' '}
-                                                        {t.to_wallet?.name ??
-                                                            '—'}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                (t.wallet?.name ?? '—')
-                                            )}
-                                        </td>
-                                    )}
-                                    <td className="text-muted-foreground p-3">
-                                        {t.category?.name ?? '—'}
-                                    </td>
-                                    <td className="text-muted-foreground p-3">
-                                        {t.type === 'transfer'
-                                            ? 'Transfer'
-                                            : (t.entity?.name ?? '—')}
-                                    </td>
-                                    <td className="p-3">
-                                        {t.description || '—'}
-                                    </td>
-                                    <td className="p-3 text-right tabular-nums">
-                                        {formatAmount(t.net)}
-                                    </td>
-                                    <td className="text-muted-foreground p-3 text-right tabular-nums">
-                                        {formatAmount(t.vat_amount)}
-                                    </td>
-                                    <td className="p-3 text-right font-medium tabular-nums">
-                                        {formatAmount(total(t))}
-                                    </td>
-                                    {balanceMode && (
-                                        <td className="p-3 text-right font-medium tabular-nums">
-                                            {t.balance != null
-                                                ? formatAmount(t.balance)
-                                                : '—'}
-                                        </td>
-                                    )}
-                                    <td className="p-3">
-                                        <div className="flex justify-end gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    toggleReconcile(t)
-                                                }
-                                                aria-label="Toggle reconciled"
-                                                aria-pressed={t.is_reconciled}
-                                                className={cn(
-                                                    t.is_reconciled &&
-                                                        'text-emerald-600 dark:text-emerald-500',
-                                                )}
-                                            >
-                                                <CircleCheck className="size-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => openInvoice(t)}
-                                                aria-label="Set invoice folder"
-                                                className={cn(
-                                                    invoiceLit(t) &&
-                                                        'text-primary',
-                                                )}
-                                            >
-                                                <FileText className="size-4" />
-                                                {t.invoice_month != null && (
-                                                    <span className="ml-0.5 text-xs tabular-nums">
-                                                        {t.invoice_month}
-                                                    </span>
-                                                )}
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => openEdit(t)}
-                                                aria-label="Edit transaction"
-                                            >
-                                                <Pencil className="size-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => destroy(t)}
-                                                aria-label="Delete transaction"
-                                            >
-                                                <Trash2 className="size-4" />
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {transactions.length === 0 && (
-                                <tr>
-                                    <td
-                                        colSpan={10}
-                                        className="text-muted-foreground p-6 text-center"
-                                    >
-                                        No transactions yet.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={transactions}
+                    emptyMessage="No transactions yet."
+                    pageSize={50}
+                />
             </div>
 
             <TransactionFormDialog
