@@ -30,6 +30,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 // Administration — user management (admin only).
 Route::middleware(['auth', 'verified', 'can:admin'])->group(function () {
     Route::get('settings/users', [UserController::class, 'index'])->name('users.index');
+    Route::post('settings/users', [UserController::class, 'store'])->name('users.store');
     Route::patch('settings/users/{user}', [UserController::class, 'update'])->name('users.update');
 });
 

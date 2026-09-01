@@ -96,7 +96,9 @@ return [
         'users' => [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => 60,
+            // 3 days — this window doubles as the invite link's lifetime (an admin
+            // creates a user, who then sets their password via this same flow).
+            'expire' => 4320,
             'throttle' => 60,
         ],
     ],
