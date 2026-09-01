@@ -220,7 +220,13 @@ export function TransactionFormDialog({
 
     function submit(e: FormEvent) {
         e.preventDefault();
+        doSubmit('close');
+    }
 
+    // Add flow: 'close' saves and closes; 'new' saves and resets to defaults for
+    // an unrelated next entry; 'same' saves and keeps everything except the typed
+    // amounts, for entering several similar transactions in a row.
+    function doSubmit(mode: 'close' | 'new' | 'same') {
         form.transform((data) => {
             if (data.type === 'transfer') {
                 return {
@@ -263,15 +269,29 @@ export function TransactionFormDialog({
                 preserveScroll: true,
                 onSuccess: () => onOpenChange(false),
             });
-        } else {
-            form.post('/transactions', {
-                preserveScroll: true,
-                onSuccess: () => {
+            return;
+        }
+
+        form.post('/transactions', {
+            preserveScroll: true,
+            onSuccess: () => {
+                if (mode === 'close') {
                     onOpenChange(false);
                     form.reset();
-                },
-            });
-        }
+                    setInvoiceDateTouched(false);
+                } else if (mode === 'new') {
+                    form.reset();
+                    setInvoiceDateTouched(false);
+                } else {
+                    // 'same' — keep the fields, blank only the amounts.
+                    form.setData(
+                        'lines',
+                        form.data.lines.map((l) => ({ ...l, amount: '' })),
+                    );
+                    form.setData('withheld_net', '');
+                }
+            },
+        });
     }
 
     return (
@@ -678,9 +698,36 @@ export function TransactionFormDialog({
                         >
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={form.processing}>
-                            {editing ? 'Save' : 'Add'}
-                        </Button>
+                        {editing ? (
+                            <Button type="submit" disabled={form.processing}>
+                                Save
+                            </Button>
+                        ) : (
+                            <>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    disabled={form.processing}
+                                    onClick={() => doSubmit('new')}
+                                >
+                                    Add + New
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    disabled={form.processing}
+                                    onClick={() => doSubmit('same')}
+                                >
+                                    Add + Same
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={form.processing}
+                                >
+                                    Add
+                                </Button>
+                            </>
+                        )}
                     </DialogFooter>
                 </form>
             </DialogContent>
