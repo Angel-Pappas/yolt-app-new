@@ -83,8 +83,6 @@ export function TransactionFormDialog({
     withheldRates,
     editing,
 }: Props) {
-    const editingWithheld = editing?.withheld_lines?.[0];
-
     const form = useForm(
         editing
             ? {
@@ -118,10 +116,12 @@ export function TransactionFormDialog({
                                         : '',
                                 },
                             ],
-                  withheld_net: editingWithheld ? editingWithheld.net : '',
-                  withheld_rate_id: editingWithheld?.withheld_rate_id
-                      ? String(editingWithheld.withheld_rate_id)
-                      : '',
+                  withheld_lines: editing.withheld_lines.map((l) => ({
+                      net: l.net,
+                      withheld_rate_id: l.withheld_rate_id
+                          ? String(l.withheld_rate_id)
+                          : '',
+                  })),
               }
             : {
                   type: 'expense',
@@ -135,8 +135,10 @@ export function TransactionFormDialog({
                   net: '',
                   amount_mode: 'net' as 'net' | 'total',
                   lines: [{ amount: '', vat_rate_id: '' }],
-                  withheld_net: '',
-                  withheld_rate_id: '',
+                  withheld_lines: [] as {
+                      net: string;
+                      withheld_rate_id: string;
+                  }[],
               },
     );
 
@@ -177,13 +179,15 @@ export function TransactionFormDialog({
     net = round2(net);
     vat = round2(vat);
 
-    const withheldBase = parseAmount(form.data.withheld_net);
-    const withheldRate = withheldRates.find(
-        (r) => String(r.id) === form.data.withheld_rate_id,
-    );
-    const withheld = withheldRate
-        ? round2((withheldBase * Number(withheldRate.rate)) / 100)
-        : 0;
+    let withheld = 0;
+    for (const line of form.data.withheld_lines) {
+        const base = parseAmount(line.net);
+        const rate = withheldRates.find(
+            (r) => String(r.id) === line.withheld_rate_id,
+        );
+        withheld += rate ? round2((base * Number(rate.rate)) / 100) : 0;
+    }
+    withheld = round2(withheld);
 
     const total = round2(net + vat - withheld);
 
@@ -215,6 +219,32 @@ export function TransactionFormDialog({
         form.setData(
             'lines',
             form.data.lines.filter((_, idx) => idx !== i),
+        );
+    }
+
+    function setWithheldLine(
+        i: number,
+        patch: Partial<(typeof form.data.withheld_lines)[0]>,
+    ) {
+        form.setData(
+            'withheld_lines',
+            form.data.withheld_lines.map((l, idx) =>
+                idx === i ? { ...l, ...patch } : l,
+            ),
+        );
+    }
+
+    function addWithheldLine() {
+        form.setData('withheld_lines', [
+            ...form.data.withheld_lines,
+            { net: '', withheld_rate_id: '' },
+        ]);
+    }
+
+    function removeWithheldLine(i: number) {
+        form.setData(
+            'withheld_lines',
+            form.data.withheld_lines.filter((_, idx) => idx !== i),
         );
     }
 
@@ -253,14 +283,12 @@ export function TransactionFormDialog({
                     amount: String(l.amount).replace(',', '.'),
                     vat_rate_id: l.vat_rate_id || null,
                 })),
-                withheld_lines: data.withheld_net
-                    ? [
-                          {
-                              net: String(data.withheld_net).replace(',', '.'),
-                              withheld_rate_id: data.withheld_rate_id || null,
-                          },
-                      ]
-                    : [],
+                withheld_lines: data.withheld_lines
+                    .filter((l) => l.net)
+                    .map((l) => ({
+                        net: String(l.net).replace(',', '.'),
+                        withheld_rate_id: l.withheld_rate_id || null,
+                    })),
             };
         });
 
@@ -288,7 +316,13 @@ export function TransactionFormDialog({
                         'lines',
                         form.data.lines.map((l) => ({ ...l, amount: '' })),
                     );
-                    form.setData('withheld_net', '');
+                    form.setData(
+                        'withheld_lines',
+                        form.data.withheld_lines.map((l) => ({
+                            ...l,
+                            net: '',
+                        })),
+                    );
                 }
             },
         });
@@ -583,59 +617,76 @@ export function TransactionFormDialog({
                         )}
 
                         {!isTransfer && (
-                            <>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="withheld_net">
-                                        Withholding base (optional)
-                                    </Label>
-                                    <Input
-                                        id="withheld_net"
-                                        inputMode="decimal"
-                                        value={form.data.withheld_net}
-                                        onChange={(e) =>
-                                            form.setData(
-                                                'withheld_net',
-                                                e.target.value,
-                                            )
-                                        }
-                                        placeholder="0"
-                                    />
+                            <div className="grid gap-2 sm:col-span-2">
+                                <div className="flex items-center justify-between">
+                                    <Label>Withholding tax (optional)</Label>
+                                    <button
+                                        type="button"
+                                        onClick={addWithheldLine}
+                                        className="text-primary text-sm"
+                                    >
+                                        + Add withheld line
+                                    </button>
                                 </div>
 
-                                <div className="grid gap-2">
-                                    <Label htmlFor="withheld_rate_id">
-                                        Withholding rate
-                                    </Label>
-                                    <Select
-                                        value={
-                                            form.data.withheld_rate_id || NONE
-                                        }
-                                        onValueChange={(v) =>
-                                            form.setData(
-                                                'withheld_rate_id',
-                                                v === NONE ? '' : v,
-                                            )
-                                        }
+                                {form.data.withheld_lines.map((line, i) => (
+                                    <div
+                                        key={i}
+                                        className="flex items-center gap-2"
                                     >
-                                        <SelectTrigger id="withheld_rate_id">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value={NONE}>
-                                                — None —
-                                            </SelectItem>
-                                            {withheldRates.map((rate) => (
-                                                <SelectItem
-                                                    key={rate.id}
-                                                    value={String(rate.id)}
-                                                >
-                                                    {rate.name}
+                                        <Input
+                                            inputMode="decimal"
+                                            value={line.net}
+                                            onChange={(e) =>
+                                                setWithheldLine(i, {
+                                                    net: e.target.value,
+                                                })
+                                            }
+                                            placeholder="Base"
+                                            className="flex-1"
+                                        />
+                                        <Select
+                                            value={
+                                                line.withheld_rate_id || NONE
+                                            }
+                                            onValueChange={(v) =>
+                                                setWithheldLine(i, {
+                                                    withheld_rate_id:
+                                                        v === NONE ? '' : v,
+                                                })
+                                            }
+                                        >
+                                            <SelectTrigger className="w-32">
+                                                <SelectValue placeholder="Rate" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value={NONE}>
+                                                    No rate
                                                 </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </>
+                                                {withheldRates.map((rate) => (
+                                                    <SelectItem
+                                                        key={rate.id}
+                                                        value={String(rate.id)}
+                                                    >
+                                                        {rate.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() =>
+                                                removeWithheldLine(i)
+                                            }
+                                            aria-label="Remove withheld line"
+                                        >
+                                            <X className="size-4" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
                         )}
 
                         <div className="grid gap-2 sm:col-span-2">
