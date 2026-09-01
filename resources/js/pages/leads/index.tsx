@@ -4,6 +4,8 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { ColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
+import { EditableNextStep } from '@/components/inline-edit/editable-next-step';
+import { EditableStatus } from '@/components/inline-edit/editable-status';
 import { Button } from '@/components/ui/button';
 import { formatPhone } from '@/lib/format';
 import { type EditableLead, LeadFormDialog } from './lead-form-dialog';
@@ -18,11 +20,12 @@ type Lead = EditableLead & {
 };
 
 type Option = { id: number; name: string };
+type StatusOption = { id: number; name: string; is_conversion?: boolean };
 
 type Props = {
     leads: Lead[];
     filters: LeadFilters;
-    statuses: Option[];
+    statuses: StatusOption[];
     origins: Option[];
 };
 
@@ -120,9 +123,16 @@ export default function LeadsIndex({
                 <ColumnHeader column={column} title="Next step" />
             ),
             cell: ({ row }) => (
-                <span className="text-muted-foreground">
-                    {row.original.next_step || '—'}
-                </span>
+                <EditableNextStep
+                    value={row.original.next_step}
+                    onSave={(v) =>
+                        router.patch(
+                            `/leads/${row.original.id}/next-step`,
+                            { next_step: v || null },
+                            { preserveScroll: true },
+                        )
+                    }
+                />
             ),
         },
         {
@@ -132,9 +142,17 @@ export default function LeadsIndex({
                 <ColumnHeader column={column} title="Status" />
             ),
             cell: ({ row }) => (
-                <span className="whitespace-nowrap">
-                    {row.original.status?.name ?? '—'}
-                </span>
+                <EditableStatus
+                    value={row.original.status?.id ?? null}
+                    options={statuses.filter((s) => !s.is_conversion)}
+                    onSave={(v) =>
+                        router.patch(
+                            `/leads/${row.original.id}/status`,
+                            { status_id: v || null },
+                            { preserveScroll: true },
+                        )
+                    }
+                />
             ),
         },
         {

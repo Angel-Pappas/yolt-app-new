@@ -4,6 +4,8 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { ColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
+import { EditableNextStep } from '@/components/inline-edit/editable-next-step';
+import { EditableStatus } from '@/components/inline-edit/editable-status';
 import { Button } from '@/components/ui/button';
 import { formatAmount } from '@/lib/format';
 import { type EditableProject, ProjectFormDialog } from './project-form-dialog';
@@ -94,9 +96,17 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
                 <ColumnHeader column={column} title="Status" />
             ),
             cell: ({ row }) => (
-                <span className="whitespace-nowrap">
-                    {row.original.status?.name ?? '—'}
-                </span>
+                <EditableStatus
+                    value={row.original.status?.id ?? null}
+                    options={statuses}
+                    onSave={(v) =>
+                        router.patch(
+                            `/projects/${row.original.id}/status`,
+                            { status_id: v || null },
+                            { preserveScroll: true },
+                        )
+                    }
+                />
             ),
         },
         {
@@ -117,9 +127,16 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
                 <ColumnHeader column={column} title="Next step" />
             ),
             cell: ({ row }) => (
-                <span className="text-muted-foreground">
-                    {row.original.next_step || '—'}
-                </span>
+                <EditableNextStep
+                    value={row.original.next_step}
+                    onSave={(v) =>
+                        router.patch(
+                            `/projects/${row.original.id}/next-step`,
+                            { next_step: v || null },
+                            { preserveScroll: true },
+                        )
+                    }
+                />
             ),
         },
         {

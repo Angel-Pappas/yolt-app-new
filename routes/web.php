@@ -67,6 +67,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('leads', [LeadController::class, 'store'])->name('leads.store');
         Route::get('leads/{lead}', [LeadController::class, 'show'])->name('leads.show');
         Route::patch('leads/{lead}', [LeadController::class, 'update'])->name('leads.update');
+        Route::patch('leads/{lead}/next-step', [LeadController::class, 'updateNextStep'])->name('leads.next-step');
+        Route::patch('leads/{lead}/status', [LeadController::class, 'updateStatus'])->name('leads.status');
         Route::delete('leads/{lead}', [LeadController::class, 'destroy'])->name('leads.destroy');
 
         Route::post('leads/{lead}/actions', [LeadActionController::class, 'store'])->name('leads.actions.store');
@@ -93,6 +95,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
         Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+        Route::patch('projects/{project}/next-step', [ProjectController::class, 'updateNextStep'])->name('projects.next-step');
+        Route::patch('projects/{project}/status', [ProjectController::class, 'updateStatus'])->name('projects.status');
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
 
         Route::post('projects/{project}/actions', [ProjectActionController::class, 'store'])->name('projects.actions.store');

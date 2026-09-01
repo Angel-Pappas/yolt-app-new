@@ -100,6 +100,23 @@ class ProjectController extends Controller
         return back();
     }
 
+    /** Inline edit of a single project field from the list (next step / status). */
+    public function updateNextStep(Request $request, Project $project): RedirectResponse
+    {
+        $project->update($request->validate(['next_step' => ['nullable', 'string']]));
+
+        return back();
+    }
+
+    public function updateStatus(Request $request, Project $project): RedirectResponse
+    {
+        $project->update($request->validate([
+            'status_id' => ['nullable', 'integer', 'exists:project_statuses,id'],
+        ]));
+
+        return back();
+    }
+
     /**
      * Graduate a lead into a project: create the project linked to the lead and
      * flip the lead to the flagged "Converted" status (so it drops out of the

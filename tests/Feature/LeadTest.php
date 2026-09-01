@@ -88,6 +88,30 @@ test('leads can be filtered by status and searched', function () {
         ->assertInertia(fn (Assert $page) => $page->has('leads', 1));
 });
 
+test('a crm user can inline-edit a lead next step and status', function () {
+    $user = User::factory()->withCrmAccess()->create();
+    $status = LeadStatus::factory()->create();
+    $lead = Lead::factory()->create();
+
+    $this->actingAs($user)->patch("/leads/{$lead->id}/next-step", [
+        'next_step' => 'Send proposal',
+    ])->assertRedirect();
+    expect($lead->refresh()->next_step)->toBe('Send proposal');
+
+    $this->actingAs($user)->patch("/leads/{$lead->id}/status", [
+        'status_id' => $status->id,
+    ])->assertRedirect();
+    expect($lead->refresh()->status_id)->toBe($status->id);
+});
+
+test('a non-crm user cannot inline-edit a lead', function () {
+    $lead = Lead::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->patch("/leads/{$lead->id}/status", ['status_id' => null])
+        ->assertForbidden();
+});
+
 test('a lead can carry campaign fields', function () {
     $user = User::factory()->withCrmAccess()->create();
 

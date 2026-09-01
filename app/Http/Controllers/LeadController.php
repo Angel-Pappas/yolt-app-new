@@ -117,6 +117,23 @@ class LeadController extends Controller
         return back();
     }
 
+    /** Inline edit of a single lead field from the list (next step / status). */
+    public function updateNextStep(Request $request, Lead $lead): RedirectResponse
+    {
+        $lead->update($request->validate(['next_step' => ['nullable', 'string']]));
+
+        return back();
+    }
+
+    public function updateStatus(Request $request, Lead $lead): RedirectResponse
+    {
+        $lead->update($request->validate([
+            'status_id' => ['nullable', 'integer', 'exists:lead_statuses,id'],
+        ]));
+
+        return back();
+    }
+
     /**
      * @return array<string, mixed>
      */

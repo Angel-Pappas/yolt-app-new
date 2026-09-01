@@ -94,6 +94,22 @@ test('projects can be filtered by status and searched', function () {
         ->assertInertia(fn (Assert $page) => $page->has('projects', 1));
 });
 
+test('a crm user can inline-edit a project next step and status', function () {
+    $user = User::factory()->withCrmAccess()->create();
+    $status = ProjectStatus::factory()->create();
+    $project = Project::factory()->create();
+
+    $this->actingAs($user)->patch("/projects/{$project->id}/next-step", [
+        'next_step' => 'Scope it',
+    ])->assertRedirect();
+    expect($project->refresh()->next_step)->toBe('Scope it');
+
+    $this->actingAs($user)->patch("/projects/{$project->id}/status", [
+        'status_id' => $status->id,
+    ])->assertRedirect();
+    expect($project->refresh()->status_id)->toBe($status->id);
+});
+
 test('a non-crm user cannot access projects', function () {
     $user = User::factory()->create();
 
