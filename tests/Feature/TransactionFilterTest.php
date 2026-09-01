@@ -5,6 +5,17 @@ use App\Models\User;
 use App\Models\Wallet;
 use Inertia\Testing\AssertableInertia as Assert;
 
+test('the invoice-date filter narrows by invoice date (Taxes drill-down)', function () {
+    $user = User::factory()->withFinanceAccess()->create();
+    $wallet = Wallet::factory()->create();
+    Transaction::factory()->create(['wallet_id' => $wallet->id, 'invoice_date' => '2026-07-15']);
+    Transaction::factory()->create(['wallet_id' => $wallet->id, 'invoice_date' => '2026-08-15']);
+
+    $this->actingAs($user)
+        ->get('/transactions?invoice_from=2026-07-01&invoice_to=2026-07-31')
+        ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
+});
+
 test('the transactions list can be filtered by type', function () {
     $user = User::factory()->withFinanceAccess()->create();
     $wallet = Wallet::factory()->create();

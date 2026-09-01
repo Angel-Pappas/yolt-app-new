@@ -1,5 +1,15 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { formatAmount, formatMonthYear } from '@/lib/format';
+
+/** First and last day of a "yyyy-mm" period. */
+function monthBounds(key: string): { first: string; last: string } {
+    const [year, month] = key.split('-').map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+    return {
+        first: `${key}-01`,
+        last: `${key}-${String(lastDay).padStart(2, '0')}`,
+    };
+}
 
 type Row = {
     month: string;
@@ -56,7 +66,12 @@ export default function TaxesVat({ rows }: Props) {
                             {rows.map((r) => (
                                 <tr key={r.month} className="border-t">
                                     <td className="p-3 whitespace-nowrap">
-                                        {formatMonthYear(r.month)}
+                                        <Link
+                                            href={`/transactions?invoice_from=${monthBounds(r.month).first}&invoice_to=${monthBounds(r.month).last}&all=1`}
+                                            className="hover:underline"
+                                        >
+                                            {formatMonthYear(r.month)}
+                                        </Link>
                                     </td>
                                     <td className="p-3 text-right tabular-nums">
                                         {formatAmount(r.income_vat)}

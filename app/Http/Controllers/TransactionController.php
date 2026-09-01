@@ -33,7 +33,9 @@ class TransactionController extends Controller
         // Default the view to the current month. A bare visit redirects to this
         // month's range so the URL stays the single source of truth; `all=1` (set by
         // the filter bar's "All time") opts out, as does any explicit from/to.
-        if (! $request->filled('from') && ! $request->filled('to') && ! $request->boolean('all')) {
+        if (! $request->filled('from') && ! $request->filled('to')
+            && ! $request->filled('invoice_from') && ! $request->filled('invoice_to')
+            && ! $request->boolean('all')) {
             return redirect()->route('transactions.index', array_merge($request->query(), [
                 'from' => now()->startOfMonth()->toDateString(),
                 'to' => now()->endOfMonth()->toDateString(),
@@ -48,6 +50,10 @@ class TransactionController extends Controller
             'wallet' => $request->filled('wallet') ? (int) $request->input('wallet') : null,
             'from' => $request->filled('from') ? (string) $request->input('from') : null,
             'to' => $request->filled('to') ? (string) $request->input('to') : null,
+            // Invoice-date range — used by the Taxes VAT drill-down (VAT is
+            // attributed by invoice date), not exposed as a toolbar control.
+            'invoice_from' => $request->filled('invoice_from') ? (string) $request->input('invoice_from') : null,
+            'invoice_to' => $request->filled('invoice_to') ? (string) $request->input('invoice_to') : null,
             'unreconciled' => $request->boolean('unreconciled'),
             'no_invoice' => $request->boolean('no_invoice'),
             'all' => $request->boolean('all'),
@@ -114,6 +120,12 @@ class TransactionController extends Controller
         if ($filters['to'] !== null) {
             $query->whereDate('date', '<=', $filters['to']);
         }
+        if ($filters['invoice_from'] !== null) {
+            $query->whereDate('invoice_date', '>=', $filters['invoice_from']);
+        }
+        if ($filters['invoice_to'] !== null) {
+            $query->whereDate('invoice_date', '<=', $filters['invoice_to']);
+        }
         if ($filters['unreconciled']) {
             $query->where('is_reconciled', false);
         }
@@ -158,6 +170,12 @@ class TransactionController extends Controller
         }
         if ($filters['to'] !== null) {
             $rows = $rows->filter(fn (Transaction $t) => substr((string) $t->date, 0, 10) <= $filters['to']);
+        }
+        if ($filters['invoice_from'] !== null) {
+            $rows = $rows->filter(fn (Transaction $t) => substr((string) $t->invoice_date, 0, 10) >= $filters['invoice_from']);
+        }
+        if ($filters['invoice_to'] !== null) {
+            $rows = $rows->filter(fn (Transaction $t) => substr((string) $t->invoice_date, 0, 10) <= $filters['invoice_to']);
         }
         if ($filters['unreconciled']) {
             $rows = $rows->filter(fn (Transaction $t) => ! $t->is_reconciled);
