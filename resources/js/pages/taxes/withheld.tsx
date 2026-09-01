@@ -1,5 +1,16 @@
 import { Head, Link } from '@inertiajs/react';
+import { type ColumnDef } from '@tanstack/react-table';
+import { ColumnHeader } from '@/components/data-table/column-header';
+import { DataTable } from '@/components/data-table/data-table';
 import { formatAmount, formatMonthYear } from '@/lib/format';
+
+type Row = {
+    month: string;
+    withheld: number | string;
+    payable_this_month: number | string;
+};
+
+type Props = { rows: Row[] };
 
 /** First and last day of a "yyyy-mm" period. */
 function monthBounds(key: string): { first: string; last: string } {
@@ -11,17 +22,57 @@ function monthBounds(key: string): { first: string; last: string } {
     };
 }
 
-type Row = {
-    month: string;
-    withheld: number | string;
-    payable_this_month: number | string;
-};
-
-type Props = {
-    rows: Row[];
-};
-
 export default function TaxesWithheld({ rows }: Props) {
+    const columns: ColumnDef<Row>[] = [
+        {
+            accessorKey: 'month',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Month" />
+            ),
+            cell: ({ row }) => {
+                const { first, last } = monthBounds(row.original.month);
+                return (
+                    <Link
+                        href={`/transactions?from=${first}&to=${last}&type=expense&all=1`}
+                        className="whitespace-nowrap hover:underline"
+                    >
+                        {formatMonthYear(row.original.month)}
+                    </Link>
+                );
+            },
+        },
+        {
+            id: 'withheld',
+            accessorFn: (row) => Number(row.withheld),
+            meta: { align: 'right' },
+            header: ({ column }) => (
+                <ColumnHeader
+                    column={column}
+                    title="Withheld this month"
+                    align="right"
+                />
+            ),
+            cell: ({ row }) => formatAmount(row.original.withheld),
+        },
+        {
+            id: 'payable_this_month',
+            accessorFn: (row) => Number(row.payable_this_month),
+            meta: { align: 'right' },
+            header: ({ column }) => (
+                <ColumnHeader
+                    column={column}
+                    title="Payable this month"
+                    align="right"
+                />
+            ),
+            cell: ({ row }) => (
+                <span className="font-medium">
+                    {formatAmount(row.original.payable_this_month)}
+                </span>
+            ),
+        },
+    ];
+
     return (
         <>
             <Head title="Withholding tax" />
@@ -32,51 +83,12 @@ export default function TaxesWithheld({ rows }: Props) {
                     date, is remitted to the state the following month.
                 </p>
 
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-muted/50 text-left">
-                                <th className="p-3 font-medium">Month</th>
-                                <th className="p-3 text-right font-medium">
-                                    Withheld this month
-                                </th>
-                                <th className="p-3 text-right font-medium">
-                                    Payable this month
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map((r) => (
-                                <tr key={r.month} className="border-t">
-                                    <td className="p-3 whitespace-nowrap">
-                                        <Link
-                                            href={`/transactions?from=${monthBounds(r.month).first}&to=${monthBounds(r.month).last}&type=expense&all=1`}
-                                            className="hover:underline"
-                                        >
-                                            {formatMonthYear(r.month)}
-                                        </Link>
-                                    </td>
-                                    <td className="p-3 text-right tabular-nums">
-                                        {formatAmount(r.withheld)}
-                                    </td>
-                                    <td className="p-3 text-right font-medium tabular-nums">
-                                        {formatAmount(r.payable_this_month)}
-                                    </td>
-                                </tr>
-                            ))}
-                            {rows.length === 0 && (
-                                <tr>
-                                    <td
-                                        colSpan={3}
-                                        className="text-muted-foreground p-6 text-center"
-                                    >
-                                        No withholding activity yet.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={rows}
+                    emptyMessage="No withholding activity yet."
+                    pageSize={1000}
+                />
             </div>
         </>
     );
