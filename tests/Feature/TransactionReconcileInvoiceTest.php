@@ -78,7 +78,7 @@ test('the unreconciled quick filter narrows the list', function () {
     Transaction::factory()->create(['wallet_id' => $wallet->id, 'is_reconciled' => false]);
 
     $this->actingAs($user)
-        ->get('/transactions?unreconciled=1')
+        ->get('/transactions?unreconciled=1&all=1')
         ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
 });
 
@@ -92,7 +92,7 @@ test('the missing-invoice quick filter excludes filed and not-needed rows', func
     ]);
 
     $this->actingAs($user)
-        ->get('/transactions?no_invoice=1')
+        ->get('/transactions?no_invoice=1&all=1')
         ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
 });
 

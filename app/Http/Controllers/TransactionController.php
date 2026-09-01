@@ -28,8 +28,18 @@ use Inertia\Response;
  */
 class TransactionController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
+        // Default the view to the current month. A bare visit redirects to this
+        // month's range so the URL stays the single source of truth; `all=1` (set by
+        // the filter bar's "All time") opts out, as does any explicit from/to.
+        if (! $request->filled('from') && ! $request->filled('to') && ! $request->boolean('all')) {
+            return redirect()->route('transactions.index', array_merge($request->query(), [
+                'from' => now()->startOfMonth()->toDateString(),
+                'to' => now()->endOfMonth()->toDateString(),
+            ]));
+        }
+
         $filters = [
             'q' => trim((string) $request->input('q')) ?: null,
             'type' => in_array($request->input('type'), ['income', 'expense', 'transfer'], true)
@@ -40,6 +50,7 @@ class TransactionController extends Controller
             'to' => $request->filled('to') ? (string) $request->input('to') : null,
             'unreconciled' => $request->boolean('unreconciled'),
             'no_invoice' => $request->boolean('no_invoice'),
+            'all' => $request->boolean('all'),
         ];
 
         $balanceWallet = $request->filled('balance')

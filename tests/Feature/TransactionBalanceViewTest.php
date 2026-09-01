@@ -26,7 +26,7 @@ test('balance view shows a running balance seeded from the starting balance', fu
     ]);
 
     $this->actingAs($user)
-        ->get("/transactions?balance={$wallet->id}")
+        ->get("/transactions?balance={$wallet->id}&all=1")
         ->assertInertia(fn (Assert $page) => $page
             ->where('balance.wallet_id', $wallet->id)
             ->has('transactions', 2)
@@ -49,13 +49,13 @@ test('a transfer moves the balance on both wallets in balance view', function ()
     ]);
 
     $this->actingAs($user)
-        ->get("/transactions?balance={$from->id}")
+        ->get("/transactions?balance={$from->id}&all=1")
         ->assertInertia(fn (Assert $page) => $page
             ->has('transactions', 1)
             ->where('transactions.0.balance', fn ($v) => (float) $v === 120.0));
 
     $this->actingAs($user)
-        ->get("/transactions?balance={$to->id}")
+        ->get("/transactions?balance={$to->id}&all=1")
         ->assertInertia(fn (Assert $page) => $page
             ->has('transactions', 1)
             ->where('transactions.0.balance', fn ($v) => (float) $v === 80.0));
@@ -83,7 +83,7 @@ test('filtering within balance view keeps cumulative balances', function () {
 
     // Only the expense row shows, but its balance is still the cumulative 120.
     $this->actingAs($user)
-        ->get("/transactions?balance={$wallet->id}&type=expense")
+        ->get("/transactions?balance={$wallet->id}&type=expense&all=1")
         ->assertInertia(fn (Assert $page) => $page
             ->has('transactions', 1)
             ->where('transactions.0.type', 'expense')
@@ -96,6 +96,6 @@ test('the normal list carries no balance context', function () {
     Transaction::factory()->create(['wallet_id' => $wallet->id]);
 
     $this->actingAs($user)
-        ->get('/transactions')
+        ->get('/transactions?all=1')
         ->assertInertia(fn (Assert $page) => $page->where('balance', null));
 });

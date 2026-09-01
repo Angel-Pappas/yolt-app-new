@@ -12,7 +12,7 @@ test('the transactions list can be filtered by type', function () {
     Transaction::factory()->create(['wallet_id' => $wallet->id, 'type' => 'expense']);
 
     $this->actingAs($user)
-        ->get('/transactions?type=income')
+        ->get('/transactions?type=income&all=1')
         ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
 });
 
@@ -28,7 +28,7 @@ test('filtering by wallet matches both sides of a transfer', function () {
     Transaction::factory()->create(['wallet_id' => $a->id, 'type' => 'expense']);
 
     $this->actingAs($user)
-        ->get("/transactions?wallet={$b->id}")
+        ->get("/transactions?wallet={$b->id}&all=1")
         ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
 });
 
@@ -45,7 +45,7 @@ test('searching matches the description', function () {
     ]);
 
     $this->actingAs($user)
-        ->get('/transactions?q=fuel')
+        ->get('/transactions?q=fuel&all=1')
         ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
 });
 

@@ -22,6 +22,7 @@ export type TransactionFilters = {
     to: string | null;
     unreconciled: boolean;
     no_invoice: boolean;
+    all: boolean;
 };
 
 type Props = {
@@ -42,6 +43,13 @@ export function TransactionsFilters({
 
     function apply(next: Partial<TransactionFilters>) {
         const merged = { ...filters, ...next };
+        // Picking a date range leaves all-time; entering all-time drops the dates.
+        if (next.from !== undefined || next.to !== undefined)
+            merged.all = false;
+        if (next.all) {
+            merged.from = null;
+            merged.to = null;
+        }
         const params: Record<string, string> = {};
         if (merged.q) params.q = merged.q;
         if (merged.type) params.type = merged.type;
@@ -50,6 +58,7 @@ export function TransactionsFilters({
         if (merged.to) params.to = merged.to;
         if (merged.unreconciled) params.unreconciled = '1';
         if (merged.no_invoice) params.no_invoice = '1';
+        if (merged.all) params.all = '1';
 
         router.get('/transactions', params, {
             preserveState: true,
@@ -148,6 +157,16 @@ export function TransactionsFilters({
                 className="w-40"
                 aria-label="To date"
             />
+
+            <Button
+                variant="outline"
+                size="sm"
+                aria-pressed={filters.all}
+                className={cn(filters.all && 'text-primary border-primary')}
+                onClick={() => apply({ all: !filters.all })}
+            >
+                All time
+            </Button>
 
             <Button
                 variant="outline"
