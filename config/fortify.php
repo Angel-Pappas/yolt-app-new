@@ -161,7 +161,9 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        // Public registration is intentionally disabled — this is an invite-only
+        // company app. New users are created by an admin (Settings ▸ Users), which
+        // emails them a link to set their password.
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::twoFactorAuthentication([
