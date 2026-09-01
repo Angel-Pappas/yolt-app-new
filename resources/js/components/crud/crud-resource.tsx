@@ -1,6 +1,9 @@
 import { router, useForm } from '@inertiajs/react';
+import { type ColumnDef } from '@tanstack/react-table';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { type FormEvent, type ReactNode, useState } from 'react';
+import { ColumnHeader } from '@/components/data-table/column-header';
+import { DataTable } from '@/components/data-table/data-table';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -59,12 +62,6 @@ function blankData(fields: CrudField[]): Record<string, string> {
             field.type === 'select' ? (field.options?.[0]?.value ?? '') : '';
     }
     return data;
-}
-
-function alignClass(align?: string): string {
-    if (align === 'right') return 'text-right';
-    if (align === 'center') return 'text-center';
-    return 'text-left';
 }
 
 /**
@@ -137,79 +134,67 @@ export function CrudResource({
         }
     }
 
+    const tableColumns: ColumnDef<CrudItem>[] = [
+        ...columns.map((col): ColumnDef<CrudItem> => ({
+            accessorKey: col.key,
+            meta: { align: col.align },
+            header: ({ column }) => (
+                <ColumnHeader
+                    column={column}
+                    title={col.label}
+                    align={col.align}
+                />
+            ),
+            cell: ({ row }) =>
+                col.render
+                    ? col.render(row.original)
+                    : String(row.original[col.key] ?? '—'),
+        })),
+        {
+            id: 'actions',
+            enableSorting: false,
+            enableGlobalFilter: false,
+            meta: { align: 'right' },
+            header: () => null,
+            cell: ({ row }) => (
+                <div className="flex justify-end gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(row.original)}
+                        aria-label={`Edit ${singular}`}
+                    >
+                        <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => destroy(row.original)}
+                        aria-label={`Delete ${singular}`}
+                    >
+                        <Trash2 className="size-4" />
+                    </Button>
+                </div>
+            ),
+        },
+    ];
+
     return (
         <>
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-semibold">{title}</h1>
-                <Button onClick={openCreate}>
-                    <Plus className="size-4" />
-                    Add {singular}
-                </Button>
-            </div>
+            <h1 className="text-2xl font-semibold">{title}</h1>
 
-            <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full text-sm">
-                    <thead>
-                        <tr className="bg-muted/50 text-left">
-                            {columns.map((col) => (
-                                <th
-                                    key={col.key}
-                                    className={`p-3 font-medium ${alignClass(col.align)}`}
-                                >
-                                    {col.label}
-                                </th>
-                            ))}
-                            <th className="p-3" />
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {items.map((item) => (
-                            <tr key={item.id} className="border-t">
-                                {columns.map((col) => (
-                                    <td
-                                        key={col.key}
-                                        className={`p-3 ${alignClass(col.align)}`}
-                                    >
-                                        {col.render
-                                            ? col.render(item)
-                                            : String(item[col.key] ?? '—')}
-                                    </td>
-                                ))}
-                                <td className="p-3">
-                                    <div className="flex justify-end gap-1">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => openEdit(item)}
-                                            aria-label={`Edit ${singular}`}
-                                        >
-                                            <Pencil className="size-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => destroy(item)}
-                                            aria-label={`Delete ${singular}`}
-                                        >
-                                            <Trash2 className="size-4" />
-                                        </Button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                        {items.length === 0 && (
-                            <tr>
-                                <td
-                                    colSpan={columns.length + 1}
-                                    className="text-muted-foreground p-6 text-center"
-                                >
-                                    No {title.toLowerCase()} yet.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                columns={tableColumns}
+                data={items}
+                searchPlaceholder={`Search ${title.toLowerCase()}…`}
+                emptyMessage={`No ${title.toLowerCase()} yet.`}
+                action={
+                    <Button onClick={openCreate}>
+                        <Plus className="size-4" />
+                        Add {singular}
+                    </Button>
+                }
+            />
 
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent>
