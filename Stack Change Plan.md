@@ -31,7 +31,7 @@ works well and was just audited clean.
   company's stack; (2) position the app to be incorporated into company infra
   later; (3) **keep control** of the app's expansion and roadmap.
 - **[DECIDED 2026-08-28] Political gate.** Once the app is on company
-  infrastructure, "control" is partly *organizational*, not technical. **The owner
+  infrastructure, "control" is partly _organizational_, not technical. **The owner
   will lock down a roadmap-ownership understanding before the rewrite is handed
   over.**
 
@@ -67,18 +67,18 @@ Laravel is **13** (not 12); the kit is on **Inertia 3** (not 2).
   passes data as **props** to a React page component. Form submits go to Laravel
   routes (Inertia `useForm`), which run the **authoritative** logic in PHP and
   redirect back with fresh data.
-- **The *authoritative* data access and business logic live in PHP.** (Corrected
+- **The _authoritative_ data access and business logic live in PHP.** (Corrected
   from the first draft's "100% of logic in PHP" — that was wrong. Necessary
   **client-side logic stays in React**; see §11.)
 - Concept mapping (today → Laravel/Inertia):
-  - Server Components → controllers feeding props.
-  - Server Actions → Laravel routes + Inertia forms.
-  - `revalidatePath` → Inertia's prop refresh / redirects.
-  - App Router + route groups + `layout.tsx` → Laravel routes + persistent Inertia
-    layouts.
-  - `proxy.ts` middleware → Laravel middleware.
-  - Supabase JS calls → Eloquent/DB in PHP (the Supabase client leaves the
-    frontend entirely).
+    - Server Components → controllers feeding props.
+    - Server Actions → Laravel routes + Inertia forms.
+    - `revalidatePath` → Inertia's prop refresh / redirects.
+    - App Router + route groups + `layout.tsx` → Laravel routes + persistent Inertia
+      layouts.
+    - `proxy.ts` middleware → Laravel middleware.
+    - Supabase JS calls → Eloquent/DB in PHP (the Supabase client leaves the
+      frontend entirely).
 
 ---
 
@@ -87,13 +87,13 @@ Laravel is **13** (not 12); the kit is on **Inertia 3** (not 2).
 Explicit owner direction, and the guiding rule:
 
 - **The current app is a reference/specification, not a source to copy.** Look at
-  it to learn *what* to build; build each piece fresh and idiomatic in
+  it to learn _what_ to build; build each piece fresh and idiomatic in
   Laravel + Inertia + React.
 - **No file ports, no copy-paste.** Nothing Next.js-shaped survives. Recreating
   the same look means writing **new Tailwind** to match (natural — the kit is
   already React 19 + TS + Tailwind).
 - **Guard against the "patch it together" loop:** build each feature idiomatically
-  *first*, then compare to the reference for parity — never start from pasted code
+  _first_, then compare to the reference for parity — never start from pasted code
   and patch until it works.
 
 ---
@@ -165,11 +165,11 @@ explicitly (the first draft gave it two sentences).
   **global query scopes** so a model can never be queried unscoped by accident.
 - **This is where a bug leaks another user's data**, so the mitigations are
   first-class:
-  - Enforce access in **one place per concern** (middleware + a base scoped query),
-    not sprinkled per controller.
-  - **Tests that *attempt* forbidden access and assert denial** (a finance-only
-    user hitting CRM; user A editing user B's row; a deactivated user; a non-admin
-    reassigning an action's author). These are required, not optional.
+    - Enforce access in **one place per concern** (middleware + a base scoped query),
+      not sprinkled per controller.
+    - **Tests that _attempt_ forbidden access and assert denial** (a finance-only
+      user hitting CRM; user A editing user B's row; a deactivated user; a non-admin
+      reassigning an action's author). These are required, not optional.
 - **[DECISION NEEDED — default: no]** Optionally keep Postgres RLS as
   defense-in-depth. It fights Laravel's pooled single-DB-role connection model, so
   default is app-layer only + tests. Revisit only if we want belt-and-suspenders.
@@ -259,7 +259,7 @@ write one live DB safely. Corrected plan:
 These are genuinely client-side and do **not** move to PHP. They're rebuilt fresh
 in React and are their own parity targets:
 
-- Live **VAT / withholding / Total preview** as the user types (a *duplicate* of
+- Live **VAT / withholding / Total preview** as the user types (a _duplicate_ of
   the authoritative PHP calc — acceptable, exactly as the current app duplicates it
   between client preview and server).
 - The locale-independent **segmented dd/mm/yyyy date field** (keyboard behaviour,
@@ -396,15 +396,15 @@ Two codebases will coexist for the whole build.
 - **[DECIDED 2026-08-28] Final production hosting + SMTP are the company's infra
   team's job, later**, when the app moves onto company infrastructure.
 - **Preview/viewing during development** (interim, until the company hosts it):
-  - **Local preview** — the app runs locally (`php artisan serve` + Vite); Claude
-    previews it and shows the owner as features are built. Zero setup, immediate.
-  - **A shareable URL the owner can open themselves** (the old Vercel habit) — the
-    first-party equivalent is **Laravel Cloud** (deploys from GitHub, handles the
-    build) **[verified 2026-08-28 it exists and deploys from GitHub]**. Connecting a
-    hosting account goes **through the owner** (Claude cannot create/connect hosting
-    or billing) — same division of labor as Vercel today. **[CHOSEN 2026-08-28:
-    Laravel Cloud]** (~$5/mo, bundled Neon-powered Postgres). Owner created the
-    account; connecting the repo is the next step (see §20).
+    - **Local preview** — the app runs locally (`php artisan serve` + Vite); Claude
+      previews it and shows the owner as features are built. Zero setup, immediate.
+    - **A shareable URL the owner can open themselves** (the old Vercel habit) — the
+      first-party equivalent is **Laravel Cloud** (deploys from GitHub, handles the
+      build) **[verified 2026-08-28 it exists and deploys from GitHub]**. Connecting a
+      hosting account goes **through the owner** (Claude cannot create/connect hosting
+      or billing) — same division of labor as Vercel today. **[CHOSEN 2026-08-28:
+      Laravel Cloud]** (~$5/mo, bundled Neon-powered Postgres). Owner created the
+      account; connecting the repo is the next step (see §20).
 - Preserve the **performance work**: the current DB indexes carry over (plain
   Postgres); keep them in the new migrations.
 - Planned future features (recurring transactions, notifications) fit Laravel's
@@ -430,6 +430,7 @@ Two codebases will coexist for the whole build.
 ## 19. Open decisions (consolidated)
 
 **Resolved 2026-08-28:**
+
 1. **Political gate** — ✅ owner will lock down roadmap ownership before handover. (§1)
 2. **Repo** — ✅ new separate repo `Angel-Pappas/yolt-app-new` (exists, empty).
    Pending: flip it **public → private**. (§9)
@@ -445,6 +446,7 @@ Two codebases will coexist for the whole build.
     attached, **registration/login verified end-to-end**. Push-to-deploy active. (§20)
 
 **Still open:**
+
 - **Confirm the company's DB standard** (the ~10%) — settles the MySQL choice. (§5)
 - **Repo visibility** — `yolt-app-new` is public; Laravel Cloud supports private, so
   it can be made private if desired (owner's choice — not required). (§9)
@@ -535,18 +537,18 @@ Two codebases will coexist for the whole build.
   of VAT lines: an optional withholding "line" (base + `withheld_tax_rates` rate)
   whose amount is computed server-side (`resolveWithheldLines`, never trusted from
   the client) and summed into `transactions.withheld_amount`; the cash **Total = net
-  + VAT − withheld**. The form gained a Withholding base + rate pair (income/expense
-  only) and a 4-column Net/VAT/Withheld/Total preview; `withheldLines` are
-  eager-loaded for edit pre-fill and rewritten wholesale on save (cleared on a type
-  change or when withholding is removed). `resolveLines` renamed `resolveVatLines`
-  for symmetry. **123 tests**; all CI green; deployed. **Still to do on
-  Transactions:** multi VAT lines + Net/Total toggle, reconcile / invoice tagging,
-  per-wallet balance view — then Taxes (VAT + withholding ledgers), CRM, import.
+    - VAT − withheld**. The form gained a Withholding base + rate pair (income/expense
+      only) and a 4-column Net/VAT/Withheld/Total preview; `withheldLines` are
+      eager-loaded for edit pre-fill and rewritten wholesale on save (cleared on a type
+      change or when withholding is removed). `resolveLines` renamed `resolveVatLines`
+      for symmetry. **123 tests**; all CI green; deployed. **Still to do on
+      Transactions:** multi VAT lines + Net/Total toggle, reconcile / invoice tagging,
+      per-wallet balance view — then Taxes (VAT + withholding ledgers), CRM, import.
 - **2026-08-31 (transactions — per-wallet balance view)** — a **Balance view**
   control on the Transactions page: picking a wallet sets `?balance=<id>` and the
   same table narrows to that wallet's history with the Wallet column swapped for a
   running **Balance** column. `WalletBalances::runningFor()` walks the wallet's
-  *complete* chronological history (seeded from `starting_balance`; income/expense
+  _complete_ chronological history (seeded from `starting_balance`; income/expense
   move net+VAT−withheld, a transfer moves net on both sides) annotating each row;
   the display filters are then applied in PHP, so a filtered view still shows
   correct cumulative balances. The active search/type/date filters are preserved on
@@ -691,7 +693,7 @@ Two codebases will coexist for the whole build.
   trusted from the client): Net mode → VAT = net × rate; **Total mode → net = total
   ÷ (1+rate), VAT anchored to (total − net)** so a line reconstructs exactly with no
   double-rounding drift. `transactions.net`/`vat_amount` stay the authoritative
-  *summed* values (every other reader unchanged); `vat_rate_id` is the single line's
+  _summed_ values (every other reader unchanged); `vat_rate_id` is the single line's
   rate or null for mixed. `vatLines` are now eager-loaded (like `withheldLines`) so
   editing seeds the real breakdown. **205 tests** (5 new: Total-mode derivation +
   exact reconstruction, multi-rate summing with null rate, single-line rate kept,
@@ -703,31 +705,31 @@ Two codebases will coexist for the whole build.
   live old DB into the new one** (not re-import Excel — the Excel importer is retired
   and must NOT be added). Every row moves to its correct place so nothing is lost or
   changes when the owner switches apps. Two parts:
-  1. **Campaign fields on leads** (`campaign_platform` enum fb/ig, `campaign_we_are`,
-     `campaign_we_want`) — the one schema gap vs. the old `leads`. Shown in the lead
-     form only when origin is "Campaign", cleared otherwise. **Required**: all 58 old
-     leads carry campaign data, so without these every lead would lose it.
-  2. **`legacy:import` Artisan command** + **`App\Support\Legacy\LegacyImporter`**.
-     Reads a `legacy` Postgres connection (config/database.php, env `LEGACY_DB_*`),
-     replaces the finance+CRM data with a faithful copy of the old app's: loaded
-     parents-first with **UUID→bigint id remapping** (an id-map per table that FKs
-     translate through), **soft-delete preserved** (old `is_deleted`+`deleted_at` →
-     new `deleted_at`, so deleted rows stay deleted), **`created_at`/`sort_order`
-     preserved**, and **created-by remapped** to the matching new user by email
-     (users themselves are NOT migrated — the owner's login stays; passwords can't
-     move). `delete()` not `truncate()` (TRUNCATE implicitly commits on MySQL) keeps
-     it atomic in one transaction. The importer is reader-driven so it's unit-tested
-     against a fixture (**9 tests**: FK remap, transfers, soft-deletes, campaign
-     fields, user-by-email mapping, full-replace, pretend mode). `--pretend` reports
-     source counts without writing; the real run confirms first (`--force` skips).
-     **216 tests total; all CI green; deployed.**
-     - **Verified against the real old DB** (via Supabase MCP): 909 transactions (3
-       soft-deleted), 906 VAT lines, 100 entities, 34 categories, 3 wallets, 4 VAT
-       rates, 58 leads (all with campaign data), 25 lead actions, 1 lead contact, 7
-       lead statuses (one `is_conversion`="Converted"), 5 origins, 6 project statuses,
-       projects/project_actions empty, 1 withheld line. Single owner
-       (`a.pappas@yoltlabs.com`); no null wallets; no multi-rate transactions. Every
-       column maps cleanly; nothing in the old schema is unhandled.
+    1. **Campaign fields on leads** (`campaign_platform` enum fb/ig, `campaign_we_are`,
+       `campaign_we_want`) — the one schema gap vs. the old `leads`. Shown in the lead
+       form only when origin is "Campaign", cleared otherwise. **Required**: all 58 old
+       leads carry campaign data, so without these every lead would lose it.
+    2. **`legacy:import` Artisan command** + **`App\Support\Legacy\LegacyImporter`**.
+       Reads a `legacy` Postgres connection (config/database.php, env `LEGACY_DB_*`),
+       replaces the finance+CRM data with a faithful copy of the old app's: loaded
+       parents-first with **UUID→bigint id remapping** (an id-map per table that FKs
+       translate through), **soft-delete preserved** (old `is_deleted`+`deleted_at` →
+       new `deleted_at`, so deleted rows stay deleted), **`created_at`/`sort_order`
+       preserved**, and **created-by remapped** to the matching new user by email
+       (users themselves are NOT migrated — the owner's login stays; passwords can't
+       move). `delete()` not `truncate()` (TRUNCATE implicitly commits on MySQL) keeps
+       it atomic in one transaction. The importer is reader-driven so it's unit-tested
+       against a fixture (**9 tests**: FK remap, transfers, soft-deletes, campaign
+       fields, user-by-email mapping, full-replace, pretend mode). `--pretend` reports
+       source counts without writing; the real run confirms first (`--force` skips).
+       **216 tests total; all CI green; deployed.**
+        - **Verified against the real old DB** (via Supabase MCP): 909 transactions (3
+          soft-deleted), 906 VAT lines, 100 entities, 34 categories, 3 wallets, 4 VAT
+          rates, 58 leads (all with campaign data), 25 lead actions, 1 lead contact, 7
+          lead statuses (one `is_conversion`="Converted"), 5 origins, 6 project statuses,
+          projects/project_actions empty, 1 withheld line. Single owner
+          (`a.pappas@yoltlabs.com`); no null wallets; no multi-rate transactions. Every
+          column maps cleanly; nothing in the old schema is unhandled.
 
 ### Cutover runbook (run once, when switching to the new app)
 
@@ -748,80 +750,80 @@ MySQL and can reach Supabase over the internet).
 4. **Run it**: `php artisan legacy:import` (confirm the prompt, or `--force`). Prints
    the migrated-row counts.
 5. **Verify** in the app; then remove the `LEGACY_DB_*` env vars.
-   - Re-runnable: it deletes+reloads, so a second run just refreshes from the old DB.
-   - The owner's existing new-app **login keeps working** (users aren't touched); all
-     migrated rows are attributed to that user by email.
+    - Re-runnable: it deletes+reloads, so a second run just refreshes from the old DB.
+    - The owner's existing new-app **login keeps working** (users aren't touched); all
+      migrated rows are attributed to that user by email.
 
 - **2026-08-31 (parity pass — closing deferred gaps).** After the owner asked for a
   full audit, the old app's `Summary.md` was checked feature-by-feature against the
   new code. ~17 simplifications/gaps were found (several I'd deferred without clearly
   surfacing). The owner directed: close them all, and prefer ready-made libraries
   over hand-rolling. Done so far (each its own commit, CI green, deployed):
-  1. **Invite-only** — Fortify registration disabled, register page/links removed;
-     a new **admin invite flow** (Settings ▸ Users): create user + access flags →
-     password-broker token → copyable set-password link (no email dependency; 3-day
-     token). Invitee uses the existing reset-password page.
-  2. **Rich tables via TanStack Table v8** (pinned — v9 just released with a reworked
-     `useTable`/`tableFeatures` API, too green to build on). A shared **`DataTable`**
-     (`components/data-table/`, on the shadcn Table primitives) with sortable headers
-     (`ColumnHeader`), global search, and client pagination. Every list renders
-     through it: the lookup lists (via `CrudResource`) gain search+sort+pagination
-     (the 100-entity list is searchable); Leads/Projects/Transactions gain sortable
-     headers + pagination while keeping their server-side filter toolbars. Removes
-     the render-all-900-rows concern.
-  3. **Searchable Combobox** (shadcn Popover + cmdk) for the transaction form's
-     Entity/Category — type-to-filter instead of a 100-item dropdown.
-  4. **Current-month default** on Transactions (redirect to this month's range; an
-     "All time" toggle / `all=1` opts out; explicit ranges too).
-  5. **Taxes month drill-down** — VAT months link to their transactions by a new
-     `invoice_from`/`invoice_to` filter (VAT is by invoice date), withholding months
-     by payment date + `type=expense`.
-  6. **Inline next-step/status editing** in the Leads/Projects lists (reusable
-     `EditableNextStep`/`EditableStatus` + lightweight PATCH endpoints; the lead
-     status editor hides the conversion status).
-  7. **Phone formatting** (`formatPhone`, grouped display) and **invoice-date
-     follows the transaction date** until edited.
-  - **The rest, now also done** (the owner directed all of them in — my
-    low-value framing was wrong; notably the owner's browser runs in **English**, so
-    the native date input showed American mm/dd/yyyy, making the custom field a real
-    fix): **Add+New/Add+Same** (batch entry); the reduced-edit **reconcile modal**
-    (date/amount/wallet + reconciled flag; changing an income/expense amount rescales
-    its VAT lines proportionally and re-derives VAT); **multi-line withholding** (the
-    form now produces the array the backend already summed); a locale-independent
-    **dd/mm/yyyy `DateField`** (auto-mask + react-day-picker calendar, emits ISO) on
-    the transaction/reconcile/History date fields and the transaction filters;
-    **History/Contacts tabs** on the lead detail (shadcn Tabs); the **Taxes ledgers
-    on the shared DataTable**; and the **admin actor-picker** on activity logs
-    (`Crm::resolveActor` — non-admins are always themselves). **All 17 audit items
-    closed; 229 tests; CI green; deployed.** New deps: `@tanstack/react-table@^8`,
-    `@radix-ui/react-popover`, `cmdk`, `react-day-picker`, `date-fns`,
-    `@radix-ui/react-tabs`. **The rebuild is feature-complete against the old app;
-    the only remaining step is the cutover data migration** (`legacy:import` — see
-    the runbook above).
+    1. **Invite-only** — Fortify registration disabled, register page/links removed;
+       a new **admin invite flow** (Settings ▸ Users): create user + access flags →
+       password-broker token → copyable set-password link (no email dependency; 3-day
+       token). Invitee uses the existing reset-password page.
+    2. **Rich tables via TanStack Table v8** (pinned — v9 just released with a reworked
+       `useTable`/`tableFeatures` API, too green to build on). A shared **`DataTable`**
+       (`components/data-table/`, on the shadcn Table primitives) with sortable headers
+       (`ColumnHeader`), global search, and client pagination. Every list renders
+       through it: the lookup lists (via `CrudResource`) gain search+sort+pagination
+       (the 100-entity list is searchable); Leads/Projects/Transactions gain sortable
+       headers + pagination while keeping their server-side filter toolbars. Removes
+       the render-all-900-rows concern.
+    3. **Searchable Combobox** (shadcn Popover + cmdk) for the transaction form's
+       Entity/Category — type-to-filter instead of a 100-item dropdown.
+    4. **Current-month default** on Transactions (redirect to this month's range; an
+       "All time" toggle / `all=1` opts out; explicit ranges too).
+    5. **Taxes month drill-down** — VAT months link to their transactions by a new
+       `invoice_from`/`invoice_to` filter (VAT is by invoice date), withholding months
+       by payment date + `type=expense`.
+    6. **Inline next-step/status editing** in the Leads/Projects lists (reusable
+       `EditableNextStep`/`EditableStatus` + lightweight PATCH endpoints; the lead
+       status editor hides the conversion status).
+    7. **Phone formatting** (`formatPhone`, grouped display) and **invoice-date
+       follows the transaction date** until edited.
+    - **The rest, now also done** (the owner directed all of them in — my
+      low-value framing was wrong; notably the owner's browser runs in **English**, so
+      the native date input showed American mm/dd/yyyy, making the custom field a real
+      fix): **Add+New/Add+Same** (batch entry); the reduced-edit **reconcile modal**
+      (date/amount/wallet + reconciled flag; changing an income/expense amount rescales
+      its VAT lines proportionally and re-derives VAT); **multi-line withholding** (the
+      form now produces the array the backend already summed); a locale-independent
+      **dd/mm/yyyy `DateField`** (auto-mask + react-day-picker calendar, emits ISO) on
+      the transaction/reconcile/History date fields and the transaction filters;
+      **History/Contacts tabs** on the lead detail (shadcn Tabs); the **Taxes ledgers
+      on the shared DataTable**; and the **admin actor-picker** on activity logs
+      (`Crm::resolveActor` — non-admins are always themselves). **All 17 audit items
+      closed; 229 tests; CI green; deployed.** New deps: `@tanstack/react-table@^8`,
+      `@radix-ui/react-popover`, `cmdk`, `react-day-picker`, `date-fns`,
+      `@radix-ui/react-tabs`. **The rebuild is feature-complete against the old app;
+      the only remaining step is the cutover data migration** (`legacy:import` — see
+      the runbook above).
 - **2026-09-09 (CUTOVER EXECUTED — the data migration ran, verified clean).** The
   owner chose a full cutover. Ran the runbook against production on Laravel Cloud:
-  1. Confirmed the runtime can read Postgres (`pdo_pgsql` present, PHP 8.5.10).
-  2. Set `LEGACY_DB_*` on the production env pointing at the **direct** Supabase host
-     `db.mzfxfweljbfvyqlhvmzr.supabase.co:5432` (user `postgres`, db `postgres`,
-     `sslmode=require`) — the direct host connected fine from Laravel Cloud, no pooler
-     needed. Redeployed so config picked them up.
-  3. `legacy:import --pretend` → source counts matched a fresh MCP baseline exactly.
-  4. `legacy:import --force` → **succeeded** (exit 0, ~11s). Migrated: transactions
-     916, transaction_vat_lines 913, transaction_withheld_lines 3, entities 100,
-     categories 34, wallets 3, vat_rates 4, withheld_tax_rates 1, leads 58,
-     lead_actions 25, lead_contacts 1, lead_statuses 7, lead_origins 5,
-     project_statuses 6, projects/project_actions 0.
-  5. **Verified in the new MySQL DB (not just row counts):** net Σ **810838.25**, VAT Σ
-     **66779.33**, withheld Σ **981.16**, transfers 3, reconciled 249, invoice-month
-     set 439, soft-deleted 3 — all match the old DB to the cent. Wallet balances via
-     the new app's own `WalletBalances` service: Alpha Bank **11347.61**, Register
-     **5209.78**, Cash **0.00** — all match. Zero orphaned VAT/withheld lines.
-  6. **Cleanup:** blanked the `LEGACY_DB_*` values on Laravel Cloud (no delete-var MCP
-     action, so set to empty; keys can be removed in the dashboard). The owner's
-     new-app login is untouched (users not migrated; rows attributed by email).
-  - **Follow-ups for the owner:** (a) **reset the Supabase DB password** — it passed
-    through the chat transcript (resetting doesn't disrupt the old app, which uses API
-    keys); (b) treat the **old app as read-only** now — further writes there won't
-    reach the new app unless `legacy:import` is re-run (it's re-runnable: it
-    delete+reloads). The old Supabase DB stays intact as the fallback. **The rebuild
-    is now live with the real data.**
+    1. Confirmed the runtime can read Postgres (`pdo_pgsql` present, PHP 8.5.10).
+    2. Set `LEGACY_DB_*` on the production env pointing at the **direct** Supabase host
+       `db.mzfxfweljbfvyqlhvmzr.supabase.co:5432` (user `postgres`, db `postgres`,
+       `sslmode=require`) — the direct host connected fine from Laravel Cloud, no pooler
+       needed. Redeployed so config picked them up.
+    3. `legacy:import --pretend` → source counts matched a fresh MCP baseline exactly.
+    4. `legacy:import --force` → **succeeded** (exit 0, ~11s). Migrated: transactions
+       916, transaction_vat_lines 913, transaction_withheld_lines 3, entities 100,
+       categories 34, wallets 3, vat_rates 4, withheld_tax_rates 1, leads 58,
+       lead_actions 25, lead_contacts 1, lead_statuses 7, lead_origins 5,
+       project_statuses 6, projects/project_actions 0.
+    5. **Verified in the new MySQL DB (not just row counts):** net Σ **810838.25**, VAT Σ
+       **66779.33**, withheld Σ **981.16**, transfers 3, reconciled 249, invoice-month
+       set 439, soft-deleted 3 — all match the old DB to the cent. Wallet balances via
+       the new app's own `WalletBalances` service: Alpha Bank **11347.61**, Register
+       **5209.78**, Cash **0.00** — all match. Zero orphaned VAT/withheld lines.
+    6. **Cleanup:** blanked the `LEGACY_DB_*` values on Laravel Cloud (no delete-var MCP
+       action, so set to empty; keys can be removed in the dashboard). The owner's
+       new-app login is untouched (users not migrated; rows attributed by email).
+    - **Follow-ups for the owner:** (a) **reset the Supabase DB password** — it passed
+      through the chat transcript (resetting doesn't disrupt the old app, which uses API
+      keys); (b) treat the **old app as read-only** now — further writes there won't
+      reach the new app unless `legacy:import` is re-run (it's re-runnable: it
+      delete+reloads). The old Supabase DB stays intact as the fallback. **The rebuild
+      is now live with the real data.**
