@@ -25,7 +25,10 @@ function monthBounds(key: string): { first: string; last: string } {
 export default function TaxesWithheld({ rows }: Props) {
     const columns: ColumnDef<Row>[] = [
         {
-            accessorKey: 'month',
+            id: 'month',
+            // Mid-month ISO so the date-range header filter compares correctly.
+            accessorFn: (row) => `${row.month}-15`,
+            meta: { filter: { type: 'date' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Month" />
             ),
@@ -33,7 +36,7 @@ export default function TaxesWithheld({ rows }: Props) {
                 const { first, last } = monthBounds(row.original.month);
                 return (
                     <Link
-                        href={`/transactions?from=${first}&to=${last}&type=expense&all=1`}
+                        href={`/transactions?from=${first}&to=${last}&all=1`}
                         className="whitespace-nowrap hover:underline"
                     >
                         {formatMonthYear(row.original.month)}
@@ -44,7 +47,7 @@ export default function TaxesWithheld({ rows }: Props) {
         {
             id: 'withheld',
             accessorFn: (row) => Number(row.withheld),
-            meta: { align: 'right' },
+            meta: { align: 'right', filter: { type: 'number' } },
             header: ({ column }) => (
                 <ColumnHeader
                     column={column}
@@ -57,7 +60,7 @@ export default function TaxesWithheld({ rows }: Props) {
         {
             id: 'payable_this_month',
             accessorFn: (row) => Number(row.payable_this_month),
-            meta: { align: 'right' },
+            meta: { align: 'right', filter: { type: 'number' } },
             header: ({ column }) => (
                 <ColumnHeader
                     column={column}

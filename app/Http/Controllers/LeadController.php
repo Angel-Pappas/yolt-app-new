@@ -20,39 +20,18 @@ use Inertia\Response;
  */
 class LeadController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(): Response
     {
-        $filters = [
-            'q' => trim((string) $request->input('q')) ?: null,
-            'status' => $request->filled('status') ? (int) $request->input('status') : null,
-            'origin' => $request->filled('origin') ? (int) $request->input('origin') : null,
-        ];
-
         $query = Lead::query()->with(['origin:id,name', 'status:id,name']);
 
-        if ($filters['q'] !== null) {
-            $term = '%'.addcslashes($filters['q'], '%_\\').'%';
-            $query->where(function ($q) use ($term) {
-                $q->where('name', 'like', $term)
-                    ->orWhere('contact_name', 'like', $term)
-                    ->orWhere('contact_email', 'like', $term)
-                    ->orWhere('contact_phone', 'like', $term)
-                    ->orWhere('next_step', 'like', $term)
-                    ->orWhere('description', 'like', $term);
-            });
-        }
+        // Hide converted leads (they've graduated to Projects). Searching and
+        // per-column filtering happen client-side in the shared list view.
+        // The is-null half is required — a bare != also drops null-status rows.
         $conversionId = LeadStatus::query()->where('is_conversion', true)->value('id');
-        if ($filters['status'] !== null) {
-            $query->where('status_id', $filters['status']);
-        } elseif ($conversionId !== null) {
-            // Hide converted leads unless the status filter explicitly asks for them.
-            // The is-null half is required — a bare != also drops null-status rows.
+        if ($conversionId !== null) {
             $query->where(function ($q) use ($conversionId) {
                 $q->whereNull('status_id')->orWhere('status_id', '!=', $conversionId);
             });
-        }
-        if ($filters['origin'] !== null) {
-            $query->where('origin_id', $filters['origin']);
         }
 
         return Inertia::render('leads/index', [
@@ -62,7 +41,6 @@ class LeadController extends Controller
                 'contact_phone', 'contact_landline', 'description', 'next_step',
                 'campaign_platform', 'campaign_we_are', 'campaign_we_want',
             ]),
-            'filters' => $filters,
             'statuses' => LeadStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name', 'is_conversion']),
             'origins' => LeadOrigin::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
         ]);

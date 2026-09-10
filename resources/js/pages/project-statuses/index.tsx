@@ -21,7 +21,13 @@ export default function ProjectStatusesIndex({
                     singular="Project status"
                     baseUrl="/project-statuses"
                     items={projectStatuses}
-                    columns={[{ key: 'name', label: 'Name' }]}
+                    columns={[
+                        {
+                            key: 'name',
+                            label: 'Name',
+                            filter: { type: 'text' },
+                        },
+                    ]}
                     fields={[
                         {
                             key: 'name',

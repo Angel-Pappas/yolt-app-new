@@ -73,19 +73,17 @@ test('a crm user can update and soft-delete a lead', function () {
     expect(Lead::withTrashed()->find($lead->id))->not->toBeNull();
 });
 
-test('leads can be filtered by status and searched', function () {
+test('the leads list returns all non-converted leads (filtering is client-side)', function () {
     $user = User::factory()->withCrmAccess()->create();
     $status = LeadStatus::factory()->create();
     Lead::factory()->create(['name' => 'Alpha', 'status_id' => $status->id]);
     Lead::factory()->create(['name' => 'Beta']);
 
+    // Search and per-column filtering happen client-side in the shared list view,
+    // so the server returns every non-converted lead regardless of query params.
     $this->actingAs($user)
-        ->get("/leads?status={$status->id}")
-        ->assertInertia(fn (Assert $page) => $page->has('leads', 1));
-
-    $this->actingAs($user)
-        ->get('/leads?q=Alpha')
-        ->assertInertia(fn (Assert $page) => $page->has('leads', 1));
+        ->get('/leads')
+        ->assertInertia(fn (Assert $page) => $page->has('leads', 2));
 });
 
 test('a crm user can inline-edit a lead next step and status', function () {

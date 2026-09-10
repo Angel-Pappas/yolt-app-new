@@ -84,6 +84,18 @@ Protect routes with the `can:` middleware (e.g. `can:access-finance`).
 
 ## Established patterns (match these — don't reinvent)
 
+- **Uniform list view** (`resources/js/components/data-table/`): EVERY list/table page
+  renders through the shared `DataTable` — a uniform header row (`title` left; search +
+  page controls + Add clustered right), an optional `controls` row (Transactions' date
+  pickers / All-time·This-month·Last-month presets / reconcile·invoice toggles), and
+  **per-column header filters**. To make a column filterable, declare
+  `meta: { filter: { type: 'text' | 'select' | 'number' | 'date', options? } }` on it
+  and use `ColumnHeader` for the header — the funnel + popover (`column-filter.tsx`,
+  Radix-portalled so it isn't clipped) and the matching filter fn are wired
+  automatically. Filtering/search/sort/pagination are **client-side** (TanStack); only
+  scope-defining filters stay server-side (Transactions' date/invoice/quick/balance;
+  Leads' hide-converted default). A NEW list page MUST use this — never hand-roll a
+  `<table>` or a bespoke filter bar.
 - **Simple lookup CRUD** (Entities, Categories, VAT/Withheld rates): a controller
   with `index/store/update/destroy`, gated `can:access-finance`, sets a created-by
   `user_id` on store, uses `$request->validate(...)`, flashes a toast via
@@ -91,8 +103,9 @@ Protect routes with the `can:` middleware (e.g. `can:access-finance`).
   soft-deletes on `destroy`. The frontend uses the reusable
   `resources/js/components/crud/crud-resource.tsx` (config-driven table + add/edit
   dialog + delete; text/decimal/select fields) — Categories/VAT/Withheld are thin
-  config pages. Wallets/Entities are hand-written pages of the same shape (they
-  predate the component); a NEW lookup should use `CrudResource`.
+  config pages. Wallets/Entities are hand-written pages (their own add/edit dialog) but
+  now render their list through `DataTable` like everything else; a NEW lookup should
+  use `CrudResource`.
 - **Transactions** (`TransactionController`): `validateTransaction()` (rules branch
   on type — income/expense carry a `lines[]` array; transfer needs `to_wallet_id`
   `different` from `wallet_id`), `persist()` (fills fields + rewrites VAT lines

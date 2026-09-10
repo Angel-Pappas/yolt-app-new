@@ -2,6 +2,7 @@ import { router, useForm } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { type FormEvent, type ReactNode, useState } from 'react';
+import { type ColumnFilterMeta } from '@/components/data-table/column-filter';
 import { ColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import InputError from '@/components/input-error';
@@ -34,6 +35,8 @@ export type CrudColumn = {
     label: string;
     align?: 'left' | 'right' | 'center';
     render?: (item: CrudItem) => ReactNode;
+    /** Header filter for this column (text/select/number/date). */
+    filter?: ColumnFilterMeta;
 };
 
 export type CrudField = {
@@ -137,7 +140,7 @@ export function CrudResource({
     const tableColumns: ColumnDef<CrudItem>[] = [
         ...columns.map((col): ColumnDef<CrudItem> => ({
             accessorKey: col.key,
-            meta: { align: col.align },
+            meta: { align: col.align, filter: col.filter },
             header: ({ column }) => (
                 <ColumnHeader
                     column={column}
@@ -181,11 +184,10 @@ export function CrudResource({
 
     return (
         <>
-            <h1 className="text-2xl font-semibold">{title}</h1>
-
             <DataTable
                 columns={tableColumns}
                 data={items}
+                title={title}
                 searchPlaceholder={`Search ${title.toLowerCase()}…`}
                 emptyMessage={`No ${title.toLowerCase()} yet.`}
                 action={

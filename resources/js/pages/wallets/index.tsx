@@ -1,6 +1,9 @@
 import { Head, router, useForm } from '@inertiajs/react';
+import { type ColumnDef } from '@tanstack/react-table';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
+import { ColumnHeader } from '@/components/data-table/column-header';
+import { DataTable } from '@/components/data-table/data-table';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -72,79 +75,93 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
         }
     }
 
+    const columns: ColumnDef<Wallet>[] = [
+        {
+            accessorKey: 'name',
+            meta: { filter: { type: 'text' } },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Name" />
+            ),
+            cell: ({ row }) => (
+                <span className="font-medium">{row.original.name}</span>
+            ),
+        },
+        {
+            id: 'starting_balance',
+            accessorFn: (row) => Number(row.starting_balance),
+            meta: { align: 'right', filter: { type: 'number' } },
+            header: ({ column }) => (
+                <ColumnHeader
+                    column={column}
+                    title="Starting balance"
+                    align="right"
+                />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground">
+                    {formatAmount(row.original.starting_balance)}
+                </span>
+            ),
+        },
+        {
+            id: 'balance',
+            accessorFn: (row) => Number(row.balance),
+            meta: { align: 'right', filter: { type: 'number' } },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Balance" align="right" />
+            ),
+            cell: ({ row }) => (
+                <span className="font-medium">
+                    {formatAmount(row.original.balance)}
+                </span>
+            ),
+        },
+        {
+            id: 'actions',
+            enableSorting: false,
+            meta: { align: 'right' },
+            header: () => null,
+            cell: ({ row }) => (
+                <div className="flex justify-end gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(row.original)}
+                        aria-label={`Edit ${row.original.name}`}
+                    >
+                        <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => destroy(row.original)}
+                        aria-label={`Delete ${row.original.name}`}
+                    >
+                        <Trash2 className="size-4" />
+                    </Button>
+                </div>
+            ),
+        },
+    ];
+
     return (
         <>
             <Head title="Wallets" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-semibold">Wallets</h1>
-                    <Button onClick={openCreate}>
-                        <Plus className="size-4" />
-                        Add wallet
-                    </Button>
-                </div>
-
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-muted/50 text-left">
-                                <th className="p-3 font-medium">Name</th>
-                                <th className="p-3 text-right font-medium">
-                                    Starting balance
-                                </th>
-                                <th className="p-3 text-right font-medium">
-                                    Balance
-                                </th>
-                                <th className="p-3" />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {wallets.map((wallet) => (
-                                <tr key={wallet.id} className="border-t">
-                                    <td className="p-3 font-medium">
-                                        {wallet.name}
-                                    </td>
-                                    <td className="text-muted-foreground p-3 text-right tabular-nums">
-                                        {formatAmount(wallet.starting_balance)}
-                                    </td>
-                                    <td className="p-3 text-right font-medium tabular-nums">
-                                        {formatAmount(wallet.balance)}
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="flex justify-end gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => openEdit(wallet)}
-                                                aria-label={`Edit ${wallet.name}`}
-                                            >
-                                                <Pencil className="size-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => destroy(wallet)}
-                                                aria-label={`Delete ${wallet.name}`}
-                                            >
-                                                <Trash2 className="size-4" />
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {wallets.length === 0 && (
-                                <tr>
-                                    <td
-                                        colSpan={4}
-                                        className="text-muted-foreground p-6 text-center"
-                                    >
-                                        No wallets yet.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={wallets}
+                    title="Wallets"
+                    searchPlaceholder="Search wallets…"
+                    emptyMessage="No wallets yet."
+                    pageSize={50}
+                    action={
+                        <Button onClick={openCreate}>
+                            <Plus className="size-4" />
+                            Add wallet
+                        </Button>
+                    }
+                />
             </div>
 
             <Dialog open={open} onOpenChange={setOpen}>

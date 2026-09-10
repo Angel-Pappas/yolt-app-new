@@ -22,10 +22,21 @@ export default function CategoriesIndex({
                     baseUrl="/categories"
                     items={categories}
                     columns={[
-                        { key: 'name', label: 'Name' },
+                        {
+                            key: 'name',
+                            label: 'Name',
+                            filter: { type: 'text' },
+                        },
                         {
                             key: 'type',
                             label: 'Type',
+                            filter: {
+                                type: 'select',
+                                options: [
+                                    { value: 'income', label: 'Income' },
+                                    { value: 'expense', label: 'Expense' },
+                                ],
+                            },
                             render: (item) =>
                                 String(item.type) === 'income'
                                     ? 'Income'

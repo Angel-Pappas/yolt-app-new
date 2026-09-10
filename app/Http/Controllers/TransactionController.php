@@ -13,7 +13,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -42,16 +41,12 @@ class TransactionController extends Controller
             ]));
         }
 
+        // The date range, invoice-date range (Taxes drill-down), quick toggles, and
+        // balance view are server-side; search and per-column filtering (type,
+        // wallet, category, entity, amounts) happen client-side in the shared list.
         $filters = [
-            'q' => trim((string) $request->input('q')) ?: null,
-            'type' => in_array($request->input('type'), ['income', 'expense', 'transfer'], true)
-                ? $request->input('type')
-                : null,
-            'wallet' => $request->filled('wallet') ? (int) $request->input('wallet') : null,
             'from' => $request->filled('from') ? (string) $request->input('from') : null,
             'to' => $request->filled('to') ? (string) $request->input('to') : null,
-            // Invoice-date range — used by the Taxes VAT drill-down (VAT is
-            // attributed by invoice date), not exposed as a toolbar control.
             'invoice_from' => $request->filled('invoice_from') ? (string) $request->input('invoice_from') : null,
             'invoice_to' => $request->filled('invoice_to') ? (string) $request->input('invoice_to') : null,
             'unreconciled' => $request->boolean('unreconciled'),
@@ -98,22 +93,6 @@ class TransactionController extends Controller
             'withheldLines:id,transaction_id,net,withheld_rate_id',
         ]);
 
-        if ($filters['q'] !== null) {
-            $term = '%'.addcslashes($filters['q'], '%_\\').'%';
-            $query->where(function ($q) use ($term) {
-                $q->where('description', 'like', $term)
-                    ->orWhereHas('entity', fn ($e) => $e->where('name', 'like', $term));
-            });
-        }
-        if ($filters['type'] !== null) {
-            $query->where('type', $filters['type']);
-        }
-        if ($filters['wallet'] !== null) {
-            $query->where(function ($q) use ($filters) {
-                $q->where('wallet_id', $filters['wallet'])
-                    ->orWhere('to_wallet_id', $filters['wallet']);
-            });
-        }
         if ($filters['from'] !== null) {
             $query->whereDate('date', '>=', $filters['from']);
         }
@@ -151,20 +130,6 @@ class TransactionController extends Controller
     {
         $rows = WalletBalances::runningFor($wallet->id, (float) $wallet->starting_balance);
 
-        if ($filters['q'] !== null) {
-            $needle = Str::lower($filters['q']);
-            $rows = $rows->filter(function (Transaction $t) use ($needle) {
-                if (Str::contains(Str::lower($t->description), $needle)) {
-                    return true;
-                }
-
-                return $t->entity_id !== null
-                    && Str::contains(Str::lower($t->entity->name), $needle);
-            });
-        }
-        if ($filters['type'] !== null) {
-            $rows = $rows->where('type', $filters['type']);
-        }
         if ($filters['from'] !== null) {
             $rows = $rows->filter(fn (Transaction $t) => substr((string) $t->date, 0, 10) >= $filters['from']);
         }

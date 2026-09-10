@@ -55,17 +55,6 @@ test('converted leads are hidden from the default list', function () {
         ->assertInertia(fn (Assert $page) => $page->has('leads', 1));
 });
 
-test('the status filter can reveal converted leads', function () {
-    $user = User::factory()->withCrmAccess()->create();
-    $conversion = LeadStatus::factory()->create(['is_conversion' => true]);
-    Lead::factory()->create(['status_id' => $conversion->id]);
-    Lead::factory()->create();
-
-    $this->actingAs($user)
-        ->get("/leads?status={$conversion->id}")
-        ->assertInertia(fn (Assert $page) => $page->has('leads', 1));
-});
-
 test('the lead detail exposes an existing project', function () {
     $user = User::factory()->withCrmAccess()->create();
     $lead = Lead::factory()->create();

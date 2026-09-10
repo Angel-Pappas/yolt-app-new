@@ -139,9 +139,26 @@ export default function TransactionsIndex({
         }
     }
 
+    const typeOptions = (['income', 'expense', 'transfer'] as const).map(
+        (t) => ({ value: t, label: typeMeta[t].label }),
+    );
+    const walletOptions = wallets.map((w) => ({
+        value: w.name,
+        label: w.name,
+    }));
+    const categoryOptions = categories.map((c) => ({
+        value: c.name,
+        label: c.name,
+    }));
+    const entityOptions = entities.map((e) => ({
+        value: e.name,
+        label: e.name,
+    }));
+
     const walletColumn: ColumnDef<Transaction> = {
         id: 'wallet',
         accessorFn: (row) => row.wallet?.name ?? '',
+        meta: { filter: { type: 'select', options: walletOptions } },
         header: ({ column }) => <ColumnHeader column={column} title="Wallet" />,
         cell: ({ row }) =>
             row.original.type === 'transfer' ? (
@@ -176,6 +193,7 @@ export default function TransactionsIndex({
     const columns: ColumnDef<Transaction>[] = [
         {
             accessorKey: 'type',
+            meta: { filter: { type: 'select', options: typeOptions } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Type" />
             ),
@@ -192,6 +210,7 @@ export default function TransactionsIndex({
         },
         {
             accessorKey: 'date',
+            meta: { filter: { type: 'date' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Date" />
             ),
@@ -205,6 +224,7 @@ export default function TransactionsIndex({
         {
             id: 'category',
             accessorFn: (row) => row.category?.name ?? '',
+            meta: { filter: { type: 'select', options: categoryOptions } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Category" />
             ),
@@ -218,6 +238,7 @@ export default function TransactionsIndex({
             id: 'entity',
             accessorFn: (row) =>
                 row.type === 'transfer' ? 'Transfer' : (row.entity?.name ?? ''),
+            meta: { filter: { type: 'select', options: entityOptions } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Entity" />
             ),
@@ -231,6 +252,7 @@ export default function TransactionsIndex({
         },
         {
             accessorKey: 'description',
+            meta: { filter: { type: 'text' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Description" />
             ),
@@ -239,7 +261,7 @@ export default function TransactionsIndex({
         {
             id: 'net',
             accessorFn: (row) => Number(row.net),
-            meta: { align: 'right' },
+            meta: { align: 'right', filter: { type: 'number' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Net" align="right" />
             ),
@@ -248,7 +270,7 @@ export default function TransactionsIndex({
         {
             id: 'vat',
             accessorFn: (row) => Number(row.vat_amount),
-            meta: { align: 'right' },
+            meta: { align: 'right', filter: { type: 'number' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="VAT" align="right" />
             ),
@@ -261,7 +283,7 @@ export default function TransactionsIndex({
         {
             id: 'total',
             accessorFn: (row) => total(row),
-            meta: { align: 'right' },
+            meta: { align: 'right', filter: { type: 'number' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Total" align="right" />
             ),
@@ -334,14 +356,22 @@ export default function TransactionsIndex({
         <>
             <Head title="Transactions" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-semibold">Transactions</h1>
-                    <div className="flex items-center gap-2">
+                <DataTable
+                    columns={columns}
+                    data={transactions}
+                    title="Transactions"
+                    searchPlaceholder="Search transactions…"
+                    emptyMessage="No transactions yet."
+                    pageSize={50}
+                    controls={<TransactionsFilters filters={filters} />}
+                    toolbar={
                         <BalanceViewControl
                             wallets={wallets}
                             filters={filters}
                             active={balance}
                         />
+                    }
+                    action={
                         <Button
                             onClick={openCreate}
                             disabled={wallets.length === 0}
@@ -349,20 +379,7 @@ export default function TransactionsIndex({
                             <Plus className="size-4" />
                             Add transaction
                         </Button>
-                    </div>
-                </div>
-
-                <TransactionsFilters
-                    filters={filters}
-                    wallets={wallets}
-                    hideWallet={balanceMode}
-                />
-
-                <DataTable
-                    columns={columns}
-                    data={transactions}
-                    emptyMessage="No transactions yet."
-                    pageSize={50}
+                    }
                 />
             </div>
 

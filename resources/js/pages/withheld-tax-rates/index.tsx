@@ -22,11 +22,16 @@ export default function WithheldTaxRatesIndex({
                     baseUrl="/withheld-tax-rates"
                     items={withheldRates}
                     columns={[
-                        { key: 'name', label: 'Name' },
+                        {
+                            key: 'name',
+                            label: 'Name',
+                            filter: { type: 'text' },
+                        },
                         {
                             key: 'rate',
                             label: 'Rate',
                             align: 'right',
+                            filter: { type: 'number' },
                             render: (item) =>
                                 `${Number(item.rate).toFixed(2)}%`,
                         },

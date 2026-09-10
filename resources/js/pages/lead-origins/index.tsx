@@ -21,7 +21,13 @@ export default function LeadOriginsIndex({
                     singular="Lead origin"
                     baseUrl="/lead-origins"
                     items={leadOrigins}
-                    columns={[{ key: 'name', label: 'Name' }]}
+                    columns={[
+                        {
+                            key: 'name',
+                            label: 'Name',
+                            filter: { type: 'text' },
+                        },
+                    ]}
                     fields={[
                         {
                             key: 'name',

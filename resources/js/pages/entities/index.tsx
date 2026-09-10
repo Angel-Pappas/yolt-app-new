@@ -1,6 +1,9 @@
 import { Head, router, useForm } from '@inertiajs/react';
+import { type ColumnDef } from '@tanstack/react-table';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
+import { ColumnHeader } from '@/components/data-table/column-header';
+import { DataTable } from '@/components/data-table/data-table';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -64,71 +67,75 @@ export default function EntitiesIndex({ entities }: { entities: Entity[] }) {
         }
     }
 
+    const columns: ColumnDef<Entity>[] = [
+        {
+            accessorKey: 'name',
+            meta: { filter: { type: 'text' } },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Name" />
+            ),
+            cell: ({ row }) => (
+                <span className="font-medium">{row.original.name}</span>
+            ),
+        },
+        {
+            accessorKey: 'vat_number',
+            meta: { filter: { type: 'text' } },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="VAT number" />
+            ),
+            cell: ({ row }) => (
+                <span className="text-muted-foreground tabular-nums">
+                    {row.original.vat_number ?? '—'}
+                </span>
+            ),
+        },
+        {
+            id: 'actions',
+            enableSorting: false,
+            meta: { align: 'right' },
+            header: () => null,
+            cell: ({ row }) => (
+                <div className="flex justify-end gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(row.original)}
+                        aria-label={`Edit ${row.original.name}`}
+                    >
+                        <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => destroy(row.original)}
+                        aria-label={`Delete ${row.original.name}`}
+                    >
+                        <Trash2 className="size-4" />
+                    </Button>
+                </div>
+            ),
+        },
+    ];
+
     return (
         <>
             <Head title="Entities" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-semibold">Entities</h1>
-                    <Button onClick={openCreate}>
-                        <Plus className="size-4" />
-                        Add entity
-                    </Button>
-                </div>
-
-                <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-muted/50 text-left">
-                                <th className="p-3 font-medium">Name</th>
-                                <th className="p-3 font-medium">VAT number</th>
-                                <th className="p-3" />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {entities.map((entity) => (
-                                <tr key={entity.id} className="border-t">
-                                    <td className="p-3 font-medium">
-                                        {entity.name}
-                                    </td>
-                                    <td className="text-muted-foreground p-3 tabular-nums">
-                                        {entity.vat_number ?? '—'}
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="flex justify-end gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => openEdit(entity)}
-                                                aria-label={`Edit ${entity.name}`}
-                                            >
-                                                <Pencil className="size-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => destroy(entity)}
-                                                aria-label={`Delete ${entity.name}`}
-                                            >
-                                                <Trash2 className="size-4" />
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {entities.length === 0 && (
-                                <tr>
-                                    <td
-                                        colSpan={3}
-                                        className="text-muted-foreground p-6 text-center"
-                                    >
-                                        No entities yet.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={entities}
+                    title="Entities"
+                    searchPlaceholder="Search entities…"
+                    emptyMessage="No entities yet."
+                    pageSize={50}
+                    action={
+                        <Button onClick={openCreate}>
+                            <Plus className="size-4" />
+                            Add entity
+                        </Button>
+                    }
+                />
             </div>
 
             <Dialog open={open} onOpenChange={setOpen}>

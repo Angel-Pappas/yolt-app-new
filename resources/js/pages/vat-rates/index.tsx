@@ -18,11 +18,16 @@ export default function VatRatesIndex({ vatRates }: { vatRates: VatRate[] }) {
                     baseUrl="/vat-rates"
                     items={vatRates}
                     columns={[
-                        { key: 'name', label: 'Name' },
+                        {
+                            key: 'name',
+                            label: 'Name',
+                            filter: { type: 'text' },
+                        },
                         {
                             key: 'rate',
                             label: 'Rate',
                             align: 'right',
+                            filter: { type: 'number' },
                             render: (item) =>
                                 `${Number(item.rate).toFixed(2)}%`,
                         },

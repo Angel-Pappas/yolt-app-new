@@ -830,3 +830,37 @@ MySQL and can reach Supabase over the internet).
       read-only" discipline** — do not mention it again. The old Supabase DB stays intact
       as the fallback; `legacy:import` is re-runnable (delete+reloads) if ever needed.
       **The rebuild is now live with the real data.**
+
+- **2026-09-10 (uniform "list view" across the app).** Every list page now shares one
+  shell so the experience is identical page to page (owner's explicit direction —
+  "all list views uniform… don't fix it in 50 places"). Built once in the shared
+  components:
+    - **`DataTable`** gained a `title` (the `<h1>` moved into the toolbar's left, with
+      search + page controls + Add clustered right), an optional `controls` row, and
+      `initialColumnFilters`; it registers the custom filter fns and enables faceting.
+    - **Per-column header filters** — a new `data-table/column-filter.tsx` (funnel →
+      shadcn `Popover`, Radix-portalled so a table's overflow never clips it) with four
+      body types keyed off a column's `meta.filter`: `text` (contains), `select`
+      (searchable multi-select; options given or faceted), `number` (min/max), `date`
+      (from/to via `DateField`). `ColumnHeader` renders the funnel at the column's
+      trailing edge. `meta` is now typed via a `ColumnMeta` module augmentation
+      (`align` + `filter`).
+    - **Rolled onto it:** the six `CrudResource` lookup lists (gained a `filter` per
+      column); **Entities & Wallets** converted from hand-rolled `<table>`s to
+      `DataTable` (so they get search + sort + header filters); **Leads & Projects**
+      dropped their bespoke server filter bars — search + all column filters are now
+      client-side (their `*-filters.tsx` deleted); **Taxes VAT/Withheld** gained header
+      filters. **Transactions**: the toolbar was reworked to the owner's spec — the two
+      date pickers far left, then **All time / This month / Last month** presets
+      (This/Last month were missing), then the reconcile + missing-invoice toggles far
+      right; the Type/Wallet dropdowns and the Clear button were removed (Type/Wallet/
+      Category/Entity/amounts are now header filters); search moved next to Balance view
+        - Add.
+    - **Server contract change:** Transactions keeps only date-range, invoice-range
+      (Taxes drill-down), the quick toggles, and balance view server-side; `q`/`type`/
+      `wallet` dropped. Leads/Projects no longer filter server-side; **Leads still hides
+      converted by default** (now unconditional — revealing converted from the list is
+      gone; they live in Projects). Filter/search Pest tests updated to the new
+      contract. **225 tests; all CI green; deployed.** Any new list page must be built
+      from `DataTable` + `ColumnHeader` (declare `meta.filter` per column) — never a
+      hand-rolled table.

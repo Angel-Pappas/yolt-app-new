@@ -79,19 +79,17 @@ test('a crm user can update and soft-delete a project', function () {
     expect(Project::withTrashed()->find($project->id))->not->toBeNull();
 });
 
-test('projects can be filtered by status and searched', function () {
+test('the projects list returns all projects (filtering is client-side)', function () {
     $user = User::factory()->withCrmAccess()->create();
     $status = ProjectStatus::factory()->create();
     Project::factory()->create(['name' => 'Alpha', 'status_id' => $status->id]);
     Project::factory()->create(['name' => 'Beta']);
 
+    // Search and per-column filtering happen client-side in the shared list view,
+    // so the server returns every project regardless of query params.
     $this->actingAs($user)
-        ->get("/projects?status={$status->id}")
-        ->assertInertia(fn (Assert $page) => $page->has('projects', 1));
-
-    $this->actingAs($user)
-        ->get('/projects?q=Alpha')
-        ->assertInertia(fn (Assert $page) => $page->has('projects', 1));
+        ->get('/projects')
+        ->assertInertia(fn (Assert $page) => $page->has('projects', 2));
 });
 
 test('a crm user can inline-edit a project next step and status', function () {

@@ -21,7 +21,13 @@ export default function LeadStatusesIndex({
                     singular="Lead status"
                     baseUrl="/lead-statuses"
                     items={leadStatuses}
-                    columns={[{ key: 'name', label: 'Name' }]}
+                    columns={[
+                        {
+                            key: 'name',
+                            label: 'Name',
+                            filter: { type: 'text' },
+                        },
+                    ]}
                     fields={[
                         {
                             key: 'name',

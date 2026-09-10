@@ -22,36 +22,21 @@ use Inertia\Response;
  */
 class ProjectController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(): Response
     {
-        $filters = [
-            'q' => trim((string) $request->input('q')) ?: null,
-            'status' => $request->filled('status') ? (int) $request->input('status') : null,
-        ];
-
-        $query = Project::query()->with([
-            'status:id,name',
-            'lead:id,contact_name',
-        ]);
-
-        if ($filters['q'] !== null) {
-            $term = '%'.addcslashes($filters['q'], '%_\\').'%';
-            $query->where(function ($q) use ($term) {
-                $q->where('name', 'like', $term)
-                    ->orWhere('description', 'like', $term)
-                    ->orWhere('next_step', 'like', $term);
-            });
-        }
-        if ($filters['status'] !== null) {
-            $query->where('status_id', $filters['status']);
-        }
-
-        return Inertia::render('projects/index', [
-            'projects' => $query->orderBy('sort_order')->orderByDesc('id')->get([
+        // Searching and per-column filtering happen client-side in the shared list
+        // view; the server just returns the projects.
+        $projects = Project::query()
+            ->with(['status:id,name', 'lead:id,contact_name'])
+            ->orderBy('sort_order')
+            ->orderByDesc('id')
+            ->get([
                 'id', 'sort_order', 'name', 'lead_id', 'status_id',
                 'description', 'value', 'estimated_months', 'next_step',
-            ]),
-            'filters' => $filters,
+            ]);
+
+        return Inertia::render('projects/index', [
+            'projects' => $projects,
             'statuses' => ProjectStatus::query()->orderBy('position')->orderBy('id')->get(['id', 'name']),
         ]);
     }

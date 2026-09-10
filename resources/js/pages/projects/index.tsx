@@ -9,7 +9,6 @@ import { EditableStatus } from '@/components/inline-edit/editable-status';
 import { Button } from '@/components/ui/button';
 import { formatAmount } from '@/lib/format';
 import { type EditableProject, ProjectFormDialog } from './project-form-dialog';
-import { type ProjectFilters, ProjectsFilters } from './projects-filters';
 
 type Related = { id: number; name: string } | null;
 type LeadRef = { id: number; contact_name: string | null } | null;
@@ -24,11 +23,14 @@ type Option = { id: number; name: string };
 
 type Props = {
     projects: Project[];
-    filters: ProjectFilters;
     statuses: Option[];
 };
 
-export default function ProjectsIndex({ projects, filters, statuses }: Props) {
+export default function ProjectsIndex({ projects, statuses }: Props) {
+    const statusOptions = statuses.map((s) => ({
+        value: s.name,
+        label: s.name,
+    }));
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<EditableProject | null>(null);
     const [formKey, setFormKey] = useState(0);
@@ -54,6 +56,7 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
     const columns: ColumnDef<Project>[] = [
         {
             accessorKey: 'sort_order',
+            meta: { filter: { type: 'number' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="No." />
             ),
@@ -65,6 +68,7 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
         },
         {
             accessorKey: 'name',
+            meta: { filter: { type: 'text' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Name" />
             ),
@@ -80,6 +84,7 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
         {
             id: 'client',
             accessorFn: (row) => row.lead?.contact_name ?? '',
+            meta: { filter: { type: 'text' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Client" />
             ),
@@ -92,6 +97,7 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
         {
             id: 'status',
             accessorFn: (row) => row.status?.name ?? '',
+            meta: { filter: { type: 'select', options: statusOptions } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Status" />
             ),
@@ -112,7 +118,7 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
         {
             id: 'value',
             accessorFn: (row) => (row.value != null ? Number(row.value) : 0),
-            meta: { align: 'right' },
+            meta: { align: 'right', filter: { type: 'number' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Value" align="right" />
             ),
@@ -123,6 +129,7 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
         },
         {
             accessorKey: 'next_step',
+            meta: { filter: { type: 'text' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Next step" />
             ),
@@ -171,21 +178,19 @@ export default function ProjectsIndex({ projects, filters, statuses }: Props) {
         <>
             <Head title="Projects" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-semibold">Projects</h1>
-                    <Button onClick={openCreate}>
-                        <Plus className="size-4" />
-                        Add project
-                    </Button>
-                </div>
-
-                <ProjectsFilters filters={filters} statuses={statuses} />
-
                 <DataTable
                     columns={columns}
                     data={projects}
+                    title="Projects"
+                    searchPlaceholder="Search projects…"
                     emptyMessage="No projects yet."
                     pageSize={50}
+                    action={
+                        <Button onClick={openCreate}>
+                            <Plus className="size-4" />
+                            Add project
+                        </Button>
+                    }
                 />
             </div>
 

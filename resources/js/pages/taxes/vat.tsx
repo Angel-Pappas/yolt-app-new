@@ -34,7 +34,7 @@ function amountColumn(
     return {
         id: key,
         accessorFn: (row) => Number(row[key]),
-        meta: { align: 'right' },
+        meta: { align: 'right', filter: { type: 'number' } },
         header: ({ column }) => (
             <ColumnHeader column={column} title={title} align="right" />
         ),
@@ -49,7 +49,11 @@ function amountColumn(
 export default function TaxesVat({ rows }: Props) {
     const columns: ColumnDef<Row>[] = [
         {
-            accessorKey: 'month',
+            id: 'month',
+            // Mid-month ISO so the date-range header filter compares correctly
+            // (a bare "yyyy-mm" would mis-sort against "yyyy-mm-dd" bounds).
+            accessorFn: (row) => `${row.month}-15`,
+            meta: { filter: { type: 'date' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Month" />
             ),

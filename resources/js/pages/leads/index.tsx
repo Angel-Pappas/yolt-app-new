@@ -9,7 +9,6 @@ import { EditableStatus } from '@/components/inline-edit/editable-status';
 import { Button } from '@/components/ui/button';
 import { formatPhone } from '@/lib/format';
 import { type EditableLead, LeadFormDialog } from './lead-form-dialog';
-import { type LeadFilters, LeadsFilters } from './leads-filters';
 
 type Related = { id: number; name: string } | null;
 
@@ -24,17 +23,18 @@ type StatusOption = { id: number; name: string; is_conversion?: boolean };
 
 type Props = {
     leads: Lead[];
-    filters: LeadFilters;
     statuses: StatusOption[];
     origins: Option[];
 };
 
-export default function LeadsIndex({
-    leads,
-    filters,
-    statuses,
-    origins,
-}: Props) {
+export default function LeadsIndex({ leads, statuses, origins }: Props) {
+    const originOptions = origins.map((o) => ({
+        value: o.name,
+        label: o.name,
+    }));
+    const statusOptions = statuses
+        .filter((s) => !s.is_conversion)
+        .map((s) => ({ value: s.name, label: s.name }));
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<EditableLead | null>(null);
     const [formKey, setFormKey] = useState(0);
@@ -60,6 +60,7 @@ export default function LeadsIndex({
     const columns: ColumnDef<Lead>[] = [
         {
             accessorKey: 'sort_order',
+            meta: { filter: { type: 'number' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="No." />
             ),
@@ -72,6 +73,7 @@ export default function LeadsIndex({
         {
             id: 'origin',
             accessorFn: (row) => row.origin?.name ?? '',
+            meta: { filter: { type: 'select', options: originOptions } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Origin" />
             ),
@@ -83,6 +85,7 @@ export default function LeadsIndex({
         },
         {
             accessorKey: 'name',
+            meta: { filter: { type: 'text' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Name" />
             ),
@@ -97,6 +100,7 @@ export default function LeadsIndex({
         },
         {
             accessorKey: 'contact_email',
+            meta: { filter: { type: 'text' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Email" />
             ),
@@ -108,6 +112,7 @@ export default function LeadsIndex({
         },
         {
             accessorKey: 'contact_phone',
+            meta: { filter: { type: 'text' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Phone" />
             ),
@@ -119,6 +124,7 @@ export default function LeadsIndex({
         },
         {
             accessorKey: 'next_step',
+            meta: { filter: { type: 'text' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Next step" />
             ),
@@ -138,6 +144,7 @@ export default function LeadsIndex({
         {
             id: 'status',
             accessorFn: (row) => row.status?.name ?? '',
+            meta: { filter: { type: 'select', options: statusOptions } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Status" />
             ),
@@ -187,25 +194,19 @@ export default function LeadsIndex({
         <>
             <Head title="Leads" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
-                <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-semibold">Leads</h1>
-                    <Button onClick={openCreate}>
-                        <Plus className="size-4" />
-                        Add lead
-                    </Button>
-                </div>
-
-                <LeadsFilters
-                    filters={filters}
-                    statuses={statuses}
-                    origins={origins}
-                />
-
                 <DataTable
                     columns={columns}
                     data={leads}
+                    title="Leads"
+                    searchPlaceholder="Search leads…"
                     emptyMessage="No leads yet."
                     pageSize={50}
+                    action={
+                        <Button onClick={openCreate}>
+                            <Plus className="size-4" />
+                            Add lead
+                        </Button>
+                    }
                 />
             </div>
 

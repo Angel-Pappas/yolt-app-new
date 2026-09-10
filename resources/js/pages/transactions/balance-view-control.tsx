@@ -20,16 +20,19 @@ type Props = {
 
 /**
  * Enter/exit the per-wallet balance view. Entering sets `?balance=<id>` while
- * preserving the active search/type/date filters; the wallet filter is dropped
- * (the list is already scoped to the balance wallet).
+ * preserving the active date range and quick filters (so the view doesn't jump);
+ * per-column filters are client-side and reset on navigation.
  */
 export function BalanceViewControl({ wallets, filters, active }: Props) {
     function baseParams(): Record<string, string> {
         const p: Record<string, string> = {};
-        if (filters.q) p.q = filters.q;
-        if (filters.type) p.type = filters.type;
         if (filters.from) p.from = filters.from;
         if (filters.to) p.to = filters.to;
+        if (filters.invoice_from) p.invoice_from = filters.invoice_from;
+        if (filters.invoice_to) p.invoice_to = filters.invoice_to;
+        if (filters.unreconciled) p.unreconciled = '1';
+        if (filters.no_invoice) p.no_invoice = '1';
+        if (filters.all) p.all = '1';
         return p;
     }
 

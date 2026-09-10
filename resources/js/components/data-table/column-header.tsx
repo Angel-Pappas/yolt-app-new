@@ -1,10 +1,13 @@
 import { type Column } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ColumnFilter } from './column-filter';
 
 /**
- * A sortable column header: clicking cycles the column's sort. Used as a column's
- * `header` render function — `header: ({ column }) => <ColumnHeader column={column} title="Name" />`.
+ * A column header: a sortable title (clicking cycles the column's sort) plus, when
+ * the column declares `meta.filter`, a funnel filter at the column's trailing edge.
+ * Used as a column's `header` render function —
+ * `header: ({ column }) => <ColumnHeader column={column} title="Name" />`.
  */
 export function ColumnHeader<TData, TValue>({
     column,
@@ -17,37 +20,16 @@ export function ColumnHeader<TData, TValue>({
     align?: 'left' | 'right' | 'center';
     className?: string;
 }) {
-    const alignClass =
-        align === 'right'
-            ? 'w-full justify-end'
-            : align === 'center'
-              ? 'w-full justify-center'
-              : '';
-
-    if (!column.getCanSort()) {
-        return (
-            <span
-                className={cn(
-                    align === 'right' && 'block text-right',
-                    className,
-                )}
-            >
-                {title}
-            </span>
-        );
-    }
-
+    const filterMeta = column.columnDef.meta?.filter;
+    const canFilter = column.getCanFilter() && Boolean(filterMeta);
+    const canSort = column.getCanSort();
     const sorted = column.getIsSorted();
 
-    return (
+    const titleEl = canSort ? (
         <button
             type="button"
             onClick={() => column.toggleSorting(sorted === 'asc')}
-            className={cn(
-                'hover:text-foreground -mx-1 flex items-center gap-1 rounded px-1 py-0.5',
-                alignClass,
-                className,
-            )}
+            className="hover:text-foreground -mx-1 flex items-center gap-1 rounded px-1 py-0.5"
         >
             {title}
             {sorted === 'asc' ? (
@@ -58,5 +40,23 @@ export function ColumnHeader<TData, TValue>({
                 <ChevronsUpDown className="size-3.5 opacity-50" />
             )}
         </button>
+    ) : (
+        <span>{title}</span>
+    );
+
+    return (
+        <div
+            className={cn(
+                'flex items-center gap-0.5',
+                align === 'right' && 'justify-end',
+                align === 'center' && 'justify-center',
+                className,
+            )}
+        >
+            {titleEl}
+            {canFilter && filterMeta && (
+                <ColumnFilter column={column} meta={filterMeta} />
+            )}
+        </div>
     );
 }

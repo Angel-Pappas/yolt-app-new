@@ -5,6 +5,11 @@ use App\Models\User;
 use App\Models\Wallet;
 use Inertia\Testing\AssertableInertia as Assert;
 
+// The date range and the invoice-date range (Taxes drill-down) are the only
+// server-side filters on the transactions list. Search and per-column filtering
+// (type, wallet, category, entity, amounts) happen client-side in the shared list
+// view, so they're not asserted against the server payload here.
+
 test('the invoice-date filter narrows by invoice date (Taxes drill-down)', function () {
     $user = User::factory()->withFinanceAccess()->create();
     $wallet = Wallet::factory()->create();
@@ -13,50 +18,6 @@ test('the invoice-date filter narrows by invoice date (Taxes drill-down)', funct
 
     $this->actingAs($user)
         ->get('/transactions?invoice_from=2026-07-01&invoice_to=2026-07-31')
-        ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
-});
-
-test('the transactions list can be filtered by type', function () {
-    $user = User::factory()->withFinanceAccess()->create();
-    $wallet = Wallet::factory()->create();
-    Transaction::factory()->create(['wallet_id' => $wallet->id, 'type' => 'income']);
-    Transaction::factory()->create(['wallet_id' => $wallet->id, 'type' => 'expense']);
-
-    $this->actingAs($user)
-        ->get('/transactions?type=income&all=1')
-        ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
-});
-
-test('filtering by wallet matches both sides of a transfer', function () {
-    $user = User::factory()->withFinanceAccess()->create();
-    $a = Wallet::factory()->create();
-    $b = Wallet::factory()->create();
-    Transaction::factory()->create([
-        'type' => 'transfer',
-        'wallet_id' => $a->id,
-        'to_wallet_id' => $b->id,
-    ]);
-    Transaction::factory()->create(['wallet_id' => $a->id, 'type' => 'expense']);
-
-    $this->actingAs($user)
-        ->get("/transactions?wallet={$b->id}&all=1")
-        ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
-});
-
-test('searching matches the description', function () {
-    $user = User::factory()->withFinanceAccess()->create();
-    $wallet = Wallet::factory()->create();
-    Transaction::factory()->create([
-        'wallet_id' => $wallet->id,
-        'description' => 'Unique fuel purchase',
-    ]);
-    Transaction::factory()->create([
-        'wallet_id' => $wallet->id,
-        'description' => 'Something else',
-    ]);
-
-    $this->actingAs($user)
-        ->get('/transactions?q=fuel&all=1')
         ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
 });
 

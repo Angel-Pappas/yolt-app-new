@@ -81,9 +81,10 @@ test('filtering within balance view keeps cumulative balances', function () {
         'date' => '2026-01-02',
     ]);
 
-    // Only the expense row shows, but its balance is still the cumulative 120.
+    // A server-side date filter narrows to the second row, but its balance is
+    // still the cumulative 120 (the running balance is computed over full history).
     $this->actingAs($user)
-        ->get("/transactions?balance={$wallet->id}&type=expense&all=1")
+        ->get("/transactions?balance={$wallet->id}&from=2026-01-02&to=2026-01-02")
         ->assertInertia(fn (Assert $page) => $page
             ->has('transactions', 1)
             ->where('transactions.0.type', 'expense')
