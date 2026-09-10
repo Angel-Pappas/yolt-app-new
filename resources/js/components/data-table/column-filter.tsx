@@ -3,17 +3,9 @@ import {
     type FilterFn,
     type RowData,
 } from '@tanstack/react-table';
-import { Filter, X } from 'lucide-react';
+import { Check, Filter, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from '@/components/ui/command';
 import { DateField } from '@/components/ui/date-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -93,8 +85,10 @@ export function filterFnFor(type: ColumnFilterType) {
 /**
  * The per-column header filter: a funnel button opening a popover whose body
  * depends on the column's `meta.filter.type`. Rendered by `ColumnHeader` for any
- * filterable column, so every table gets identical header filters. The popover
- * portals to the body (Radix), so a table's overflow never clips it.
+ * filterable column, so every table gets identical header filters. Each body owns
+ * local state (seeded from the column's current value on open) and writes through
+ * to `column.setFilterValue`, so the controls always reflect input instantly. The
+ * popover portals to the body (Radix), so a table's overflow never clips it.
  */
 export function ColumnFilter<TData, TValue>({
     column,
@@ -103,10 +97,11 @@ export function ColumnFilter<TData, TValue>({
     column: Column<TData, TValue>;
     meta: ColumnFilterMeta;
 }) {
+    const [open, setOpen] = useState(false);
     const active = column.getIsFiltered();
 
     return (
-        <Popover>
+        <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button
                     variant="ghost"
@@ -119,36 +114,27 @@ export function ColumnFilter<TData, TValue>({
                     )}
                     aria-label="Filter column"
                     aria-pressed={active}
-                    onClick={(e) => e.stopPropagation()}
                 >
                     <Filter
                         className={cn('size-3.5', active && 'fill-current')}
                     />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent
-                align="start"
-                className="w-56 p-0"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <FilterBody column={column} meta={meta} />
+            <PopoverContent align="start" className="w-56 p-0">
+                {/* Bodies mount fresh each open (Radix unmounts closed content),
+                    so their local state seeds from the current filter value. */}
+                {meta.type === 'select' ? (
+                    <SelectBody column={column} meta={meta} />
+                ) : meta.type === 'number' ? (
+                    <NumberBody column={column} />
+                ) : meta.type === 'date' ? (
+                    <DateBody column={column} />
+                ) : (
+                    <TextBody column={column} />
+                )}
             </PopoverContent>
         </Popover>
     );
-}
-
-function FilterBody<TData, TValue>({
-    column,
-    meta,
-}: {
-    column: Column<TData, TValue>;
-    meta: ColumnFilterMeta;
-}) {
-    if (meta.type === 'select')
-        return <SelectBody column={column} meta={meta} />;
-    if (meta.type === 'number') return <NumberBody column={column} />;
-    if (meta.type === 'date') return <DateBody column={column} />;
-    return <TextBody column={column} />;
 }
 
 function ClearRow({ onClear }: { onClear: () => void }) {
@@ -169,7 +155,15 @@ function TextBody<TData, TValue>({
 }: {
     column: Column<TData, TValue>;
 }) {
-    const value = (column.getFilterValue() as string) ?? '';
+    const [value, setValue] = useState(
+        (column.getFilterValue() as string) ?? '',
+    );
+
+    function set(next: string) {
+        setValue(next);
+        column.setFilterValue(next || undefined);
+    }
+
     return (
         <div>
             <div className="p-2">
@@ -177,15 +171,11 @@ function TextBody<TData, TValue>({
                     autoFocus
                     value={value}
                     placeholder="Contains…"
-                    onChange={(e) =>
-                        column.setFilterValue(e.target.value || undefined)
-                    }
+                    onChange={(e) => set(e.target.value)}
                     className="h-8"
                 />
             </div>
-            {value !== '' && (
-                <ClearRow onClear={() => column.setFilterValue(undefined)} />
-            )}
+            {value !== '' && <ClearRow onClear={() => set('')} />}
         </div>
     );
 }
@@ -197,49 +187,87 @@ function SelectBody<TData, TValue>({
     column: Column<TData, TValue>;
     meta: ColumnFilterMeta;
 }) {
-    const selected = (column.getFilterValue() as string[]) ?? [];
-    const options =
-        meta.options ??
-        Array.from(column.getFacetedUniqueValues().keys())
-            .filter((v) => v != null && v !== '')
-            .map((v) => String(v))
-            .sort((a, b) => a.localeCompare(b))
-            .map((v) => ({ value: v, label: v }));
+    const [selected, setSelected] = useState<string[]>(
+        (column.getFilterValue() as string[]) ?? [],
+    );
+    const [query, setQuery] = useState('');
+
+    // Options come from the column config, else the column's own distinct values.
+    const facets = column.getFacetedUniqueValues();
+    const options = useMemo(
+        () =>
+            meta.options ??
+            Array.from(facets.keys())
+                .filter((v) => v != null && v !== '')
+                .map((v) => String(v))
+                .sort((a, b) => a.localeCompare(b))
+                .map((v) => ({ value: v, label: v })),
+        [meta.options, facets],
+    );
+
+    const term = query.trim().toLowerCase();
+    const shown = term
+        ? options.filter((o) => o.label.toLowerCase().includes(term))
+        : options;
+
+    function commit(next: string[]) {
+        setSelected(next);
+        column.setFilterValue(next.length ? next : undefined);
+    }
 
     function toggle(value: string) {
-        const set = new Set(selected);
-        if (set.has(value)) set.delete(value);
-        else set.add(value);
-        const next = Array.from(set);
-        column.setFilterValue(next.length ? next : undefined);
+        commit(
+            selected.includes(value)
+                ? selected.filter((v) => v !== value)
+                : [...selected, value],
+        );
     }
 
     return (
         <div>
-            <Command>
-                <CommandInput placeholder="Search…" className="h-9" />
-                <CommandList>
-                    <CommandEmpty>No options.</CommandEmpty>
-                    <CommandGroup>
-                        {options.map((option) => (
-                            <CommandItem
+            <div className="border-b p-2">
+                <Input
+                    autoFocus
+                    value={query}
+                    placeholder="Search…"
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="h-8"
+                />
+            </div>
+            <div className="max-h-64 overflow-y-auto p-1">
+                {shown.length === 0 ? (
+                    <div className="text-muted-foreground py-6 text-center text-sm">
+                        No options.
+                    </div>
+                ) : (
+                    shown.map((option) => {
+                        const isSelected = selected.includes(option.value);
+                        return (
+                            <button
+                                type="button"
                                 key={option.value}
-                                value={option.label}
-                                onSelect={() => toggle(option.value)}
+                                onClick={() => toggle(option.value)}
+                                className="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
                             >
-                                <Checkbox
-                                    checked={selected.includes(option.value)}
-                                    className="mr-2"
-                                />
-                                {option.label}
-                            </CommandItem>
-                        ))}
-                    </CommandGroup>
-                </CommandList>
-            </Command>
-            {selected.length > 0 && (
-                <ClearRow onClear={() => column.setFilterValue(undefined)} />
-            )}
+                                <span
+                                    className={cn(
+                                        'flex size-4 shrink-0 items-center justify-center rounded-[4px] border',
+                                        isSelected
+                                            ? 'border-primary bg-primary text-primary-foreground'
+                                            : 'border-input',
+                                    )}
+                                >
+                                    {isSelected && (
+                                        <Check className="size-3.5" />
+                                    )}
+                                </span>
+                                <span className="truncate">{option.label}</span>
+                            </button>
+                        );
+                    })
+                )}
+            </div>
+            {selected.length > 0 && <ClearRow onClear={() => commit([])} />}
         </div>
     );
 }
@@ -249,12 +277,13 @@ function NumberBody<TData, TValue>({
 }: {
     column: Column<TData, TValue>;
 }) {
-    const [min, max] = (column.getFilterValue() as [string, string]) ?? [
-        '',
-        '',
-    ];
+    const initial = (column.getFilterValue() as [string, string]) ?? ['', ''];
+    const [min, setMin] = useState(initial[0]);
+    const [max, setMax] = useState(initial[1]);
 
     function set(nextMin: string, nextMax: string) {
+        setMin(nextMin);
+        setMax(nextMax);
         column.setFilterValue(
             nextMin || nextMax ? [nextMin, nextMax] : undefined,
         );
@@ -282,9 +311,7 @@ function NumberBody<TData, TValue>({
                     />
                 </div>
             </div>
-            {(min || max) && (
-                <ClearRow onClear={() => column.setFilterValue(undefined)} />
-            )}
+            {(min || max) && <ClearRow onClear={() => set('', '')} />}
         </div>
     );
 }
@@ -294,12 +321,13 @@ function DateBody<TData, TValue>({
 }: {
     column: Column<TData, TValue>;
 }) {
-    const [from, to] = (column.getFilterValue() as [string, string]) ?? [
-        '',
-        '',
-    ];
+    const initial = (column.getFilterValue() as [string, string]) ?? ['', ''];
+    const [from, setFrom] = useState(initial[0]);
+    const [to, setTo] = useState(initial[1]);
 
     function set(nextFrom: string, nextTo: string) {
+        setFrom(nextFrom);
+        setTo(nextTo);
         column.setFilterValue(
             nextFrom || nextTo ? [nextFrom, nextTo] : undefined,
         );
@@ -319,9 +347,7 @@ function DateBody<TData, TValue>({
                     <DateField value={to} onChange={(iso) => set(from, iso)} />
                 </div>
             </div>
-            {(from || to) && (
-                <ClearRow onClear={() => column.setFilterValue(undefined)} />
-            )}
+            {(from || to) && <ClearRow onClear={() => set('', '')} />}
         </div>
     );
 }
