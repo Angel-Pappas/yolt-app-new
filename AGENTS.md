@@ -1,13 +1,16 @@
-# Yolt-App (Laravel rebuild)
+# Yolt-App (Laravel)
 
-The company app, being **rebuilt from scratch** on Laravel — a clean
-re-implementation of the existing Next.js/Supabase app (which stays live until
-cutover). **The authoritative plan lives in the original repo's
-`Stack Change Plan.md`** (`Angel-Pappas/yolt-app`) — read it for the full context,
-decisions, and roadmap.
+The company app. It was **rebuilt from scratch** on Laravel — a clean
+re-implementation of the old Next.js/Supabase app — and the **data cutover ran and
+was verified clean on 2026-09-09**, so this Laravel app is now the **live app on the
+real data**. **The authoritative plan, decisions, and progress log live in
+`Stack Change Plan.md` in this repo**; the app's feature behavior is in `Summary.md`
+— read both for the full context and roadmap.
 
 This is a fresh, idiomatic Laravel build. **Do not port** code from the old app —
-look at it only as a behavioural reference, then build clean.
+look at it only as a behavioural reference, then build clean. The old app
+(`Angel-Pappas/yolt-app`, on Vercel + Supabase) is a read-only fallback pending
+retirement — don't work in it.
 
 ## Stack (verified 2026-08-28)
 
@@ -135,8 +138,8 @@ php artisan test                # Pest
 
 ## How to continue (fresh session)
 
-1. Read **`Stack Change Plan.md`** (repo `Angel-Pappas/yolt-app`) — its **§20
-   progress log** lists exactly what's built and the next slices.
+1. Read **`Stack Change Plan.md`** (in this repo) — its **§20 progress log** lists
+   exactly what's built and the next slices.
 2. Pick the next slice, build it idiomatically (match the patterns above), write
    tests, run the full local verify, commit + push to `main`, watch CI green.
 3. Keep each slice small and green; log the increment in the plan's §20.
