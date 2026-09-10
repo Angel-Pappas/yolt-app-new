@@ -821,9 +821,12 @@ MySQL and can reach Supabase over the internet).
     6. **Cleanup:** blanked the `LEGACY_DB_*` values on Laravel Cloud (no delete-var MCP
        action, so set to empty; keys can be removed in the dashboard). The owner's
        new-app login is untouched (users not migrated; rows attributed by email).
-    - **Follow-ups for the owner:** (a) **reset the Supabase DB password** — it passed
-      through the chat transcript (resetting doesn't disrupt the old app, which uses API
-      keys); (b) treat the **old app as read-only** now — further writes there won't
-      reach the new app unless `legacy:import` is re-run (it's re-runnable: it
-      delete+reloads). The old Supabase DB stays intact as the fallback. **The rebuild
-      is now live with the real data.**
+       **RESOLVED — do not resurface:** the `LEGACY_DB_*` values are empty (no
+       credentials remain); deleting the empty key names is cosmetic-only and the owner
+       has chosen to leave them. Do not raise env-var cleanup as a next step again.
+    - **Follow-ups — both settled, do not resurface either:** (a) the Supabase DB
+      password **has been reset** (it had passed through the chat transcript) — DONE, do
+      not list this as a next step again; (b) the owner **owns the "old app is
+      read-only" discipline** — do not mention it again. The old Supabase DB stays intact
+      as the fallback; `legacy:import` is re-runnable (delete+reloads) if ever needed.
+      **The rebuild is now live with the real data.**
