@@ -323,12 +323,17 @@ export default function TransactionsIndex({
                             aria-label="Set invoice folder"
                             className={cn(invoiceLit(t) && 'text-primary')}
                         >
-                            <FileText className="size-4" />
-                            {t.invoice_month != null && (
-                                <span className="ml-0.5 text-xs tabular-nums">
-                                    {t.invoice_month}
-                                </span>
-                            )}
+                            <span className="relative inline-flex">
+                                <FileText className="size-4" />
+                                {t.invoice_month != null && (
+                                    <span className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[9px] leading-none font-semibold tabular-nums">
+                                        {t.invoice_month}
+                                    </span>
+                                )}
+                                {t.invoice_not_required && (
+                                    <span className="absolute top-1/2 left-1/2 h-[1.5px] w-5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-current" />
+                                )}
+                            </span>
                         </Button>
                         <Button
                             variant="ghost"
