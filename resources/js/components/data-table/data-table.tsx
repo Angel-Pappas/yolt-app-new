@@ -6,13 +6,11 @@ import {
     getFacetedRowModel,
     getFacetedUniqueValues,
     getFilteredRowModel,
-    getPaginationRowModel,
     getSortedRowModel,
     type SortingState,
     useReactTable,
 } from '@tanstack/react-table';
-import { type ReactNode, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
@@ -50,15 +48,22 @@ type Props<TData, TValue> = {
     /** Called when a row is clicked (e.g. to open it). */
     onRowClick?: (row: TData) => void;
     emptyMessage?: string;
+    /** How many rows to render initially and to reveal per scroll step. */
     pageSize?: number;
 };
 
 /**
- * The shared, client-side sortable/filterable/searchable/paginated table, built on
- * TanStack Table. Every list in the app renders through this so they look and
- * behave identically: a uniform header row (title · search · actions), optional
- * per-column header filters (declare `meta.filter` on a column), an optional
- * secondary `controls` row, and pagination. Use `ColumnHeader` for headers.
+ * The shared, client-side sortable/filterable/searchable table, built on TanStack
+ * Table. Every list in the app renders through this so they look and behave
+ * identically: a uniform header row (title · search · actions), optional per-column
+ * header filters (declare `meta.filter` on a column), and an optional secondary
+ * `controls` row. Use `ColumnHeader` for headers.
+ *
+ * There is no pagination: the table renders the first `pageSize` filtered/sorted
+ * rows and reveals another `pageSize` each time a sentinel near the bottom scrolls
+ * into view, so the whole list is one continuous scroll. Because the reveal slices
+ * TanStack's already-filtered/sorted row model, it works identically under any
+ * active filter/search/sort, and resets to the top whenever those change.
  */
 export function DataTable<TData, TValue>({
     columns,
@@ -71,7 +76,7 @@ export function DataTable<TData, TValue>({
     initialColumnFilters,
     onRowClick,
     emptyMessage = 'Nothing here yet.',
-    pageSize = 25,
+    pageSize = 50,
 }: Props<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
@@ -108,13 +113,44 @@ export function DataTable<TData, TValue>({
         getFilteredRowModel: getFilteredRowModel(),
         getFacetedRowModel: getFacetedRowModel(),
         getFacetedUniqueValues: getFacetedUniqueValues(),
-        getPaginationRowModel: getPaginationRowModel(),
-        initialState: { pagination: { pageSize } },
     });
+
+    // Load-as-you-scroll: render only the first `visibleCount` filtered/sorted
+    // rows, revealing another `pageSize` whenever the bottom sentinel is in view.
+    const rows = table.getRowModel().rows;
+    const [visibleCount, setVisibleCount] = useState(pageSize);
+
+    // Reset back to the top whenever the filter/search/sort selection changes, so a
+    // freshly filtered list starts short and grows on scroll (render-time reset, no
+    // effect — the setState-in-effect anti-pattern).
+    const selectionKey = JSON.stringify([sorting, columnFilters, globalFilter]);
+    const [prevSelectionKey, setPrevSelectionKey] = useState(selectionKey);
+    if (prevSelectionKey !== selectionKey) {
+        setPrevSelectionKey(selectionKey);
+        setVisibleCount(pageSize);
+    }
+
+    const visibleRows = rows.slice(0, visibleCount);
+    const hasMore = visibleCount < rows.length;
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const el = sentinelRef.current;
+        if (!el || !hasMore) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0]?.isIntersecting) {
+                    setVisibleCount((c) => c + pageSize);
+                }
+            },
+            { rootMargin: '300px' },
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [hasMore, pageSize, visibleCount]);
 
     const showRightCluster = Boolean(searchPlaceholder || toolbar || action);
     const showHeader = Boolean(title || showRightCluster);
-    const showPagination = table.getPageCount() > 1;
 
     return (
         <div className="flex flex-col gap-4">
@@ -168,8 +204,8 @@ export function DataTable<TData, TValue>({
                         ))}
                     </TableHeader>
                     <TableBody>
-                        {table.getRowModel().rows.length ? (
-                            table.getRowModel().rows.map((row) => (
+                        {visibleRows.length ? (
+                            visibleRows.map((row) => (
                                 <TableRow
                                     key={row.id}
                                     onClick={
@@ -214,37 +250,16 @@ export function DataTable<TData, TValue>({
                 </Table>
             </div>
 
-            {showPagination && (
-                <div className="flex items-center justify-between">
+            {rows.length > 0 && (
+                <>
+                    {/* Sentinel: when scrolled into view, reveal the next chunk. */}
+                    {hasMore && <div ref={sentinelRef} aria-hidden="true" />}
                     <div className="text-muted-foreground text-sm">
-                        {table.getFilteredRowModel().rows.length} row
-                        {table.getFilteredRowModel().rows.length === 1
-                            ? ''
-                            : 's'}
+                        {hasMore
+                            ? `Showing ${visibleRows.length} of ${rows.length} rows`
+                            : `${rows.length} row${rows.length === 1 ? '' : 's'}`}
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="text-muted-foreground text-sm">
-                            Page {table.getState().pagination.pageIndex + 1} of{' '}
-                            {table.getPageCount()}
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => table.previousPage()}
-                            disabled={!table.getCanPreviousPage()}
-                        >
-                            Previous
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => table.nextPage()}
-                            disabled={!table.getCanNextPage()}
-                        >
-                            Next
-                        </Button>
-                    </div>
-                </div>
+                </>
             )}
         </div>
     );

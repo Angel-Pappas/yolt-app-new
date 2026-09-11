@@ -86,16 +86,22 @@ Protect routes with the `can:` middleware (e.g. `can:access-finance`).
 
 - **Uniform list view** (`resources/js/components/data-table/`): EVERY list/table page
   renders through the shared `DataTable` — a uniform header row (`title` left; search +
-  page controls + Add clustered right), an optional `controls` row (Transactions' date
+  Add clustered right), an optional `controls` row (Transactions' date
   pickers / All-time·This-month·Last-month presets / reconcile·invoice toggles), and
   **per-column header filters**. To make a column filterable, declare
   `meta: { filter: { type: 'text' | 'select' | 'number' | 'date', options? } }` on it
   and use `ColumnHeader` for the header — the funnel + popover (`column-filter.tsx`,
   Radix-portalled so it isn't clipped) and the matching filter fn are wired
-  automatically. Filtering/search/sort/pagination are **client-side** (TanStack); only
+  automatically. Filtering/search/sort are **client-side** (TanStack); only
   scope-defining filters stay server-side (Transactions' date/invoice/quick/balance;
-  Leads' hide-converted default). A NEW list page MUST use this — never hand-roll a
-  `<table>` or a bespoke filter bar.
+  Leads' hide-converted default). **No pagination — the table is one continuous
+  load-as-you-scroll list**: it renders the first `pageSize` rows (default 50) of the
+  filtered/sorted set and reveals another `pageSize` each time a bottom sentinel
+  (`IntersectionObserver`) scrolls into view, resetting to the top when the
+  filter/search/sort selection changes. Because the reveal slices TanStack's
+  already-filtered/sorted row model, infinite scroll works identically under any active
+  filter. A NEW list page MUST use this — never hand-roll a `<table>`, a bespoke filter
+  bar, or page buttons.
 - **Simple lookup CRUD** (Entities, Categories, VAT/Withheld rates): a controller
   with `index/store/update/destroy`, gated `can:access-finance`, sets a created-by
   `user_id` on store, uses `$request->validate(...)`, flashes a toast via
