@@ -188,6 +188,55 @@ class TransactionController extends Controller
     }
 
     /**
+     * Move a set of transactions to a different category — the "transfer selected"
+     * bulk action on a category's page. Only transactions whose type matches the
+     * target category's type are moved (income can't take an expense category), so a
+     * stray mismatched id is a safe no-op rather than a broken row.
+     */
+    public function bulkCategory(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:transactions,id'],
+            'category_id' => ['required', 'integer', 'exists:categories,id'],
+        ]);
+
+        $category = Category::query()->where('id', $data['category_id'])->firstOrFail();
+
+        $moved = Transaction::query()
+            ->whereIn('id', $data['ids'])
+            ->where('type', $category->type)
+            ->update(['category_id' => $category->id]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => trans_choice(':count transaction moved to :name.|:count transactions moved to :name.', $moved, ['count' => $moved, 'name' => $category->name]),
+        ]);
+
+        return back();
+    }
+
+    /**
+     * Soft-delete a set of transactions — the "delete selected" bulk action.
+     */
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:transactions,id'],
+        ]);
+
+        $deleted = Transaction::query()->whereIn('id', $data['ids'])->delete();
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => trans_choice(':count transaction deleted.|:count transactions deleted.', (int) $deleted, ['count' => $deleted]),
+        ]);
+
+        return back();
+    }
+
+    /**
      * Reconcile a transaction: a reduced edit of just the fields that drift when a
      * (future/projected) transaction actually happens — date, amount, and wallet(s)
      * — plus the reconciled flag. Reconciling is itself the record that the user

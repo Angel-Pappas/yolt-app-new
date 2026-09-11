@@ -7,10 +7,13 @@ import {
     getFacetedUniqueValues,
     getFilteredRowModel,
     getSortedRowModel,
+    type RowSelectionState,
     type SortingState,
     useReactTable,
 } from '@tanstack/react-table';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
@@ -50,6 +53,14 @@ type Props<TData, TValue> = {
     emptyMessage?: string;
     /** How many rows to render initially and to reveal per scroll step. */
     pageSize?: number;
+    /**
+     * Enable a leading checkbox column + a bulk-actions bar. Requires `getRowId`.
+     * The bar renders when ≥1 row is selected; supply its buttons via
+     * `renderBulkActions`, which receives the selected rows and a clear callback.
+     */
+    enableSelection?: boolean;
+    getRowId?: (row: TData) => string;
+    renderBulkActions?: (selected: TData[], clear: () => void) => ReactNode;
 };
 
 /**
@@ -77,12 +88,16 @@ export function DataTable<TData, TValue>({
     onRowClick,
     emptyMessage = 'Nothing here yet.',
     pageSize = 50,
+    enableSelection = false,
+    getRowId,
+    renderBulkActions,
 }: Props<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
         initialColumnFilters ?? [],
     );
     const [globalFilter, setGlobalFilter] = useState('');
+    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
     // Give every column that declares a `meta.filter` the matching filter function
     // (and make it filterable), so pages only declare the filter's shape.
@@ -100,20 +115,74 @@ export function DataTable<TData, TValue>({
         [columns],
     );
 
+    // A leading checkbox column: header toggles every row that matches the current
+    // filter; each cell toggles its own row. Selection is keyed by row id, so it
+    // survives filtering (the bulk bar acts on whatever is selected).
+    const tableColumns = useMemo(() => {
+        if (!enableSelection) return resolvedColumns;
+        const selectColumn: ColumnDef<TData, TValue> = {
+            id: '__select',
+            enableSorting: false,
+            enableGlobalFilter: false,
+            meta: { align: 'center' },
+            header: ({ table }) => {
+                const filtered = table.getFilteredRowModel().rows;
+                const all =
+                    filtered.length > 0 &&
+                    filtered.every((r) => r.getIsSelected());
+                const some = filtered.some((r) => r.getIsSelected());
+                return (
+                    <Checkbox
+                        checked={all ? true : some ? 'indeterminate' : false}
+                        onCheckedChange={(v) =>
+                            table.setRowSelection((old) => {
+                                const next = { ...old };
+                                filtered.forEach((r) => {
+                                    if (v) next[r.id] = true;
+                                    else delete next[r.id];
+                                });
+                                return next;
+                            })
+                        }
+                        aria-label="Select all"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                );
+            },
+            cell: ({ row }) => (
+                <Checkbox
+                    checked={row.getIsSelected()}
+                    onCheckedChange={(v) => row.toggleSelected(!!v)}
+                    aria-label="Select row"
+                    onClick={(e) => e.stopPropagation()}
+                />
+            ),
+        };
+        return [selectColumn, ...resolvedColumns];
+    }, [enableSelection, resolvedColumns]);
+
     const table = useReactTable({
         data,
-        columns: resolvedColumns,
+        columns: tableColumns,
         filterFns: columnFilterFns,
-        state: { sorting, columnFilters, globalFilter },
+        state: { sorting, columnFilters, globalFilter, rowSelection },
+        enableRowSelection: enableSelection,
+        getRowId,
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
         onGlobalFilterChange: setGlobalFilter,
+        onRowSelectionChange: setRowSelection,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
         getFacetedRowModel: getFacetedRowModel(),
         getFacetedUniqueValues: getFacetedUniqueValues(),
     });
+
+    const selectedRows = table
+        .getSelectedRowModel()
+        .rows.map((r) => r.original);
+    const clearSelection = () => setRowSelection({});
 
     // Load-as-you-scroll: render only the first `visibleCount` filtered/sorted
     // rows, revealing another `pageSize` whenever the bottom sentinel is in view.
@@ -181,6 +250,24 @@ export function DataTable<TData, TValue>({
 
             {controls}
 
+            {enableSelection && selectedRows.length > 0 && (
+                <div className="bg-muted/50 flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2">
+                    <span className="text-sm font-medium">
+                        {selectedRows.length} selected
+                    </span>
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                        {renderBulkActions?.(selectedRows, clearSelection)}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearSelection}
+                        >
+                            Clear
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             <div className="rounded-lg border">
                 <Table>
                     <TableHeader>
@@ -239,7 +326,7 @@ export function DataTable<TData, TValue>({
                         ) : (
                             <TableRow>
                                 <TableCell
-                                    colSpan={columns.length}
+                                    colSpan={tableColumns.length}
                                     className="text-muted-foreground h-24 text-center"
                                 >
                                     {emptyMessage}

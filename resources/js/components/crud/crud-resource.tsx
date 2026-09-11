@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
     Select,
     SelectContent,
@@ -42,7 +43,7 @@ export type CrudColumn = {
 export type CrudField = {
     key: string;
     label: string;
-    type?: 'text' | 'decimal' | 'select';
+    type?: 'text' | 'decimal' | 'select' | 'textarea';
     options?: { value: string; label: string }[];
     placeholder?: string;
     required?: boolean;
@@ -61,6 +62,13 @@ type Props = {
      * scoped to one `type` locks that column so every row it adds gets it.
      */
     fixedValues?: Record<string, string>;
+    /** Called when a row is clicked (e.g. to open the item's own page). */
+    onRowClick?: (item: CrudItem) => void;
+    /**
+     * Hide the per-row edit (pencil) button — for a resource that edits on its own
+     * page instead of in the list's dialog. The Add dialog is unaffected.
+     */
+    disableEdit?: boolean;
 };
 
 function blankData(
@@ -90,6 +98,8 @@ export function CrudResource({
     fields,
     description,
     fixedValues = {},
+    onRowClick,
+    disableEdit = false,
 }: Props) {
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<CrudItem | null>(null);
@@ -171,15 +181,20 @@ export function CrudResource({
             meta: { align: 'right' },
             header: () => null,
             cell: ({ row }) => (
-                <div className="flex justify-end gap-1">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(row.original)}
-                        aria-label={`Edit ${singular}`}
-                    >
-                        <Pencil className="size-4" />
-                    </Button>
+                <div
+                    className="flex justify-end gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {!disableEdit && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEdit(row.original)}
+                            aria-label={`Edit ${singular}`}
+                        >
+                            <Pencil className="size-4" />
+                        </Button>
+                    )}
                     <Button
                         variant="ghost"
                         size="icon"
@@ -201,6 +216,7 @@ export function CrudResource({
                 title={title}
                 searchPlaceholder={`Search ${title.toLowerCase()}…`}
                 emptyMessage={`No ${title.toLowerCase()} yet.`}
+                onRowClick={onRowClick}
                 action={
                     <Button
                         onClick={openCreate}
@@ -260,6 +276,20 @@ export function CrudResource({
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                    ) : field.type === 'textarea' ? (
+                                        <Textarea
+                                            id={field.key}
+                                            value={form.data[field.key]}
+                                            onChange={(e) =>
+                                                form.setData(
+                                                    field.key,
+                                                    e.target.value,
+                                                )
+                                            }
+                                            placeholder={field.placeholder}
+                                            required={field.required}
+                                            rows={3}
+                                        />
                                     ) : (
                                         <Input
                                             id={field.key}

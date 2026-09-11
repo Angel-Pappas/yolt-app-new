@@ -26,6 +26,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('can:access-finance')->group(function () {
         Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
         Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
+        // Bulk actions — registered before the {transaction} routes so "bulk" is
+        // never parsed as a transaction id.
+        Route::patch('transactions/bulk/category', [TransactionController::class, 'bulkCategory'])->name('transactions.bulk.category');
+        Route::delete('transactions/bulk', [TransactionController::class, 'bulkDestroy'])->name('transactions.bulk.destroy');
         Route::patch('transactions/{transaction}', [TransactionController::class, 'update'])->name('transactions.update');
         Route::delete('transactions/{transaction}', [TransactionController::class, 'destroy'])->name('transactions.destroy');
         Route::post('transactions/{transaction}/reconcile', [TransactionController::class, 'reconcile'])->name('transactions.reconcile');
@@ -43,6 +47,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('categories', [CategoryController::class, 'index'])->name('categories.index');
         Route::post('categories', [CategoryController::class, 'store'])->name('categories.store');
+        Route::get('categories/{category}', [CategoryController::class, 'show'])->name('categories.show');
         Route::patch('categories/{category}', [CategoryController::class, 'update'])->name('categories.update');
         Route::delete('categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy');
 

@@ -101,7 +101,12 @@ Protect routes with the `can:` middleware (e.g. `can:access-finance`).
   filter/search/sort selection changes. Because the reveal slices TanStack's
   already-filtered/sorted row model, infinite scroll works identically under any active
   filter. A NEW list page MUST use this — never hand-roll a `<table>`, a bespoke filter
-  bar, or page buttons.
+  bar, or page buttons. **Opt-in row selection**: pass `enableSelection` + `getRowId` +
+  `renderBulkActions(selected, clear)` to get a leading checkbox column (header selects
+  all *filtered* rows) and a bulk-actions bar (see the category page,
+  `categories/show.tsx`). `CrudResource` also has `onRowClick` (open a row's own page)
+  and `disableEdit` (drop the in-list pencil when editing happens on that page) — used by
+  Categories.
 - **Simple lookup CRUD** (Entities, Categories, VAT/Withheld rates): a controller
   with `index/store/update/destroy`, gated `can:access-finance`, sets a created-by
   `user_id` on store, uses `$request->validate(...)`, flashes a toast via
