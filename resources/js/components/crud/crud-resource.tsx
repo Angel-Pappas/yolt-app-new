@@ -202,9 +202,13 @@ export function CrudResource({
                 searchPlaceholder={`Search ${title.toLowerCase()}…`}
                 emptyMessage={`No ${title.toLowerCase()} yet.`}
                 action={
-                    <Button onClick={openCreate}>
+                    <Button
+                        onClick={openCreate}
+                        size="icon"
+                        aria-label={`Add ${singular}`}
+                        title={`Add ${singular}`}
+                    >
                         <Plus className="size-4" />
-                        Add {singular}
                     </Button>
                 }
             />

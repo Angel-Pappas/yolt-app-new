@@ -202,9 +202,13 @@ export default function LeadsIndex({ leads, statuses, origins }: Props) {
                     emptyMessage="No leads yet."
                     pageSize={50}
                     action={
-                        <Button onClick={openCreate}>
+                        <Button
+                            onClick={openCreate}
+                            size="icon"
+                            aria-label="Add lead"
+                            title="Add lead"
+                        >
                             <Plus className="size-4" />
-                            Add lead
                         </Button>
                     }
                 />

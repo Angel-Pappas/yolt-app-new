@@ -186,9 +186,13 @@ export default function ProjectsIndex({ projects, statuses }: Props) {
                     emptyMessage="No projects yet."
                     pageSize={50}
                     action={
-                        <Button onClick={openCreate}>
+                        <Button
+                            onClick={openCreate}
+                            size="icon"
+                            aria-label="Add project"
+                            title="Add project"
+                        >
                             <Plus className="size-4" />
-                            Add project
                         </Button>
                     }
                 />

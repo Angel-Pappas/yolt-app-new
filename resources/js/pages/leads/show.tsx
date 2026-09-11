@@ -308,9 +308,14 @@ export default function LeadShow({
                                 className="mt-4 space-y-3"
                             >
                                 <div className="flex justify-end">
-                                    <Button size="sm" onClick={openAddContact}>
+                                    <Button
+                                        size="icon"
+                                        className="size-8"
+                                        onClick={openAddContact}
+                                        aria-label="Add contact"
+                                        title="Add contact"
+                                    >
                                         <Plus className="size-4" />
-                                        Add contact
                                     </Button>
                                 </div>
                                 <div className="overflow-x-auto">

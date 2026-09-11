@@ -130,9 +130,13 @@ export default function EntitiesIndex({ entities }: { entities: Entity[] }) {
                     emptyMessage="No entities yet."
                     pageSize={50}
                     action={
-                        <Button onClick={openCreate}>
+                        <Button
+                            onClick={openCreate}
+                            size="icon"
+                            aria-label="Add entity"
+                            title="Add entity"
+                        >
                             <Plus className="size-4" />
-                            Add entity
                         </Button>
                     }
                 />

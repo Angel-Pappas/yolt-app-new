@@ -380,9 +380,11 @@ export default function TransactionsIndex({
                         <Button
                             onClick={openCreate}
                             disabled={wallets.length === 0}
+                            size="icon"
+                            aria-label="Add transaction"
+                            title="Add transaction"
                         >
                             <Plus className="size-4" />
-                            Add transaction
                         </Button>
                     }
                 />

@@ -156,9 +156,13 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
                     emptyMessage="No wallets yet."
                     pageSize={50}
                     action={
-                        <Button onClick={openCreate}>
+                        <Button
+                            onClick={openCreate}
+                            size="icon"
+                            aria-label="Add wallet"
+                            title="Add wallet"
+                        >
                             <Plus className="size-4" />
-                            Add wallet
                         </Button>
                     }
                 />
