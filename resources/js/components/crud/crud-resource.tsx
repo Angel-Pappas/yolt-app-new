@@ -56,10 +56,18 @@ type Props = {
     columns: CrudColumn[];
     fields: CrudField[];
     description?: string;
+    /**
+     * Values submitted on create/edit but not rendered as fields — e.g. a list
+     * scoped to one `type` locks that column so every row it adds gets it.
+     */
+    fixedValues?: Record<string, string>;
 };
 
-function blankData(fields: CrudField[]): Record<string, string> {
-    const data: Record<string, string> = {};
+function blankData(
+    fields: CrudField[],
+    fixedValues: Record<string, string>,
+): Record<string, string> {
+    const data: Record<string, string> = { ...fixedValues };
     for (const field of fields) {
         data[field.key] =
             field.type === 'select' ? (field.options?.[0]?.value ?? '') : '';
@@ -81,21 +89,24 @@ export function CrudResource({
     columns,
     fields,
     description,
+    fixedValues = {},
 }: Props) {
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<CrudItem | null>(null);
-    const form = useForm<Record<string, string>>(blankData(fields));
+    const form = useForm<Record<string, string>>(
+        blankData(fields, fixedValues),
+    );
 
     function openCreate() {
         setEditing(null);
-        form.setData(blankData(fields));
+        form.setData(blankData(fields, fixedValues));
         form.clearErrors();
         setOpen(true);
     }
 
     function openEdit(item: CrudItem) {
         setEditing(item);
-        const data: Record<string, string> = {};
+        const data: Record<string, string> = { ...fixedValues };
         for (const field of fields) {
             const value = item[field.key];
             data[field.key] =
