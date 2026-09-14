@@ -12,7 +12,6 @@ test('the promote command grants a user full super-admin access', function () {
 
     expect($user->is_admin)->toBeTrue();
     expect($user->can_access_finance)->toBeTrue();
-    expect($user->can_access_crm)->toBeTrue();
     expect($user->is_active)->toBeTrue();
 });
 

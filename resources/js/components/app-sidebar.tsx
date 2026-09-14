@@ -1,19 +1,13 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import {
     ArrowLeftRight,
     BookOpen,
-    Briefcase,
     Building2,
-    Flag,
     FolderGit2,
     Landmark,
-    LayoutGrid,
-    ListChecks,
     Percent,
     Receipt,
-    Signpost,
     Tags,
-    Users,
     Wallet,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
@@ -29,16 +23,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes';
 import type { NavItem } from '@/types';
-
-const platformNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-];
 
 const financeNavItems: NavItem[] = [
     {
@@ -78,34 +63,6 @@ const financeNavItems: NavItem[] = [
     },
 ];
 
-const businessNavItems: NavItem[] = [
-    {
-        title: 'Leads',
-        href: '/leads',
-        icon: Users,
-    },
-    {
-        title: 'Projects',
-        href: '/projects',
-        icon: Briefcase,
-    },
-    {
-        title: 'Lead statuses',
-        href: '/lead-statuses',
-        icon: Flag,
-    },
-    {
-        title: 'Lead origins',
-        href: '/lead-origins',
-        icon: Signpost,
-    },
-    {
-        title: 'Project statuses',
-        href: '/project-statuses',
-        icon: ListChecks,
-    },
-];
-
 const footerNavItems: NavItem[] = [
     {
         title: 'Repository',
@@ -120,16 +77,13 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-    const { auth } = usePage().props;
-    const user = auth.user;
-
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()} prefetch>
+                            <Link href="/transactions" prefetch>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
@@ -138,13 +92,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={platformNavItems} />
-                {user.can_access_finance && (
-                    <NavMain items={financeNavItems} label="Finance" />
-                )}
-                {user.can_access_crm && (
-                    <NavMain items={businessNavItems} label="Business" />
-                )}
+                <NavMain items={financeNavItems} />
             </SidebarContent>
 
             <SidebarFooter>

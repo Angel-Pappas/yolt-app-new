@@ -28,7 +28,6 @@ class UserController extends Controller
                 'email',
                 'is_admin',
                 'can_access_finance',
-                'can_access_crm',
                 'is_active',
             ]);
 
@@ -50,7 +49,6 @@ class UserController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'is_admin' => ['boolean'],
             'can_access_finance' => ['boolean'],
-            'can_access_crm' => ['boolean'],
         ]);
 
         $user = new User;
@@ -60,7 +58,6 @@ class UserController extends Controller
             'password' => Hash::make(Str::password(32)),
             'is_admin' => $data['is_admin'] ?? false,
             'can_access_finance' => $data['can_access_finance'] ?? false,
-            'can_access_crm' => $data['can_access_crm'] ?? false,
             'is_active' => true,
         ])->save();
 
@@ -78,7 +75,6 @@ class UserController extends Controller
         $data = $request->validate([
             'is_admin' => ['required', 'boolean'],
             'can_access_finance' => ['required', 'boolean'],
-            'can_access_crm' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
         ]);
 

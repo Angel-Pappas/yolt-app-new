@@ -22,20 +22,14 @@ type ManagedUser = {
     email: string;
     is_admin: boolean;
     can_access_finance: boolean;
-    can_access_crm: boolean;
     is_active: boolean;
 };
 
-type FlagField =
-    | 'is_admin'
-    | 'can_access_finance'
-    | 'can_access_crm'
-    | 'is_active';
+type FlagField = 'is_admin' | 'can_access_finance' | 'is_active';
 
 const columns: { field: FlagField; label: string; selfLocked: boolean }[] = [
     { field: 'is_admin', label: 'Admin', selfLocked: true },
     { field: 'can_access_finance', label: 'Finance', selfLocked: false },
-    { field: 'can_access_crm', label: 'Business', selfLocked: false },
     { field: 'is_active', label: 'Active', selfLocked: true },
 ];
 
@@ -49,12 +43,10 @@ function InviteDialog({
         email: '',
         is_admin: false as boolean,
         can_access_finance: true as boolean,
-        can_access_crm: true as boolean,
     });
 
     const accessFields: { field: keyof typeof form.data; label: string }[] = [
         { field: 'can_access_finance', label: 'Finance access' },
-        { field: 'can_access_crm', label: 'Business access' },
         { field: 'is_admin', label: 'Administrator' },
     ];
 
@@ -153,7 +145,6 @@ export default function UsersIndex({ users }: { users: ManagedUser[] }) {
             {
                 is_admin: user.is_admin,
                 can_access_finance: user.can_access_finance,
-                can_access_crm: user.can_access_crm,
                 is_active: user.is_active,
                 [field]: value,
             },
@@ -182,7 +173,7 @@ export default function UsersIndex({ users }: { users: ManagedUser[] }) {
                     <Heading
                         variant="small"
                         title="Users"
-                        description="Invite users and grant Finance and Business access."
+                        description="Invite users and grant Finance access."
                     />
                     <Dialog open={open} onOpenChange={setOpen}>
                         <Button onClick={() => setOpen(true)}>

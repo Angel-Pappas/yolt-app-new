@@ -32,7 +32,6 @@ class UserFactory extends Factory
             'remember_token' => Str::random(10),
             'is_admin' => false,
             'can_access_finance' => false,
-            'can_access_crm' => false,
             'is_active' => true,
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
@@ -76,14 +75,6 @@ class UserFactory extends Factory
     public function withFinanceAccess(): static
     {
         return $this->state(fn (array $attributes) => ['can_access_finance' => true]);
-    }
-
-    /**
-     * Grant Business (CRM) area access.
-     */
-    public function withCrmAccess(): static
-    {
-        return $this->state(fn (array $attributes) => ['can_access_crm' => true]);
     }
 
     /**

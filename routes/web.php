@@ -2,14 +2,6 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
-use App\Http\Controllers\LeadActionController;
-use App\Http\Controllers\LeadContactController;
-use App\Http\Controllers\LeadController;
-use App\Http\Controllers\LeadOriginController;
-use App\Http\Controllers\LeadStatusController;
-use App\Http\Controllers\ProjectActionController;
-use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\ProjectStatusController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\VatRateController;
@@ -20,8 +12,6 @@ use Illuminate\Support\Facades\Route;
 Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
-
     // Finance area — gated by finance access.
     Route::middleware('can:access-finance')->group(function () {
         Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
@@ -64,54 +54,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('withheld-tax-rates', [WithheldTaxRateController::class, 'store'])->name('withheld-tax-rates.store');
         Route::patch('withheld-tax-rates/{withheldTaxRate}', [WithheldTaxRateController::class, 'update'])->name('withheld-tax-rates.update');
         Route::delete('withheld-tax-rates/{withheldTaxRate}', [WithheldTaxRateController::class, 'destroy'])->name('withheld-tax-rates.destroy');
-    });
-
-    // Business area — gated by CRM access.
-    Route::middleware('can:access-crm')->group(function () {
-        Route::get('leads', [LeadController::class, 'index'])->name('leads.index');
-        Route::post('leads', [LeadController::class, 'store'])->name('leads.store');
-        Route::get('leads/{lead}', [LeadController::class, 'show'])->name('leads.show');
-        Route::patch('leads/{lead}', [LeadController::class, 'update'])->name('leads.update');
-        Route::patch('leads/{lead}/next-step', [LeadController::class, 'updateNextStep'])->name('leads.next-step');
-        Route::patch('leads/{lead}/status', [LeadController::class, 'updateStatus'])->name('leads.status');
-        Route::delete('leads/{lead}', [LeadController::class, 'destroy'])->name('leads.destroy');
-
-        Route::post('leads/{lead}/actions', [LeadActionController::class, 'store'])->name('leads.actions.store');
-        Route::patch('leads/{lead}/actions/{action}', [LeadActionController::class, 'update'])->name('leads.actions.update');
-        Route::delete('leads/{lead}/actions/{action}', [LeadActionController::class, 'destroy'])->name('leads.actions.destroy');
-
-        Route::post('leads/{lead}/convert', [ProjectController::class, 'convert'])->name('leads.convert');
-
-        Route::post('leads/{lead}/contacts', [LeadContactController::class, 'store'])->name('leads.contacts.store');
-        Route::patch('leads/{lead}/contacts/{contact}', [LeadContactController::class, 'update'])->name('leads.contacts.update');
-        Route::delete('leads/{lead}/contacts/{contact}', [LeadContactController::class, 'destroy'])->name('leads.contacts.destroy');
-
-        Route::get('lead-statuses', [LeadStatusController::class, 'index'])->name('lead-statuses.index');
-        Route::post('lead-statuses', [LeadStatusController::class, 'store'])->name('lead-statuses.store');
-        Route::patch('lead-statuses/{leadStatus}', [LeadStatusController::class, 'update'])->name('lead-statuses.update');
-        Route::delete('lead-statuses/{leadStatus}', [LeadStatusController::class, 'destroy'])->name('lead-statuses.destroy');
-
-        Route::get('lead-origins', [LeadOriginController::class, 'index'])->name('lead-origins.index');
-        Route::post('lead-origins', [LeadOriginController::class, 'store'])->name('lead-origins.store');
-        Route::patch('lead-origins/{leadOrigin}', [LeadOriginController::class, 'update'])->name('lead-origins.update');
-        Route::delete('lead-origins/{leadOrigin}', [LeadOriginController::class, 'destroy'])->name('lead-origins.destroy');
-
-        Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
-        Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
-        Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
-        Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
-        Route::patch('projects/{project}/next-step', [ProjectController::class, 'updateNextStep'])->name('projects.next-step');
-        Route::patch('projects/{project}/status', [ProjectController::class, 'updateStatus'])->name('projects.status');
-        Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
-
-        Route::post('projects/{project}/actions', [ProjectActionController::class, 'store'])->name('projects.actions.store');
-        Route::patch('projects/{project}/actions/{action}', [ProjectActionController::class, 'update'])->name('projects.actions.update');
-        Route::delete('projects/{project}/actions/{action}', [ProjectActionController::class, 'destroy'])->name('projects.actions.destroy');
-
-        Route::get('project-statuses', [ProjectStatusController::class, 'index'])->name('project-statuses.index');
-        Route::post('project-statuses', [ProjectStatusController::class, 'store'])->name('project-statuses.store');
-        Route::patch('project-statuses/{projectStatus}', [ProjectStatusController::class, 'update'])->name('project-statuses.update');
-        Route::delete('project-statuses/{projectStatus}', [ProjectStatusController::class, 'destroy'])->name('project-statuses.destroy');
     });
 });
 

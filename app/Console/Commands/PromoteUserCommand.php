@@ -15,7 +15,7 @@ class PromoteUserCommand extends Command
 {
     protected $signature = 'user:promote {email : The email of the user to promote}';
 
-    protected $description = 'Promote a user to super admin with full Finance and Business access';
+    protected $description = 'Promote a user to super admin with full Finance access';
 
     public function handle(): int
     {
@@ -31,7 +31,6 @@ class PromoteUserCommand extends Command
         $user->forceFill([
             'is_admin' => true,
             'can_access_finance' => true,
-            'can_access_crm' => true,
             'is_active' => true,
         ])->save();
 

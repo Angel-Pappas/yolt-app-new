@@ -11,14 +11,12 @@ test('an admin can invite a user and gets a set-password link', function () {
         'email' => 'new@example.com',
         'is_admin' => false,
         'can_access_finance' => true,
-        'can_access_crm' => false,
     ]);
 
     $response->assertRedirect();
     $user = User::where('email', 'new@example.com')->first();
     expect($user)->not->toBeNull();
     expect($user->can_access_finance)->toBeTrue();
-    expect($user->can_access_crm)->toBeFalse();
     expect($user->is_active)->toBeTrue();
 
     // The invited user can set their password via the flashed link's token.
@@ -67,13 +65,11 @@ test('an admin can grant a user finance access', function () {
     $this->actingAs($admin)->patch("/settings/users/{$target->id}", [
         'is_admin' => false,
         'can_access_finance' => true,
-        'can_access_crm' => false,
         'is_active' => true,
     ])->assertRedirect();
 
     $target->refresh();
     expect($target->can_access_finance)->toBeTrue();
-    expect($target->can_access_crm)->toBeFalse();
     expect($target->is_admin)->toBeFalse();
 });
 
@@ -83,7 +79,6 @@ test('an admin cannot remove their own admin or deactivate themselves', function
     $this->actingAs($admin)->patch("/settings/users/{$admin->id}", [
         'is_admin' => false,
         'can_access_finance' => false,
-        'can_access_crm' => false,
         'is_active' => false,
     ])->assertRedirect();
 
@@ -99,7 +94,6 @@ test('a non-admin cannot update another user', function () {
     $this->actingAs($user)->patch("/settings/users/{$target->id}", [
         'is_admin' => true,
         'can_access_finance' => true,
-        'can_access_crm' => true,
         'is_active' => true,
     ])->assertForbidden();
 

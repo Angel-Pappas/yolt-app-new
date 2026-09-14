@@ -459,6 +459,18 @@ Two codebases will coexist for the whole build.
 
 ## 20. Progress log
 
+- **2026-09-14** — **Removed the Business/CRM area entirely** (it moved to a
+  separate app). Deleted all CRM code (Lead/Project controllers, models, factories,
+  `Support/Crm`, the `LeadLookupSeeder`, the 5 page folders, `components/crm` +
+  `components/inline-edit`, 8 tests) and the **area-chooser dashboard**
+  (`dashboard.tsx` + route). Dropped the `access-crm` gate, the `can_access_crm`
+  users column + its grant (a **migration drops the 8 CRM tables and the column**),
+  the `withCrmAccess()` factory state, and the CRM toggle in user management. The app
+  is now **single-area (Finance)**: post-login home is `/transactions`, the sidebar
+  shows only Finance. The LegacyImporter was kept but CRM-stripped. Verified no
+  Finance→CRM coupling existed. All checks green (types, lint, pint, phpstan,
+  **171 Pest tests**). Earlier the same day: rebuilt the date field as a segmented
+  input and reworked withholding into a per-line toggle.
 - **2026-08-28** — **Toolchain installed** on the dev machine (verified current/
   proper versions): **PHP 8.4.24** (php.ini configured: openssl, mbstring, curl,
   fileinfo, pdo_sqlite, sqlite3, pdo_pgsql, pgsql, zip, intl, bcmath),

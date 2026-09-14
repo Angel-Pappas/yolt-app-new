@@ -7,7 +7,6 @@ export type User = {
     two_factor_enabled?: boolean;
     is_admin: boolean;
     can_access_finance: boolean;
-    can_access_crm: boolean;
     is_active: boolean;
     created_at: string;
     updated_at: string;

@@ -22,7 +22,6 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $password
  * @property bool $is_admin
  * @property bool $can_access_finance
- * @property bool $can_access_crm
  * @property bool $is_active
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
@@ -51,7 +50,6 @@ class User extends Authenticatable implements PasskeyUser
             'two_factor_confirmed_at' => 'datetime',
             'is_admin' => 'boolean',
             'can_access_finance' => 'boolean',
-            'can_access_crm' => 'boolean',
             'is_active' => 'boolean',
         ];
     }

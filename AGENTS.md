@@ -76,11 +76,13 @@ vars, run artisan commands) — the same way the Supabase MCP works for the old 
 
 ## Access control
 
-Company access lives on `users`: `is_admin`, `can_access_finance`,
-`can_access_crm`, `is_active` (new users: no access, active). Gates: `admin`,
-`access-finance`, `access-crm` (each also requires `is_active`).
-`EnsureAccountIsActive` middleware logs out deactivated users on every request.
-Protect routes with the `can:` middleware (e.g. `can:access-finance`).
+Company access lives on `users`: `is_admin`, `can_access_finance`, `is_active`
+(new users: no access, active). Gates: `admin`, `access-finance` (each also
+requires `is_active`). `EnsureAccountIsActive` middleware logs out deactivated
+users on every request. Protect routes with the `can:` middleware (e.g.
+`can:access-finance`). (The Business/CRM area — leads, projects, and its
+`can_access_crm` grant — was removed 2026-09-14; it moved to a separate app. This
+is now a Finance-only app.)
 
 ## Established patterns (match these — don't reinvent)
 
@@ -93,8 +95,8 @@ Protect routes with the `can:` middleware (e.g. `can:access-finance`).
   and use `ColumnHeader` for the header — the funnel + popover (`column-filter.tsx`,
   Radix-portalled so it isn't clipped) and the matching filter fn are wired
   automatically. Filtering/search/sort are **client-side** (TanStack); only
-  scope-defining filters stay server-side (Transactions' date/invoice/quick/balance;
-  Leads' hide-converted default). **No pagination — the table is one continuous
+  scope-defining filters stay server-side (Transactions'
+  date/invoice/quick/balance). **No pagination — the table is one continuous
   load-as-you-scroll list**: it renders the first `pageSize` rows (default 50) of the
   filtered/sorted set and reveals another `pageSize` each time a bottom sentinel
   (`IntersectionObserver`) scrolls into view, resetting to the top when the
@@ -135,7 +137,7 @@ Protect routes with the `can:` middleware (e.g. `can:access-finance`).
   Laravel-13 `#[Fillable([...])]` attribute + a `casts()` method. Existing UUIDs are
   remapped to new IDs at the cutover conversion (plan §5/§7).
 - **Factory states:** `User::factory()` has `admin()`, `withFinanceAccess()`,
-  `withCrmAccess()`, `inactive()`.
+  `inactive()`.
 
 ## Local verify — ALL must pass before every push (this is what CI runs)
 

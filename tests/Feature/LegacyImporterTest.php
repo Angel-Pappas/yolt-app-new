@@ -1,17 +1,15 @@
 <?php
 
 use App\Models\Entity;
-use App\Models\Lead;
-use App\Models\LeadAction;
-use App\Models\LeadContact;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Support\Legacy\LegacyImporter;
 
 /**
- * A representative slice of the old Supabase dataset, keyed by table, using UUID
- * ids and Postgres-shaped values (string numerics, ISO timestamps, boolean flags).
+ * A representative slice of the old Supabase finance dataset, keyed by table, using
+ * UUID ids and Postgres-shaped values (string numerics, ISO timestamps, boolean
+ * flags).
  *
  * @return array<string, array<int, array<string, mixed>>>
  */
@@ -39,34 +37,6 @@ function legacyFixture(): array
         'categories' => [
             ['id' => 'c1', 'user_id' => 'u1', 'name' => 'Fuel', 'type' => 'expense', 'created_at' => $ts, 'is_deleted' => false, 'deleted_at' => null],
         ],
-        'lead_statuses' => [
-            ['id' => 'ls1', 'user_id' => 'u1', 'name' => 'New', 'position' => 0, 'is_conversion' => false, 'created_at' => $ts, 'is_deleted' => false, 'deleted_at' => null],
-            ['id' => 'ls2', 'user_id' => 'u1', 'name' => 'Converted', 'position' => 101, 'is_conversion' => true, 'created_at' => $ts, 'is_deleted' => false, 'deleted_at' => null],
-        ],
-        'lead_origins' => [
-            ['id' => 'lo1', 'user_id' => 'u1', 'name' => 'Campaign', 'position' => 0, 'created_at' => $ts, 'is_deleted' => false, 'deleted_at' => null],
-        ],
-        'project_statuses' => [
-            ['id' => 'ps1', 'user_id' => 'u1', 'name' => 'Agreed', 'position' => 0, 'created_at' => $ts, 'is_deleted' => false, 'deleted_at' => null],
-        ],
-        'leads' => [
-            [
-                'id' => 'l1', 'user_id' => 'u1', 'name' => 'Big Lead', 'origin_id' => 'lo1',
-                'status_id' => 'ls1', 'sort_order' => 48, 'website' => 'example.com',
-                'contact_name' => 'Jane', 'contact_position' => 'CEO', 'contact_email' => 'jane@example.com',
-                'contact_phone' => '2101234567', 'contact_landline' => null, 'description' => 'A lead',
-                'next_step' => 'Call', 'campaign_platform' => 'facebook', 'campaign_we_are' => 'a bakery',
-                'campaign_we_want' => 'orders', 'created_at' => $ts, 'is_deleted' => false, 'deleted_at' => null,
-            ],
-        ],
-        'lead_actions' => [
-            ['id' => 'la1', 'user_id' => 'u1', 'lead_id' => 'l1', 'body' => 'Called them', 'action_date' => '2026-02-01', 'author_name' => 'Owner', 'created_at' => $ts, 'is_deleted' => false, 'deleted_at' => null],
-        ],
-        'lead_contacts' => [
-            ['id' => 'lc1', 'user_id' => 'u1', 'lead_id' => 'l1', 'name' => 'Bob', 'position' => 'CTO', 'phone' => '2109999999', 'landline' => null, 'website' => null, 'email' => 'bob@example.com', 'created_at' => $ts, 'is_deleted' => false, 'deleted_at' => null],
-        ],
-        'projects' => [],
-        'project_actions' => [],
         'transactions' => [
             [
                 'id' => 't1', 'user_id' => 'u1', 'date' => '2026-03-01', 'invoice_date' => '2026-03-01',
@@ -126,11 +96,6 @@ test('the full dataset migrates with counts', function () {
         'wallets' => 2,
         'vat_rates' => 1,
         'categories' => 1,
-        'lead_statuses' => 2,
-        'lead_origins' => 1,
-        'leads' => 1,
-        'lead_actions' => 1,
-        'lead_contacts' => 1,
         'transactions' => 3,
         'transaction_vat_lines' => 1,
     ]);
@@ -176,23 +141,6 @@ test('soft-deleted rows stay soft-deleted', function () {
         ->not->toBeNull();
 });
 
-test('leads carry campaign fields, sort order, and remapped lookups', function () {
-    User::factory()->admin()->create(['email' => 'owner@example.com']);
-    runImporter();
-
-    $lead = Lead::with(['origin', 'status'])->first();
-    expect($lead->name)->toBe('Big Lead');
-    expect($lead->sort_order)->toBe(48);
-    expect($lead->campaign_platform)->toBe('facebook');
-    expect($lead->campaign_we_are)->toBe('a bakery');
-    expect($lead->origin->name)->toBe('Campaign');
-    expect($lead->status->name)->toBe('New');
-
-    expect(LeadAction::first()->lead_id)->toBe($lead->id);
-    expect(LeadAction::first()->body)->toBe('Called them');
-    expect(LeadContact::first()->lead_id)->toBe($lead->id);
-});
-
 test('created-by is mapped to the matching user by email', function () {
     $user = User::factory()->admin()->create(['email' => 'owner@example.com']);
     runImporter();
@@ -201,7 +149,7 @@ test('created-by is mapped to the matching user by email', function () {
     expect(Entity::first()->user_id)->toBe($user->id);
 });
 
-test('the import replaces any existing finance and crm data', function () {
+test('the import replaces any existing finance data', function () {
     User::factory()->admin()->create(['email' => 'owner@example.com']);
     Entity::factory()->create(['name' => 'Stale entity']);
     Wallet::factory()->create(['name' => 'Stale wallet']);

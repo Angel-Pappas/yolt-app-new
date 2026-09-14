@@ -60,15 +60,6 @@ class LegacyImporter
             $counts['vat_rates'] = $this->importLookup('vat_rates', ['name', 'rate'], $userMap);
             $counts['withheld_tax_rates'] = $this->importLookup('withheld_tax_rates', ['name', 'rate'], $userMap);
             $counts['categories'] = $this->importLookup('categories', ['name', 'type'], $userMap);
-            $counts['lead_statuses'] = $this->importLookup('lead_statuses', ['name', 'position', 'is_conversion'], $userMap);
-            $counts['lead_origins'] = $this->importLookup('lead_origins', ['name', 'position'], $userMap);
-            $counts['project_statuses'] = $this->importLookup('project_statuses', ['name', 'position'], $userMap);
-
-            $counts['leads'] = $this->importLeads($userMap);
-            $counts['lead_actions'] = $this->importChildActions('lead_actions', 'lead_id', 'leads', $userMap);
-            $counts['lead_contacts'] = $this->importLeadContacts($userMap);
-            $counts['projects'] = $this->importProjects($userMap);
-            $counts['project_actions'] = $this->importChildActions('project_actions', 'project_id', 'projects', $userMap);
 
             $counts['transactions'] = $this->importTransactions($userMap);
             $counts['transaction_vat_lines'] = $this->importTransactionLines(
@@ -107,8 +98,6 @@ class LegacyImporter
     {
         $tables = [
             'entities', 'wallets', 'vat_rates', 'withheld_tax_rates', 'categories',
-            'lead_statuses', 'lead_origins', 'project_statuses', 'leads',
-            'lead_actions', 'lead_contacts', 'projects', 'project_actions',
             'transactions', 'transaction_vat_lines', 'transaction_withheld_lines',
         ];
 
@@ -124,9 +113,7 @@ class LegacyImporter
     {
         $order = [
             'transaction_withheld_lines', 'transaction_vat_lines', 'transactions',
-            'project_actions', 'projects', 'lead_contacts', 'lead_actions', 'leads',
-            'project_statuses', 'lead_origins', 'lead_statuses', 'categories',
-            'withheld_tax_rates', 'vat_rates', 'wallets', 'entities',
+            'categories', 'withheld_tax_rates', 'vat_rates', 'wallets', 'entities',
         ];
 
         // delete(), not truncate() — TRUNCATE implicitly commits on MySQL, which
@@ -177,121 +164,6 @@ class LegacyImporter
             }
             $this->stamp($attrs, $row);
             $this->insertMapped($table, $table, $row, $attrs);
-        }
-
-        return count($rows);
-    }
-
-    /**
-     * @param  array<string, int>  $userMap
-     */
-    private function importLeads(array $userMap): int
-    {
-        $rows = $this->read('leads');
-        foreach ($rows as $row) {
-            $attrs = [
-                'user_id' => $this->mapUser($row, $userMap),
-                'sort_order' => (int) ($row['sort_order'] ?? 0),
-                'name' => $this->value($row, 'name'),
-                'origin_id' => $this->mapId('lead_origins', $row['origin_id'] ?? null),
-                'status_id' => $this->mapId('lead_statuses', $row['status_id'] ?? null),
-                'website' => $this->value($row, 'website'),
-                'contact_name' => $this->value($row, 'contact_name'),
-                'contact_position' => $this->value($row, 'contact_position'),
-                'contact_email' => $this->value($row, 'contact_email'),
-                'contact_phone' => $this->value($row, 'contact_phone'),
-                'contact_landline' => $this->value($row, 'contact_landline'),
-                'description' => $this->value($row, 'description'),
-                'next_step' => $this->value($row, 'next_step'),
-                'campaign_platform' => $this->value($row, 'campaign_platform'),
-                'campaign_we_are' => $this->value($row, 'campaign_we_are'),
-                'campaign_we_want' => $this->value($row, 'campaign_we_want'),
-            ];
-            $this->stamp($attrs, $row);
-            $this->insertMapped('leads', 'leads', $row, $attrs);
-        }
-
-        return count($rows);
-    }
-
-    /**
-     * @param  array<string, int>  $userMap
-     */
-    private function importLeadContacts(array $userMap): int
-    {
-        $rows = $this->read('lead_contacts');
-        foreach ($rows as $row) {
-            $leadId = $this->mapId('leads', $row['lead_id'] ?? null);
-            if ($leadId === null) {
-                continue;
-            }
-            $attrs = [
-                'user_id' => $this->mapUser($row, $userMap),
-                'lead_id' => $leadId,
-                'name' => $this->value($row, 'name') ?? '',
-                'position' => $this->value($row, 'position'),
-                'phone' => $this->value($row, 'phone'),
-                'landline' => $this->value($row, 'landline'),
-                'website' => $this->value($row, 'website'),
-                'email' => $this->value($row, 'email'),
-            ];
-            $this->stamp($attrs, $row);
-            $this->insertMapped('lead_contacts', 'lead_contacts', $row, $attrs);
-        }
-
-        return count($rows);
-    }
-
-    /**
-     * Lead/project History actions share the same shape (parent_id, body,
-     * action_date, author_name).
-     *
-     * @param  array<string, int>  $userMap
-     */
-    private function importChildActions(string $table, string $fk, string $parentMap, array $userMap): int
-    {
-        $rows = $this->read($table);
-        $migrated = 0;
-        foreach ($rows as $row) {
-            $parentId = $this->mapId($parentMap, $row[$fk] ?? null);
-            if ($parentId === null) {
-                continue;
-            }
-            $attrs = [
-                'user_id' => $this->mapUser($row, $userMap),
-                $fk => $parentId,
-                'action_date' => $this->value($row, 'action_date'),
-                'body' => $this->value($row, 'body') ?? '',
-                'author_name' => $this->value($row, 'author_name'),
-            ];
-            $this->stamp($attrs, $row);
-            $this->insertMapped($table, $table, $row, $attrs);
-            $migrated++;
-        }
-
-        return $migrated;
-    }
-
-    /**
-     * @param  array<string, int>  $userMap
-     */
-    private function importProjects(array $userMap): int
-    {
-        $rows = $this->read('projects');
-        foreach ($rows as $row) {
-            $attrs = [
-                'user_id' => $this->mapUser($row, $userMap),
-                'sort_order' => (int) ($row['sort_order'] ?? 0),
-                'name' => $this->value($row, 'name'),
-                'lead_id' => $this->mapId('leads', $row['lead_id'] ?? null),
-                'status_id' => $this->mapId('project_statuses', $row['status_id'] ?? null),
-                'description' => $this->value($row, 'description'),
-                'value' => $this->value($row, 'value'),
-                'estimated_months' => $this->intOrNull($row, 'estimated_months'),
-                'next_step' => $this->value($row, 'next_step'),
-            ];
-            $this->stamp($attrs, $row);
-            $this->insertMapped('projects', 'projects', $row, $attrs);
         }
 
         return count($rows);
