@@ -208,6 +208,7 @@ export function DateField({
                 ref={refs.d}
                 id={id}
                 inputMode="numeric"
+                autoComplete="off"
                 placeholder="dd"
                 aria-label="Day"
                 required={required}
@@ -221,6 +222,7 @@ export function DateField({
             <input
                 ref={refs.m}
                 inputMode="numeric"
+                autoComplete="off"
                 placeholder="mm"
                 aria-label="Month"
                 value={parts.m}
@@ -233,6 +235,7 @@ export function DateField({
             <input
                 ref={refs.y}
                 inputMode="numeric"
+                autoComplete="off"
                 placeholder="yyyy"
                 aria-label="Year"
                 value={parts.y}
