@@ -1,5 +1,5 @@
 import { Link, router } from '@inertiajs/react';
-import { LogOut, Settings } from 'lucide-react';
+import { BookOpen, FolderGit2, LogOut, Settings } from 'lucide-react';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -43,6 +43,31 @@ export function UserMenuContent({ user }: Props) {
                         <Settings className="mr-2" />
                         Settings
                     </Link>
+                </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+                <DropdownMenuItem asChild>
+                    <a
+                        className="block w-full cursor-pointer"
+                        href="https://github.com/laravel/react-starter-kit"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <FolderGit2 className="mr-2" />
+                        Repository
+                    </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <a
+                        className="block w-full cursor-pointer"
+                        href="https://laravel.com/docs/starter-kits#react"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <BookOpen className="mr-2" />
+                        Documentation
+                    </a>
                 </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
