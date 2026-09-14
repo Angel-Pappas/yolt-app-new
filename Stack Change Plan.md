@@ -467,10 +467,15 @@ Two codebases will coexist for the whole build.
   users column + its grant (a **migration drops the 8 CRM tables and the column**),
   the `withCrmAccess()` factory state, and the CRM toggle in user management. The app
   is now **single-area (Finance)**: post-login home is `/transactions`, the sidebar
-  shows only Finance. The LegacyImporter was kept but CRM-stripped. Verified no
-  Finance→CRM coupling existed. All checks green (types, lint, pint, phpstan,
-  **171 Pest tests**). Earlier the same day: rebuilt the date field as a segmented
-  input and reworked withholding into a per-line toggle.
+  shows only Finance. Verified no Finance→CRM coupling existed. All checks green
+  (types, lint, pint, phpstan). Earlier the same day: rebuilt the date field as a
+  segmented input and reworked withholding into a per-line toggle.
+- **2026-09-14 (later)** — **Removed the LegacyImporter subsystem entirely** — the
+  Supabase→MySQL cutover (§5/§7 below) ran and was verified on 2026-09-09, so the
+  one-off tool is no longer needed. Deleted `App\Support\Legacy\LegacyImporter`, the
+  `legacy:import` command, its test, and the `legacy` DB connection in
+  `config/database.php`. (§5/§7 stay as the historical record of how the cutover was
+  done.) Green: types, lint, pint, phpstan, **163 Pest tests**.
 - **2026-08-28** — **Toolchain installed** on the dev machine (verified current/
   proper versions): **PHP 8.4.24** (php.ini configured: openssl, mbstring, curl,
   fileinfo, pdo_sqlite, sqlite3, pdo_pgsql, pgsql, zip, intl, bcmath),
