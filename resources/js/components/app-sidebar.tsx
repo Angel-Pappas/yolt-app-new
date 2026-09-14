@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/sidebar';
 import type { NavItem } from '@/types';
 
+// The day-to-day operational pages.
 const financeNavItems: NavItem[] = [
     {
         title: 'Transactions',
@@ -46,6 +47,11 @@ const financeNavItems: NavItem[] = [
         href: '/entities',
         icon: Building2,
     },
+];
+
+// App setup — reference/lookup lists you configure once and leave running.
+// This group is meant to grow as more back-office settings are added.
+const configNavItems: NavItem[] = [
     {
         title: 'Categories',
         href: '/categories',
@@ -100,7 +106,8 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={financeNavItems} />
+                <NavMain items={financeNavItems} label="Finance" />
+                <NavMain items={configNavItems} label="Configuration" />
             </SidebarContent>
 
             <SidebarFooter>
