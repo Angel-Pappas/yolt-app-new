@@ -31,7 +31,6 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'is_admin' => false,
-            'can_access_finance' => false,
             'is_active' => true,
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
@@ -67,14 +66,6 @@ class UserFactory extends Factory
     public function admin(): static
     {
         return $this->state(fn (array $attributes) => ['is_admin' => true]);
-    }
-
-    /**
-     * Grant Finance area access.
-     */
-    public function withFinanceAccess(): static
-    {
-        return $this->state(fn (array $attributes) => ['can_access_finance' => true]);
     }
 
     /**

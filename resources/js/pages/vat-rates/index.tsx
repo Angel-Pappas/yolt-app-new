@@ -15,7 +15,7 @@ export default function VatRatesIndex({ vatRates }: { vatRates: VatRate[] }) {
                 <CrudResource
                     title="VAT rates"
                     singular="VAT rate"
-                    baseUrl="/vat-rates"
+                    baseUrl="/configuration/vat-rates"
                     items={vatRates}
                     columns={[
                         {
@@ -54,5 +54,5 @@ export default function VatRatesIndex({ vatRates }: { vatRates: VatRate[] }) {
 }
 
 VatRatesIndex.layout = {
-    breadcrumbs: [{ title: 'VAT rates', href: '/vat-rates' }],
+    breadcrumbs: [{ title: 'VAT rates', href: '/configuration/vat-rates' }],
 };

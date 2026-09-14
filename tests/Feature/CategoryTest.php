@@ -6,22 +6,20 @@ use App\Models\User;
 use App\Models\Wallet;
 
 test('a finance user can view categories', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     Category::factory()->count(2)->create();
 
-    $this->actingAs($user)->get('/categories')->assertOk();
+    $this->actingAs($user)->get('/configuration/categories')->assertOk();
 });
 
-test('a non-finance user cannot view categories', function () {
-    $this->actingAs(User::factory()->create())
-        ->get('/categories')
-        ->assertForbidden();
+test('a guest cannot view categories', function () {
+    $this->get('/configuration/categories')->assertRedirect(route('login'));
 });
 
 test('a finance user can create a category', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
-    $this->actingAs($user)->post('/categories', [
+    $this->actingAs($user)->post('/configuration/categories', [
         'name' => 'Fuel',
         'type' => 'expense',
     ])->assertRedirect();
@@ -33,19 +31,19 @@ test('a finance user can create a category', function () {
 });
 
 test('a category type must be income or expense', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
-    $this->actingAs($user)->post('/categories', [
+    $this->actingAs($user)->post('/configuration/categories', [
         'name' => 'X',
         'type' => 'nonsense',
     ])->assertSessionHasErrors('type');
 });
 
 test('a finance user can update a category', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $category = Category::factory()->create(['name' => 'Old', 'type' => 'income']);
 
-    $this->actingAs($user)->patch("/categories/{$category->id}", [
+    $this->actingAs($user)->patch("/configuration/categories/{$category->id}", [
         'name' => 'New',
         'type' => 'expense',
     ])->assertRedirect();
@@ -56,17 +54,17 @@ test('a finance user can update a category', function () {
 });
 
 test('an unused category is hard-deleted, not soft-deleted', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $category = Category::factory()->create();
 
-    $this->actingAs($user)->delete("/categories/{$category->id}")->assertRedirect();
+    $this->actingAs($user)->delete("/configuration/categories/{$category->id}")->assertRedirect();
 
     // Removed for good — not kept as a soft-delete.
     expect(Category::withTrashed()->find($category->id))->toBeNull();
 });
 
 test('a category used by a live transaction cannot be deleted', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $category = Category::factory()->create(['type' => 'expense']);
     Transaction::factory()->create([
         'type' => 'expense',
@@ -74,13 +72,13 @@ test('a category used by a live transaction cannot be deleted', function () {
         'wallet_id' => Wallet::factory(),
     ]);
 
-    $this->actingAs($user)->delete("/categories/{$category->id}")->assertRedirect();
+    $this->actingAs($user)->delete("/configuration/categories/{$category->id}")->assertRedirect();
 
     expect(Category::find($category->id))->not->toBeNull();
 });
 
 test('a category is deletable again once its transactions are soft-deleted', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $category = Category::factory()->create(['type' => 'expense']);
     $transaction = Transaction::factory()->create([
         'type' => 'expense',
@@ -89,16 +87,16 @@ test('a category is deletable again once its transactions are soft-deleted', fun
     ]);
     $transaction->delete(); // soft delete — should no longer block
 
-    $this->actingAs($user)->delete("/categories/{$category->id}")->assertRedirect();
+    $this->actingAs($user)->delete("/configuration/categories/{$category->id}")->assertRedirect();
 
     expect(Category::withTrashed()->find($category->id))->toBeNull();
 });
 
 test('a finance user can set a category description', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $category = Category::factory()->create(['type' => 'expense']);
 
-    $this->actingAs($user)->patch("/categories/{$category->id}", [
+    $this->actingAs($user)->patch("/configuration/categories/{$category->id}", [
         'name' => $category->name,
         'type' => 'expense',
         'description' => 'Company car costs',
@@ -108,14 +106,14 @@ test('a finance user can set a category description', function () {
 });
 
 test('a finance user can open a category page', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $category = Category::factory()->create();
 
-    $this->actingAs($user)->get("/categories/{$category->id}")->assertOk();
+    $this->actingAs($user)->get("/configuration/categories/{$category->id}")->assertOk();
 });
 
 test('the category page carries transaction lines and lookups for the edit dialog', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $category = Category::factory()->create(['type' => 'expense']);
     $transaction = Transaction::factory()->create([
         'type' => 'expense',
@@ -126,7 +124,7 @@ test('the category page carries transaction lines and lookups for the edit dialo
         'net' => '100.00', 'vat_rate_id' => null, 'vat_amount' => '0', 'position' => 0,
     ]);
 
-    $this->actingAs($user)->get("/categories/{$category->id}")
+    $this->actingAs($user)->get("/configuration/categories/{$category->id}")
         ->assertInertia(fn ($page) => $page
             ->component('categories/show')
             ->has('transactions', 1)
@@ -138,9 +136,9 @@ test('the category page carries transaction lines and lookups for the edit dialo
         );
 });
 
-test('a non-finance user cannot create a category', function () {
-    $this->actingAs(User::factory()->create())->post('/categories', [
+test('a guest cannot create a category', function () {
+    $this->post('/configuration/categories', [
         'name' => 'X',
         'type' => 'income',
-    ])->assertForbidden();
+    ])->assertRedirect(route('login'));
 });

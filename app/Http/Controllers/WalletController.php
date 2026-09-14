@@ -10,7 +10,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Wallets CRUD. Gated by `can:access-finance` on the routes. Wallets are shared
+ * Wallets CRUD. Available to any active user. Wallets are shared
  * company data; `user_id` records who created a wallet (audit only). The list
  * shows each wallet's current balance (derived live — see WalletBalances).
  */

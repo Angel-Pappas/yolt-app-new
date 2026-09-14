@@ -30,7 +30,6 @@ class PromoteUserCommand extends Command
 
         $user->forceFill([
             'is_admin' => true,
-            'can_access_finance' => true,
             'is_active' => true,
         ])->save();
 

@@ -9,8 +9,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Withheld (withholding) tax rates CRUD — mirrors VAT rates. Gated by
- * `can:access-finance`; shared company data with a created-by `user_id` field.
+ * Withheld (withholding) tax rates CRUD — mirrors VAT rates. Available to any
+ * active user; shared company data with a created-by `user_id` field.
  */
 class WithheldTaxRateController extends Controller
 {

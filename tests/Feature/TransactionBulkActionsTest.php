@@ -6,7 +6,7 @@ use App\Models\User;
 use App\Models\Wallet;
 
 test('a finance user can move selected transactions to another category', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $fuel = Category::factory()->create(['type' => 'expense']);
     $car = Category::factory()->create(['type' => 'expense']);
@@ -27,7 +27,7 @@ test('a finance user can move selected transactions to another category', functi
 });
 
 test('a bulk move does not touch transactions of a different type than the target category', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $incomeCategory = Category::factory()->create(['type' => 'income']);
 
@@ -47,7 +47,7 @@ test('a bulk move does not touch transactions of a different type than the targe
 });
 
 test('a finance user can bulk-delete selected transactions', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
 
     $ids = Transaction::factory()->count(2)->create([
@@ -62,11 +62,10 @@ test('a finance user can bulk-delete selected transactions', function () {
     expect(Transaction::withTrashed()->whereIn('id', $ids)->count())->toBe(2);
 });
 
-test('a non-finance user cannot run bulk actions', function () {
-    $user = User::factory()->create();
+test('a guest cannot run bulk actions', function () {
     $wallet = Wallet::factory()->create();
     $transaction = Transaction::factory()->create(['wallet_id' => $wallet->id]);
 
-    $this->actingAs($user)->delete('/transactions/bulk', ['ids' => [$transaction->id]])
-        ->assertForbidden();
+    $this->delete('/transactions/bulk', ['ids' => [$transaction->id]])
+        ->assertRedirect(route('login'));
 });

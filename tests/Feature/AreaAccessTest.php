@@ -2,18 +2,28 @@
 
 use App\Models\User;
 
-test('a finance user can open the finance area', function () {
-    $user = User::factory()->withFinanceAccess()->create();
-
-    $this->actingAs($user)->get('/transactions?all=1')->assertOk();
-});
-
-test('a user with no access is forbidden from the finance area', function () {
+test('any active user can open the app and the configuration lists', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user)->get('/transactions?all=1')->assertForbidden();
+    $this->actingAs($user)->get('/transactions?all=1')->assertOk();
+    $this->actingAs($user)->get('/configuration')->assertOk();
+    $this->actingAs($user)->get('/configuration/categories')->assertOk();
+    $this->actingAs($user)->get('/configuration/vat-rates')->assertOk();
+    $this->actingAs($user)->get('/configuration/withheld-tax-rates')->assertOk();
 });
 
-test('a guest is redirected to login from the finance area', function () {
+test('a guest is redirected to login', function () {
     $this->get('/transactions?all=1')->assertRedirect(route('login'));
+    $this->get('/configuration')->assertRedirect(route('login'));
+});
+
+test('a deactivated user is locked out of the app', function () {
+    $user = User::factory()->inactive()->create();
+
+    $this->actingAs($user)->get('/transactions?all=1')->assertRedirect(route('login'));
+});
+
+test('only an admin can open the users list', function () {
+    $this->actingAs(User::factory()->create())->get('/configuration/users')->assertForbidden();
+    $this->actingAs(User::factory()->admin()->create())->get('/configuration/users')->assertOk();
 });

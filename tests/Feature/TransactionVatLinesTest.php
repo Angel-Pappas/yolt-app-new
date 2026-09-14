@@ -6,7 +6,7 @@ use App\Models\VatRate;
 use App\Models\Wallet;
 
 test('total mode derives net from the gross amount', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $vatRate = VatRate::factory()->create(['rate' => 24]);
 
@@ -26,7 +26,7 @@ test('total mode derives net from the gross amount', function () {
 });
 
 test('total mode reconstructs the gross exactly (no rounding drift)', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $vatRate = VatRate::factory()->create(['rate' => 24]);
 
@@ -46,7 +46,7 @@ test('total mode reconstructs the gross exactly (no rounding drift)', function (
 });
 
 test('a multi-rate transaction sums the lines and stores no single rate', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $high = VatRate::factory()->create(['rate' => 24]);
     $low = VatRate::factory()->create(['rate' => 6]);
@@ -71,7 +71,7 @@ test('a multi-rate transaction sums the lines and stores no single rate', functi
 });
 
 test('a single-line transaction keeps its denormalized rate', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $vatRate = VatRate::factory()->create(['rate' => 24]);
 
@@ -88,7 +88,7 @@ test('a single-line transaction keeps its denormalized rate', function () {
 });
 
 test('amount_mode is required for income and expense', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
 
     $this->actingAs($user)->post('/transactions', [

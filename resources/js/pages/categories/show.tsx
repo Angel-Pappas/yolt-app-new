@@ -120,7 +120,9 @@ export default function CategoryShow({
 
     function save(e: FormEvent) {
         e.preventDefault();
-        form.patch(`/categories/${category.id}`, { preserveScroll: true });
+        form.patch(`/configuration/categories/${category.id}`, {
+            preserveScroll: true,
+        });
     }
 
     function moveSelected(ids: number[], clear: () => void) {
@@ -259,7 +261,7 @@ export default function CategoryShow({
                 <div className="flex items-center gap-3">
                     <Button variant="ghost" size="icon" asChild>
                         <Link
-                            href="/categories"
+                            href="/configuration/categories"
                             aria-label="Back to categories"
                         >
                             <ArrowLeft className="size-4" />
@@ -397,5 +399,5 @@ export default function CategoryShow({
 }
 
 CategoryShow.layout = {
-    breadcrumbs: [{ title: 'Categories', href: '/categories' }],
+    breadcrumbs: [{ title: 'Categories', href: '/configuration/categories' }],
 };

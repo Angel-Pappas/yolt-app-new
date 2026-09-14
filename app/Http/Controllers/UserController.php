@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Http\Controllers\Settings;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,8 +12,10 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Admin-only management of company users and their area access. Gated by the
- * `can:admin` middleware on the routes.
+ * Admin-only management of company users. Lives in the Configuration area and is
+ * gated by `can:admin`. Every active user can already use the whole app; the only
+ * per-user distinctions are the admin flag (who can manage users) and the active
+ * switch (deactivating locks someone out).
  */
 class UserController extends Controller
 {
@@ -22,25 +23,18 @@ class UserController extends Controller
     {
         $users = User::query()
             ->orderBy('name')
-            ->get([
-                'id',
-                'name',
-                'email',
-                'is_admin',
-                'can_access_finance',
-                'is_active',
-            ]);
+            ->get(['id', 'name', 'email', 'is_admin', 'is_active']);
 
-        return Inertia::render('settings/users/index', [
+        return Inertia::render('users/index', [
             'users' => $users,
         ]);
     }
 
     /**
-     * Invite a new company user. Creates the account with the chosen access, then
-     * issues a password-broker token and returns a set-password link the admin can
-     * send however they like (no reliance on outbound email). The invitee follows
-     * the link to the standard reset-password page and sets their password.
+     * Invite a new company user. Creates the account, then issues a password-broker
+     * token and returns a set-password link the admin can send however they like
+     * (no reliance on outbound email). The invitee follows the link to the standard
+     * reset-password page and sets their password.
      */
     public function store(Request $request): RedirectResponse
     {
@@ -48,7 +42,6 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'is_admin' => ['boolean'],
-            'can_access_finance' => ['boolean'],
         ]);
 
         $user = new User;
@@ -57,7 +50,6 @@ class UserController extends Controller
             'email' => $data['email'],
             'password' => Hash::make(Str::password(32)),
             'is_admin' => $data['is_admin'] ?? false,
-            'can_access_finance' => $data['can_access_finance'] ?? false,
             'is_active' => true,
         ])->save();
 
@@ -74,7 +66,6 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'is_admin' => ['required', 'boolean'],
-            'can_access_finance' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
         ]);
 

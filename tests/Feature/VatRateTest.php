@@ -4,22 +4,20 @@ use App\Models\User;
 use App\Models\VatRate;
 
 test('a finance user can view VAT rates', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     VatRate::factory()->count(2)->create();
 
-    $this->actingAs($user)->get('/vat-rates')->assertOk();
+    $this->actingAs($user)->get('/configuration/vat-rates')->assertOk();
 });
 
-test('a non-finance user cannot view VAT rates', function () {
-    $this->actingAs(User::factory()->create())
-        ->get('/vat-rates')
-        ->assertForbidden();
+test('a guest cannot view VAT rates', function () {
+    $this->get('/configuration/vat-rates')->assertRedirect(route('login'));
 });
 
 test('a finance user can create a VAT rate', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
-    $this->actingAs($user)->post('/vat-rates', [
+    $this->actingAs($user)->post('/configuration/vat-rates', [
         'name' => 'Standard',
         'rate' => '24',
     ])->assertRedirect();
@@ -31,19 +29,19 @@ test('a finance user can create a VAT rate', function () {
 });
 
 test('a VAT rate must be numeric', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
-    $this->actingAs($user)->post('/vat-rates', [
+    $this->actingAs($user)->post('/configuration/vat-rates', [
         'name' => 'X',
         'rate' => 'abc',
     ])->assertSessionHasErrors('rate');
 });
 
 test('a finance user can update a VAT rate', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $rate = VatRate::factory()->create(['name' => 'Old']);
 
-    $this->actingAs($user)->patch("/vat-rates/{$rate->id}", [
+    $this->actingAs($user)->patch("/configuration/vat-rates/{$rate->id}", [
         'name' => 'New',
         'rate' => '13',
     ])->assertRedirect();
@@ -52,18 +50,18 @@ test('a finance user can update a VAT rate', function () {
 });
 
 test('a finance user can soft-delete a VAT rate', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $rate = VatRate::factory()->create();
 
-    $this->actingAs($user)->delete("/vat-rates/{$rate->id}")->assertRedirect();
+    $this->actingAs($user)->delete("/configuration/vat-rates/{$rate->id}")->assertRedirect();
 
     expect(VatRate::find($rate->id))->toBeNull();
     expect(VatRate::withTrashed()->find($rate->id))->not->toBeNull();
 });
 
-test('a non-finance user cannot create a VAT rate', function () {
-    $this->actingAs(User::factory()->create())->post('/vat-rates', [
+test('a guest cannot create a VAT rate', function () {
+    $this->post('/configuration/vat-rates', [
         'name' => 'X',
         'rate' => '10',
-    ])->assertForbidden();
+    ])->assertRedirect(route('login'));
 });

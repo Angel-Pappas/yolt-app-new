@@ -4,20 +4,18 @@ use App\Models\Entity;
 use App\Models\User;
 
 test('a finance user can view the entities page', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     Entity::factory()->count(2)->create();
 
     $this->actingAs($user)->get('/entities')->assertOk();
 });
 
-test('a non-finance user cannot view entities', function () {
-    $this->actingAs(User::factory()->create())
-        ->get('/entities')
-        ->assertForbidden();
+test('a guest cannot view entities', function () {
+    $this->get('/entities')->assertRedirect(route('login'));
 });
 
 test('a finance user can create an entity', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
     $this->actingAs($user)->post('/entities', [
         'name' => 'ACME',
@@ -31,7 +29,7 @@ test('a finance user can create an entity', function () {
 });
 
 test('an empty vat number is stored as null', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
     $this->actingAs($user)->post('/entities', [
         'name' => 'No VAT',
@@ -42,7 +40,7 @@ test('an empty vat number is stored as null', function () {
 });
 
 test('creating an entity requires a name', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
     $this->actingAs($user)->post('/entities', [
         'name' => '',
@@ -51,7 +49,7 @@ test('creating an entity requires a name', function () {
 });
 
 test('a finance user can update an entity', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $entity = Entity::factory()->create(['name' => 'Old']);
 
     $this->actingAs($user)->patch("/entities/{$entity->id}", [
@@ -63,7 +61,7 @@ test('a finance user can update an entity', function () {
 });
 
 test('a finance user can soft-delete an entity', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $entity = Entity::factory()->create();
 
     $this->actingAs($user)->delete("/entities/{$entity->id}")->assertRedirect();
@@ -72,8 +70,6 @@ test('a finance user can soft-delete an entity', function () {
     expect(Entity::withTrashed()->find($entity->id))->not->toBeNull();
 });
 
-test('a non-finance user cannot create an entity', function () {
-    $this->actingAs(User::factory()->create())
-        ->post('/entities', ['name' => 'X'])
-        ->assertForbidden();
+test('a guest cannot create an entity', function () {
+    $this->post('/entities', ['name' => 'X'])->assertRedirect(route('login'));
 });

@@ -4,22 +4,20 @@ use App\Models\User;
 use App\Models\WithheldTaxRate;
 
 test('a finance user can view withheld tax rates', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     WithheldTaxRate::factory()->count(2)->create();
 
-    $this->actingAs($user)->get('/withheld-tax-rates')->assertOk();
+    $this->actingAs($user)->get('/configuration/withheld-tax-rates')->assertOk();
 });
 
-test('a non-finance user cannot view withheld tax rates', function () {
-    $this->actingAs(User::factory()->create())
-        ->get('/withheld-tax-rates')
-        ->assertForbidden();
+test('a guest cannot view withheld tax rates', function () {
+    $this->get('/configuration/withheld-tax-rates')->assertRedirect(route('login'));
 });
 
 test('a finance user can create a withheld tax rate', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
-    $this->actingAs($user)->post('/withheld-tax-rates', [
+    $this->actingAs($user)->post('/configuration/withheld-tax-rates', [
         'name' => 'Contractor',
         'rate' => '20',
     ])->assertRedirect();
@@ -31,29 +29,29 @@ test('a finance user can create a withheld tax rate', function () {
 });
 
 test('a withheld tax rate must be numeric', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
-    $this->actingAs($user)->post('/withheld-tax-rates', [
+    $this->actingAs($user)->post('/configuration/withheld-tax-rates', [
         'name' => 'X',
         'rate' => 'abc',
     ])->assertSessionHasErrors('rate');
 });
 
 test('a finance user can soft-delete a withheld tax rate', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $rate = WithheldTaxRate::factory()->create();
 
     $this->actingAs($user)
-        ->delete("/withheld-tax-rates/{$rate->id}")
+        ->delete("/configuration/withheld-tax-rates/{$rate->id}")
         ->assertRedirect();
 
     expect(WithheldTaxRate::find($rate->id))->toBeNull();
     expect(WithheldTaxRate::withTrashed()->find($rate->id))->not->toBeNull();
 });
 
-test('a non-finance user cannot create a withheld tax rate', function () {
-    $this->actingAs(User::factory()->create())->post('/withheld-tax-rates', [
+test('a guest cannot create a withheld tax rate', function () {
+    $this->post('/configuration/withheld-tax-rates', [
         'name' => 'X',
         'rate' => '10',
-    ])->assertForbidden();
+    ])->assertRedirect(route('login'));
 });

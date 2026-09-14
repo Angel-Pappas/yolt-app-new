@@ -6,7 +6,7 @@ use App\Models\Wallet;
 use App\Support\WalletBalances;
 
 test('a wallet balance is its starting balance plus transaction effects', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create(['starting_balance' => 1000]);
     $vatRate = VatRate::factory()->create(['rate' => 24]);
 
@@ -32,7 +32,7 @@ test('a wallet balance is its starting balance plus transaction effects', functi
 });
 
 test('a transfer moves balance between wallets', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $from = Wallet::factory()->create(['starting_balance' => 500]);
     $to = Wallet::factory()->create(['starting_balance' => 0]);
 
@@ -51,7 +51,7 @@ test('a transfer moves balance between wallets', function () {
 });
 
 test('the wallets page loads with balances', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     Wallet::factory()->create();
 
     $this->actingAs($user)->get('/wallets')->assertOk();

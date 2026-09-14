@@ -7,7 +7,7 @@ use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
 
 test('an amount line can carry withholding computed server-side', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $vatRate = VatRate::factory()->create(['rate' => 24]);
     $withheldRate = WithheldTaxRate::factory()->create(['rate' => 20]);
@@ -41,7 +41,7 @@ test('an amount line can carry withholding computed server-side', function () {
 });
 
 test('withholding is derived from the rate and the line net, not the client', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $withheldRate = WithheldTaxRate::factory()->create(['rate' => 20]);
 
@@ -62,7 +62,7 @@ test('withholding is derived from the rate and the line net, not the client', fu
 });
 
 test('withholding is optional', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
 
     $this->actingAs($user)->post('/transactions', [
@@ -80,7 +80,7 @@ test('withholding is optional', function () {
 });
 
 test('editing away withholding clears the withheld lines', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $withheldRate = WithheldTaxRate::factory()->create(['rate' => 20]);
 
@@ -115,7 +115,7 @@ test('editing away withholding clears the withheld lines', function () {
 });
 
 test('total mode reverses net out of the cash total with VAT and withholding', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $vatRate = VatRate::factory()->create(['rate' => 24]);
     $withheldRate = WithheldTaxRate::factory()->create(['rate' => 20]);
@@ -143,7 +143,7 @@ test('total mode reverses net out of the cash total with VAT and withholding', f
 });
 
 test('reconciling a new amount rescales the withheld line too', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $vatRate = VatRate::factory()->create(['rate' => 24]);
     $withheldRate = WithheldTaxRate::factory()->create(['rate' => 20]);
@@ -177,7 +177,7 @@ test('reconciling a new amount rescales the withheld line too', function () {
 });
 
 test('a transfer records no withholding', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $from = Wallet::factory()->create();
     $to = Wallet::factory()->create();
 

@@ -15,7 +15,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Categories CRUD. Gated by `can:access-finance`; shared company data with a
+ * Categories CRUD. Available to any active user; shared company data with a
  * created-by `user_id` audit field. Each category is tied to income or expense and
  * carries an optional description. A category can be opened on its own page to edit
  * it and to mass-recategorise/delete its transactions. A category is only ever

@@ -52,13 +52,12 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Company access control: the Finance area grant plus an active switch; a
-     * deactivated user is denied everything. Routes use these via the `can:`
-     * middleware (e.g. `can:access-finance`).
+     * Company access control: every active user can use the whole app; admins can
+     * additionally manage users. A deactivated user is denied everything (enforced
+     * by the EnsureAccountIsActive middleware). Admin routes use `can:admin`.
      */
     protected function configureAuthorization(): void
     {
         Gate::define('admin', fn (User $user): bool => $user->is_active && $user->is_admin);
-        Gate::define('access-finance', fn (User $user): bool => $user->is_active && $user->can_access_finance);
     }
 }

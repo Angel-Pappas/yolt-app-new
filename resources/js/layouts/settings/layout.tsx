@@ -1,4 +1,4 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import type { PropsWithChildren } from 'react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { edit } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 import type { NavItem } from '@/types';
 
-const sidebarNavItems: NavItem[] = [
+const navItems: NavItem[] = [
     {
         title: 'Profile',
         href: edit(),
@@ -30,15 +30,6 @@ const sidebarNavItems: NavItem[] = [
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentOrParentUrl } = useCurrentUrl();
-    const { auth } = usePage().props;
-
-    // Admins get an extra "Users" (Administration) entry.
-    const navItems: NavItem[] = auth.user.is_admin
-        ? [
-              ...sidebarNavItems,
-              { title: 'Users', href: '/settings/users', icon: null },
-          ]
-        : sidebarNavItems;
 
     return (
         <div className="px-4 py-6">

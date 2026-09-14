@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
-use App\Http\Controllers\Settings\UserController;
 use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Support\Facades\Route;
 
@@ -25,13 +24,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
-});
-
-// Administration — user management (admin only).
-Route::middleware(['auth', 'verified', 'can:admin'])->group(function () {
-    Route::get('settings/users', [UserController::class, 'index'])->name('users.index');
-    Route::post('settings/users', [UserController::class, 'store'])->name('users.store');
-    Route::patch('settings/users/{user}', [UserController::class, 'update'])->name('users.update');
 });
 
 Route::get('.well-known/passkey-endpoints', function () {

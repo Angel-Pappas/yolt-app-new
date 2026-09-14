@@ -48,13 +48,13 @@ export default function CategoriesIndex({
                 <CrudResource
                     title="Income categories"
                     singular="income category"
-                    baseUrl="/categories"
+                    baseUrl="/configuration/categories"
                     items={categories.filter((c) => c.type === 'income')}
                     columns={nameColumn}
                     fields={fields}
                     fixedValues={{ type: 'income' }}
                     onRowClick={(item) =>
-                        router.visit(`/categories/${item.id}`)
+                        router.visit(`/configuration/categories/${item.id}`)
                     }
                     disableEdit
                     description="A label for classifying income transactions."
@@ -62,13 +62,13 @@ export default function CategoriesIndex({
                 <CrudResource
                     title="Expense categories"
                     singular="expense category"
-                    baseUrl="/categories"
+                    baseUrl="/configuration/categories"
                     items={categories.filter((c) => c.type === 'expense')}
                     columns={nameColumn}
                     fields={fields}
                     fixedValues={{ type: 'expense' }}
                     onRowClick={(item) =>
-                        router.visit(`/categories/${item.id}`)
+                        router.visit(`/configuration/categories/${item.id}`)
                     }
                     disableEdit
                     description="A label for classifying expense transactions."
@@ -79,5 +79,5 @@ export default function CategoriesIndex({
 }
 
 CategoriesIndex.layout = {
-    breadcrumbs: [{ title: 'Categories', href: '/categories' }],
+    breadcrumbs: [{ title: 'Categories', href: '/configuration/categories' }],
 };

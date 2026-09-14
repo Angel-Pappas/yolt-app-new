@@ -1,7 +1,6 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { Check, Copy, Plus } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
-import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -21,15 +20,13 @@ type ManagedUser = {
     name: string;
     email: string;
     is_admin: boolean;
-    can_access_finance: boolean;
     is_active: boolean;
 };
 
-type FlagField = 'is_admin' | 'can_access_finance' | 'is_active';
+type FlagField = 'is_admin' | 'is_active';
 
 const columns: { field: FlagField; label: string; selfLocked: boolean }[] = [
     { field: 'is_admin', label: 'Admin', selfLocked: true },
-    { field: 'can_access_finance', label: 'Finance', selfLocked: false },
     { field: 'is_active', label: 'Active', selfLocked: true },
 ];
 
@@ -42,17 +39,11 @@ function InviteDialog({
         name: '',
         email: '',
         is_admin: false as boolean,
-        can_access_finance: true as boolean,
     });
-
-    const accessFields: { field: keyof typeof form.data; label: string }[] = [
-        { field: 'can_access_finance', label: 'Finance access' },
-        { field: 'is_admin', label: 'Administrator' },
-    ];
 
     function submit(e: FormEvent) {
         e.preventDefault();
-        form.post('/settings/users', {
+        form.post('/configuration/users', {
             preserveScroll: true,
             onSuccess: () => onOpenChange(false),
         });
@@ -95,22 +86,15 @@ function InviteDialog({
                         />
                         <InputError message={form.errors.email} />
                     </div>
-                    <div className="grid gap-3">
-                        {accessFields.map((f) => (
-                            <div
-                                key={f.field}
-                                className="flex items-center gap-3"
-                            >
-                                <Checkbox
-                                    id={f.field}
-                                    checked={form.data[f.field] === true}
-                                    onCheckedChange={(v) =>
-                                        form.setData(f.field, v === true)
-                                    }
-                                />
-                                <Label htmlFor={f.field}>{f.label}</Label>
-                            </div>
-                        ))}
+                    <div className="flex items-center gap-3">
+                        <Checkbox
+                            id="is_admin"
+                            checked={form.data.is_admin === true}
+                            onCheckedChange={(v) =>
+                                form.setData('is_admin', v === true)
+                            }
+                        />
+                        <Label htmlFor="is_admin">Administrator</Label>
                     </div>
                 </div>
 
@@ -141,10 +125,9 @@ export default function UsersIndex({ users }: { users: ManagedUser[] }) {
 
     function updateFlag(user: ManagedUser, field: FlagField, value: boolean) {
         router.patch(
-            `/settings/users/${user.id}`,
+            `/configuration/users/${user.id}`,
             {
                 is_admin: user.is_admin,
-                can_access_finance: user.can_access_finance,
                 is_active: user.is_active,
                 [field]: value,
             },
@@ -166,15 +149,14 @@ export default function UsersIndex({ users }: { users: ManagedUser[] }) {
     return (
         <>
             <Head title="Users" />
-            <h1 className="sr-only">Users</h1>
-
-            <div className="space-y-6">
+            <div className="flex h-full flex-1 flex-col gap-6 p-4">
                 <div className="flex items-start justify-between">
-                    <Heading
-                        variant="small"
-                        title="Users"
-                        description="Invite users and grant Finance access."
-                    />
+                    <div>
+                        <h1 className="text-2xl font-semibold">Users</h1>
+                        <p className="text-muted-foreground">
+                            Invite people to the app and manage admin access.
+                        </p>
+                    </div>
                     <Dialog open={open} onOpenChange={setOpen}>
                         <Button onClick={() => setOpen(true)}>
                             <Plus className="size-4" />
@@ -277,5 +259,5 @@ export default function UsersIndex({ users }: { users: ManagedUser[] }) {
 }
 
 UsersIndex.layout = {
-    breadcrumbs: [{ title: 'Users', href: '/settings/users' }],
+    breadcrumbs: [{ title: 'Users', href: '/configuration/users' }],
 };

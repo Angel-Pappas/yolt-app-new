@@ -6,7 +6,7 @@ use App\Models\VatRate;
 use App\Models\Wallet;
 
 test('a finance user can create a transfer between two wallets', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $from = Wallet::factory()->create();
     $to = Wallet::factory()->create();
 
@@ -29,7 +29,7 @@ test('a finance user can create a transfer between two wallets', function () {
 });
 
 test('a transfer must go to a different wallet', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
 
     $this->actingAs($user)->post('/transactions', [
@@ -43,7 +43,7 @@ test('a transfer must go to a different wallet', function () {
 });
 
 test('a transfer requires a destination wallet', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
 
     $this->actingAs($user)->post('/transactions', [
@@ -56,7 +56,7 @@ test('a transfer requires a destination wallet', function () {
 });
 
 test('changing an expense to a transfer clears its VAT lines', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $from = Wallet::factory()->create();
     $to = Wallet::factory()->create();
     $rate = VatRate::factory()->create(['rate' => 24]);

@@ -76,13 +76,28 @@ vars, run artisan commands) — the same way the Supabase MCP works for the old 
 
 ## Access control
 
-Company access lives on `users`: `is_admin`, `can_access_finance`, `is_active`
-(new users: no access, active). Gates: `admin`, `access-finance` (each also
-requires `is_active`). `EnsureAccountIsActive` middleware logs out deactivated
-users on every request. Protect routes with the `can:` middleware (e.g.
-`can:access-finance`). (The Business/CRM area — leads, projects, and its
-`can_access_crm` grant — was removed 2026-09-14; it moved to a separate app. This
-is now a Finance-only app.)
+Access control on `users` is just `is_admin` + `is_active` (new users: active,
+not admin). **Every active user can use the whole app** — all Finance pages and
+the Configuration setup lists (Categories, VAT/Withheld rates). The only gate is
+`admin` (`is_active && is_admin`), which protects the **Users** management page
+(`/configuration/users`). `EnsureAccountIsActive` middleware logs out deactivated
+users on every request (they get redirected to login, not a 403). Protect
+admin-only routes with `can:admin`; everything else just needs `auth`+`verified`.
+(History: two per-user area grants — `can_access_finance` and `can_access_crm` —
+used to gate Finance and Business/CRM. The CRM area was removed 2026-09-14, and
+`can_access_finance` was dropped right after since Finance is the whole app.)
+
+## Configuration area
+
+Setup lists (Categories, VAT rates, Withheld tax, Users) live under
+`/configuration/*`, reached from a **Configuration** entry in the sidebar. The
+sidebar is **context-aware** (`app-sidebar.tsx` + `config-nav.ts`'s `isConfigPath`):
+in the main app it shows the Finance nav + a Configuration link; inside
+`/configuration/*` it swaps to the config list + a **Back to app** link. The
+`/configuration` landing shows the lists as tiles (`configuration/index.tsx`).
+Users is admin-only (filtered out of the config nav/tiles for non-admins and
+`can:admin`-gated server-side). Add a new setup list by adding one entry to
+`configItems` in `config-nav.ts` and its routes under the `/configuration` prefix.
 
 ## Established patterns (match these — don't reinvent)
 

@@ -19,7 +19,7 @@ export default function WithheldTaxRatesIndex({
                 <CrudResource
                     title="Withheld tax rates"
                     singular="withheld rate"
-                    baseUrl="/withheld-tax-rates"
+                    baseUrl="/configuration/withheld-tax-rates"
                     items={withheldRates}
                     columns={[
                         {
@@ -58,5 +58,10 @@ export default function WithheldTaxRatesIndex({
 }
 
 WithheldTaxRatesIndex.layout = {
-    breadcrumbs: [{ title: 'Withheld tax rates', href: '/withheld-tax-rates' }],
+    breadcrumbs: [
+        {
+            title: 'Withheld tax rates',
+            href: '/configuration/withheld-tax-rates',
+        },
+    ],
 };

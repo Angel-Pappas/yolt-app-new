@@ -459,7 +459,19 @@ Two codebases will coexist for the whole build.
 
 ## 20. Progress log
 
-- **2026-09-14** — **Removed the Business/CRM area entirely** (it moved to a
+- **2026-09-14 (later still)** — **Configuration area + simplified access
+  control.** Moved the setup lists (Categories, VAT rates, Withheld tax) and the
+  admin **Users** page out of the main nav / Settings into a dedicated
+  **Configuration** area under `/configuration/*`, reached from a sidebar entry
+  that opens a **tiles** landing; the sidebar is now context-aware (main nav ↔
+  config list + a Back-to-app link, driven by `config-nav.ts`). **Dropped
+  `can_access_finance` entirely** (migration drops the column): every active user
+  now sees the whole app, and the only gate left is `admin` (guards Users). Users
+  moved from `Settings\UserController` (`/settings/users`) to `UserController`
+  (`/configuration/users`), admin-gated. Access model is now just
+  **`is_admin` + `is_active`**. Reworked the access tests accordingly. Green:
+  types, lint, build, pint, phpstan, **165 Pest tests**.
+- **2026-09-14 (later)** — **Removed the LegacyImporter subsystem entirely** (it moved to a
   separate app). Deleted all CRM code (Lead/Project controllers, models, factories,
   `Support/Crm`, the `LeadLookupSeeder`, the 5 page folders, `components/crm` +
   `components/inline-edit`, 8 tests) and the **area-chooser dashboard**

@@ -11,7 +11,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 // view, so they're not asserted against the server payload here.
 
 test('the invoice-date filter narrows by invoice date (Taxes drill-down)', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     Transaction::factory()->create(['wallet_id' => $wallet->id, 'invoice_date' => '2026-07-15']);
     Transaction::factory()->create(['wallet_id' => $wallet->id, 'invoice_date' => '2026-08-15']);
@@ -22,7 +22,7 @@ test('the invoice-date filter narrows by invoice date (Taxes drill-down)', funct
 });
 
 test('filtering by a date range', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-01-15']);
     Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-08-15']);

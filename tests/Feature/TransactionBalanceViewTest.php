@@ -6,7 +6,7 @@ use App\Models\Wallet;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('balance view shows a running balance seeded from the starting balance', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create(['starting_balance' => 100]);
     Transaction::factory()->create([
         'wallet_id' => $wallet->id,
@@ -35,7 +35,7 @@ test('balance view shows a running balance seeded from the starting balance', fu
 });
 
 test('a transfer moves the balance on both wallets in balance view', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $from = Wallet::factory()->create(['starting_balance' => 200]);
     $to = Wallet::factory()->create(['starting_balance' => 0]);
     Transaction::factory()->create([
@@ -62,7 +62,7 @@ test('a transfer moves the balance on both wallets in balance view', function ()
 });
 
 test('filtering within balance view keeps cumulative balances', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create(['starting_balance' => 100]);
     Transaction::factory()->create([
         'wallet_id' => $wallet->id,
@@ -92,7 +92,7 @@ test('filtering within balance view keeps cumulative balances', function () {
 });
 
 test('the normal list carries no balance context', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     Transaction::factory()->create(['wallet_id' => $wallet->id]);
 

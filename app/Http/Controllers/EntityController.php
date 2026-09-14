@@ -9,7 +9,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Entities (counterparties) CRUD. Gated by `can:access-finance`; shared company
+ * Entities (counterparties) CRUD. Available to any active user; shared company
  * data with a created-by `user_id` audit field.
  */
 class EntityController extends Controller

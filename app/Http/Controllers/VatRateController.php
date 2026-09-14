@@ -9,7 +9,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * VAT rates CRUD. Gated by `can:access-finance`; shared company data with a
+ * VAT rates CRUD. Available to any active user; shared company data with a
  * created-by `user_id` audit field.
  */
 class VatRateController extends Controller

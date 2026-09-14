@@ -6,7 +6,7 @@ use App\Models\Wallet;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('a finance user can view the taxes index with current-month figures', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
     $this->actingAs($user)
         ->get('/taxes')
@@ -18,7 +18,7 @@ test('a finance user can view the taxes index with current-month figures', funct
 });
 
 test('the VAT page renders the monthly ledger', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     Transaction::factory()->create([
         'type' => 'income', 'wallet_id' => $wallet->id,
@@ -34,7 +34,7 @@ test('the VAT page renders the monthly ledger', function () {
 });
 
 test('the withholding page renders the monthly ledger', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
     $this->actingAs($user)
         ->get('/taxes/withheld')
@@ -44,10 +44,8 @@ test('the withholding page renders the monthly ledger', function () {
             ->has('rows'));
 });
 
-test('a non-finance user cannot view taxes', function () {
-    $user = User::factory()->create();
-
-    $this->actingAs($user)->get('/taxes')->assertForbidden();
-    $this->actingAs($user)->get('/taxes/vat')->assertForbidden();
-    $this->actingAs($user)->get('/taxes/withheld')->assertForbidden();
+test('a guest cannot view taxes', function () {
+    $this->get('/taxes')->assertRedirect(route('login'));
+    $this->get('/taxes/vat')->assertRedirect(route('login'));
+    $this->get('/taxes/withheld')->assertRedirect(route('login'));
 });

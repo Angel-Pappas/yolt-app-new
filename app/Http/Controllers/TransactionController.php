@@ -18,7 +18,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Transactions — the core Finance feature. Gated by `can:access-finance`; shared
+ * Transactions — the core Finance feature. Available to any active user; shared
  * company data. `type` drives which fields apply: income/expense carry VAT
  * "lines" and optional withholding "lines" (whose per-rate amounts are always
  * computed server-side from the rate at save time — never trusted from the

@@ -7,7 +7,7 @@ use App\Models\VatRate;
 use App\Models\Wallet;
 
 test('a finance user can update a transaction and its VAT is recomputed', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $rate24 = VatRate::factory()->create(['rate' => 24]);
     $rate13 = VatRate::factory()->create(['rate' => 13]);
@@ -41,7 +41,7 @@ test('a finance user can update a transaction and its VAT is recomputed', functi
 });
 
 test('a finance user can soft-delete a transaction', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $transaction = Transaction::factory()->create();
 
     $this->actingAs($user)
@@ -52,19 +52,16 @@ test('a finance user can soft-delete a transaction', function () {
     expect(Transaction::withTrashed()->find($transaction->id))->not->toBeNull();
 });
 
-test('a non-finance user cannot update or delete a transaction', function () {
+test('a guest cannot update or delete a transaction', function () {
     $transaction = Transaction::factory()->create();
-    $user = User::factory()->create();
 
-    $this->actingAs($user)->patch("/transactions/{$transaction->id}", [
+    $this->patch("/transactions/{$transaction->id}", [
         'type' => 'expense',
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $transaction->wallet_id,
         'amount_mode' => 'net', 'lines' => [['amount' => '1', 'vat_rate_id' => null]],
-    ])->assertForbidden();
+    ])->assertRedirect(route('login'));
 
-    $this->actingAs($user)
-        ->delete("/transactions/{$transaction->id}")
-        ->assertForbidden();
+    $this->delete("/transactions/{$transaction->id}")->assertRedirect(route('login'));
 });

@@ -6,7 +6,7 @@ use App\Models\VatRate;
 use App\Models\Wallet;
 
 test('a finance user can add a transaction with server-computed VAT', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $vatRate = VatRate::factory()->create(['rate' => 24]);
 
@@ -30,7 +30,7 @@ test('a finance user can add a transaction with server-computed VAT', function (
 });
 
 test('VAT is recomputed from the rate regardless of client input', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $vatRate = VatRate::factory()->create(['rate' => 13]);
 
@@ -46,7 +46,7 @@ test('VAT is recomputed from the rate regardless of client input', function () {
 });
 
 test('a transaction with no VAT rate has zero VAT', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
 
     $this->actingAs($user)->post('/transactions', [
@@ -63,7 +63,7 @@ test('a transaction with no VAT rate has zero VAT', function () {
 });
 
 test('adding a transaction requires a wallet and at least one line', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
 
     $this->actingAs($user)->post('/transactions', [
         'type' => 'expense',
@@ -73,14 +73,14 @@ test('adding a transaction requires a wallet and at least one line', function ()
     ])->assertSessionHasErrors(['wallet_id', 'lines']);
 });
 
-test('a non-finance user cannot add a transaction', function () {
+test('a guest cannot add a transaction', function () {
     $wallet = Wallet::factory()->create();
 
-    $this->actingAs(User::factory()->create())->post('/transactions', [
+    $this->post('/transactions', [
         'type' => 'expense',
         'date' => '2026-08-01',
         'invoice_date' => '2026-08-01',
         'wallet_id' => $wallet->id,
         'amount_mode' => 'net', 'lines' => [['amount' => '10', 'vat_rate_id' => null]],
-    ])->assertForbidden();
+    ])->assertRedirect(route('login'));
 });

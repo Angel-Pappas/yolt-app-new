@@ -7,7 +7,7 @@ use App\Models\Wallet;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('reconcile marks reconciled and can correct the fields', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $other = Wallet::factory()->create();
     $t = Transaction::factory()->create([
@@ -30,7 +30,7 @@ test('reconcile marks reconciled and can correct the fields', function () {
 });
 
 test('reconcile rescales VAT proportionally when the amount changes', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $vatRate = VatRate::factory()->create(['rate' => 24]);
     // A single-line 100 @ 24% expense.
@@ -51,7 +51,7 @@ test('reconcile rescales VAT proportionally when the amount changes', function (
 });
 
 test('reconcile can unmark a transaction', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $t = Transaction::factory()->create([
         'wallet_id' => $wallet->id, 'type' => 'expense', 'net' => 50,
@@ -67,7 +67,7 @@ test('reconcile can unmark a transaction', function () {
 });
 
 test('an invoice month 1-12 files the transaction under that month', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $t = Transaction::factory()->create(['wallet_id' => $wallet->id]);
 
@@ -80,7 +80,7 @@ test('an invoice month 1-12 files the transaction under that month', function ()
 });
 
 test('invoice month 13 marks it as not required', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $t = Transaction::factory()->create([
         'wallet_id' => $wallet->id, 'invoice_month' => 4,
@@ -95,7 +95,7 @@ test('invoice month 13 marks it as not required', function () {
 });
 
 test('a blank invoice month clears both flags', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $t = Transaction::factory()->create([
         'wallet_id' => $wallet->id, 'invoice_not_required' => true,
@@ -110,7 +110,7 @@ test('a blank invoice month clears both flags', function () {
 });
 
 test('an invoice month above 13 is rejected', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     $t = Transaction::factory()->create(['wallet_id' => $wallet->id]);
 
@@ -119,7 +119,7 @@ test('an invoice month above 13 is rejected', function () {
 });
 
 test('the unreconciled quick filter narrows the list', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     Transaction::factory()->create(['wallet_id' => $wallet->id, 'is_reconciled' => true]);
     Transaction::factory()->create(['wallet_id' => $wallet->id, 'is_reconciled' => false]);
@@ -130,7 +130,7 @@ test('the unreconciled quick filter narrows the list', function () {
 });
 
 test('the missing-invoice quick filter excludes filed and not-needed rows', function () {
-    $user = User::factory()->withFinanceAccess()->create();
+    $user = User::factory()->create();
     $wallet = Wallet::factory()->create();
     Transaction::factory()->create(['wallet_id' => $wallet->id, 'invoice_month' => 3]);
     Transaction::factory()->create(['wallet_id' => $wallet->id, 'invoice_not_required' => true]);
@@ -143,11 +143,9 @@ test('the missing-invoice quick filter excludes filed and not-needed rows', func
         ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
 });
 
-test('a non-finance user cannot reconcile', function () {
+test('a guest cannot reconcile', function () {
     $wallet = Wallet::factory()->create();
     $t = Transaction::factory()->create(['wallet_id' => $wallet->id]);
 
-    $this->actingAs(User::factory()->create())
-        ->post("/transactions/{$t->id}/reconcile")
-        ->assertForbidden();
+    $this->post("/transactions/{$t->id}/reconcile")->assertRedirect(route('login'));
 });
