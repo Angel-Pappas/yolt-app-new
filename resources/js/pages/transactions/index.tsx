@@ -44,8 +44,12 @@ type Transaction = {
     to_wallet: Related;
     entity: Related;
     category: Related;
-    vat_lines: { net: string; vat_rate_id: number | null }[];
-    withheld_lines: { net: string; withheld_rate_id: number | null }[];
+    vat_lines: { net: string; vat_rate_id: number | null; position: number }[];
+    withheld_lines: {
+        net: string;
+        withheld_rate_id: number | null;
+        position: number;
+    }[];
     // Present only in balance view: the running balance after this row.
     balance?: string | number;
 };
