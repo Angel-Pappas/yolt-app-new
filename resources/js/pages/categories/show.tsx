@@ -19,6 +19,10 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { formatAmount, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import {
+    type EditableTransaction,
+    TransactionFormDialog,
+} from '@/pages/transactions/transaction-form-dialog';
 
 type Related = { id: number; name: string } | null;
 type TransactionType = 'income' | 'expense' | 'transfer';
@@ -26,13 +30,26 @@ type TransactionType = 'income' | 'expense' | 'transfer';
 type Transaction = {
     id: number;
     date: string;
+    invoice_date: string;
     description: string;
     type: TransactionType;
     net: string;
     vat_amount: string;
     withheld_amount: string;
+    entity_id: number | null;
+    category_id: number | null;
+    wallet_id: number;
+    to_wallet_id: number | null;
+    vat_rate_id: number | null;
     wallet: Related;
+    to_wallet: Related;
     entity: Related;
+    vat_lines: { net: string; vat_rate_id: number | null; position: number }[];
+    withheld_lines: {
+        net: string;
+        withheld_rate_id: number | null;
+        position: number;
+    }[];
 };
 
 type Category = {
@@ -43,11 +60,18 @@ type Category = {
 };
 
 type Option = { id: number; name: string };
+type CategoryOption = { id: number; name: string; type: string };
+type Rate = { id: number; name: string; rate: string };
 
 type Props = {
     category: Category;
     transactions: Transaction[];
     targets: Option[];
+    wallets: Option[];
+    entities: Option[];
+    categories: CategoryOption[];
+    vatRates: Rate[];
+    withheldRates: Rate[];
 };
 
 const typeMeta: Record<TransactionType, { label: string; className: string }> =
@@ -71,6 +95,11 @@ export default function CategoryShow({
     category,
     transactions,
     targets,
+    wallets,
+    entities,
+    categories,
+    vatRates,
+    withheldRates,
 }: Props) {
     const form = useForm({
         name: category.name,
@@ -78,6 +107,16 @@ export default function CategoryShow({
         type: category.type,
     });
     const [moveTarget, setMoveTarget] = useState('');
+    const [editing, setEditing] = useState<EditableTransaction | null>(null);
+    const [dialogOpen, setDialogOpen] = useState(false);
+    // Bumped on every open so the reused dialog remounts with a fresh form.
+    const [formKey, setFormKey] = useState(0);
+
+    function openEdit(t: Transaction) {
+        setEditing(t);
+        setFormKey((k) => k + 1);
+        setDialogOpen(true);
+    }
 
     function save(e: FormEvent) {
         e.preventDefault();
@@ -291,6 +330,7 @@ export default function CategoryShow({
                     searchPlaceholder="Search transactions…"
                     emptyMessage="No transactions in this category."
                     pageSize={50}
+                    onRowClick={openEdit}
                     enableSelection
                     getRowId={(t) => String(t.id)}
                     renderBulkActions={(selected, clear) => {
@@ -338,6 +378,20 @@ export default function CategoryShow({
                     }}
                 />
             </div>
+
+            {editing && (
+                <TransactionFormDialog
+                    key={formKey}
+                    open={dialogOpen}
+                    onOpenChange={setDialogOpen}
+                    editing={editing}
+                    wallets={wallets}
+                    entities={entities}
+                    categories={categories}
+                    vatRates={vatRates}
+                    withheldRates={withheldRates}
+                />
+            )}
         </>
     );
 }

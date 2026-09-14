@@ -3,7 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Entity;
 use App\Models\Transaction;
+use App\Models\VatRate;
+use App\Models\Wallet;
+use App\Models\WithheldTaxRate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -31,6 +35,8 @@ class CategoryController extends Controller
     /**
      * A category's own page: the edit form plus every transaction filed under it,
      * with the sibling categories of the same type offered as recategorise targets.
+     * The transactions carry their full shape (VAT/withholding lines included) and
+     * the finance lookups ride along so a row can be opened in the edit dialog.
      */
     public function show(Category $category): Response
     {
@@ -41,6 +47,8 @@ class CategoryController extends Controller
                 'toWallet:id,name',
                 'entity:id,name',
                 'category:id,name',
+                'vatLines' => fn ($q) => $q->orderBy('position')->select('id', 'transaction_id', 'net', 'vat_rate_id', 'position'),
+                'withheldLines' => fn ($q) => $q->orderBy('position')->select('id', 'transaction_id', 'net', 'withheld_rate_id', 'position'),
             ])
             ->orderBy('date')
             ->orderBy('id')
@@ -55,6 +63,12 @@ class CategoryController extends Controller
                 ->where('id', '!=', $category->id)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            // Lookups for the transaction edit dialog opened from a row.
+            'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
+            'entities' => Entity::query()->orderBy('name')->get(['id', 'name']),
+            'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
+            'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+            'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
         ]);
     }
 

@@ -114,6 +114,30 @@ test('a finance user can open a category page', function () {
     $this->actingAs($user)->get("/categories/{$category->id}")->assertOk();
 });
 
+test('the category page carries transaction lines and lookups for the edit dialog', function () {
+    $user = User::factory()->withFinanceAccess()->create();
+    $category = Category::factory()->create(['type' => 'expense']);
+    $transaction = Transaction::factory()->create([
+        'type' => 'expense',
+        'category_id' => $category->id,
+        'wallet_id' => Wallet::factory(),
+    ]);
+    $transaction->vatLines()->create([
+        'net' => '100.00', 'vat_rate_id' => null, 'vat_amount' => '0', 'position' => 0,
+    ]);
+
+    $this->actingAs($user)->get("/categories/{$category->id}")
+        ->assertInertia(fn ($page) => $page
+            ->component('categories/show')
+            ->has('transactions', 1)
+            ->has('transactions.0.vat_lines', 1)
+            ->has('transactions.0.withheld_lines')
+            ->has('wallets')
+            ->has('vatRates')
+            ->has('withheldRates')
+        );
+});
+
 test('a non-finance user cannot create a category', function () {
     $this->actingAs(User::factory()->create())->post('/categories', [
         'name' => 'X',
