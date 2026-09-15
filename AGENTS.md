@@ -125,7 +125,8 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
   and `disableEdit` (drop the in-list pencil when editing happens on that page) — used by
   Categories.
 - **Simple lookup CRUD** (Entities, Categories, VAT/Withheld rates): a controller
-  with `index/store/update/destroy`, gated `can:access-finance`, sets a created-by
+  with `index/store/update/destroy`, available to any active user (`auth`+`verified`;
+  no per-area gate — see Access control), sets a created-by
   `user_id` on store, uses `$request->validate(...)`, flashes a toast via
   `Inertia::flash('toast', ['type' => 'success', 'message' => __('...')])`, and
   soft-deletes on `destroy`. The frontend uses the reusable
@@ -151,8 +152,8 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
   `timestamps()`, a nullable `user_id` audit FK on shared tables. Models use the
   Laravel-13 `#[Fillable([...])]` attribute + a `casts()` method. Existing UUIDs are
   remapped to new IDs at the cutover conversion (plan §5/§7).
-- **Factory states:** `User::factory()` has `admin()`, `withFinanceAccess()`,
-  `inactive()`.
+- **Factory states:** `User::factory()` has `admin()`, `inactive()`, `unverified()`,
+  `withTwoFactor()`.
 
 ## Local verify — ALL must pass before every push (this is what CI runs)
 
