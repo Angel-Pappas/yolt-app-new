@@ -3,8 +3,18 @@ import {
     MonthlyLedgerTable,
     type MonthlyLedgerRow,
 } from './monthly-ledger-table';
+import {
+    TaxTransactionsTable,
+    type TaxTransaction,
+} from './tax-transactions-table';
 
-export default function TaxesFmy({ rows }: { rows: MonthlyLedgerRow[] }) {
+export default function TaxesFmy({
+    rows,
+    transactions,
+}: {
+    rows: MonthlyLedgerRow[];
+    transactions: TaxTransaction[];
+}) {
     return (
         <>
             <Head title="FMY (payroll tax)" />
@@ -21,6 +31,11 @@ export default function TaxesFmy({ rows }: { rows: MonthlyLedgerRow[] }) {
                     amountLabel="FMY this month"
                     emptyMessage="No FMY activity yet."
                 />
+
+                <h2 className="text-lg font-semibold">
+                    Contributing transactions
+                </h2>
+                <TaxTransactionsTable transactions={transactions} />
             </div>
         </>
     );

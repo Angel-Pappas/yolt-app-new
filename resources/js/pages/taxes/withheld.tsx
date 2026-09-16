@@ -3,8 +3,18 @@ import {
     MonthlyLedgerTable,
     type MonthlyLedgerRow,
 } from './monthly-ledger-table';
+import {
+    TaxTransactionsTable,
+    type TaxTransaction,
+} from './tax-transactions-table';
 
-export default function TaxesWithheld({ rows }: { rows: MonthlyLedgerRow[] }) {
+export default function TaxesWithheld({
+    rows,
+    transactions,
+}: {
+    rows: MonthlyLedgerRow[];
+    transactions: TaxTransaction[];
+}) {
     return (
         <>
             <Head title="Withholding tax" />
@@ -21,6 +31,11 @@ export default function TaxesWithheld({ rows }: { rows: MonthlyLedgerRow[] }) {
                     amountLabel="Withheld this month"
                     emptyMessage="No withholding activity yet."
                 />
+
+                <h2 className="text-lg font-semibold">
+                    Contributing transactions
+                </h2>
+                <TaxTransactionsTable transactions={transactions} />
             </div>
         </>
     );

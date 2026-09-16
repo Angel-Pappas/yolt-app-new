@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Transaction;
 use App\Support\EfkaLedger;
 use App\Support\FmyLedger;
 use App\Support\IncomeTaxLedger;
 use App\Support\TaxObligation;
 use App\Support\VatLedger;
 use App\Support\WithheldLedger;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -25,26 +28,42 @@ class TaxController extends Controller
         $currentMonth = Carbon::now()->format('Y-m');
         $currentYear = Carbon::now()->format('Y');
 
+        // Compute each tax's obligations once, reused for the payment schedule (the
+        // full flat list) and each card's "payable this month" figure.
+        $vat = VatLedger::obligations();
+        $withheld = WithheldLedger::obligations();
+        $fmy = FmyLedger::obligations();
+        $efka = EfkaLedger::obligations();
+        $income = IncomeTaxLedger::obligations();
+
+        $obligations = collect(array_merge($vat, $withheld, $fmy, $efka, $income))
+            ->map(fn (TaxObligation $o): array => $o->toArray())
+            ->sortBy('due_date')
+            ->values()
+            ->all();
+
         return Inertia::render('taxes/index', [
+            'obligations' => $obligations,
+            'current_month' => $currentMonth,
             'vat' => [
-                'payable_this_month' => self::sumDue(VatLedger::obligations(), $currentMonth),
+                'payable_this_month' => self::sumDue($vat, $currentMonth),
                 'net' => self::monthAmount(VatLedger::monthly(), $currentMonth, 'net'),
             ],
             'withheld' => [
-                'payable_this_month' => self::sumDue(WithheldLedger::obligations(), $currentMonth),
+                'payable_this_month' => self::sumDue($withheld, $currentMonth),
                 'this_month' => self::monthAmount(WithheldLedger::monthly(), $currentMonth),
             ],
             'fmy' => [
-                'payable_this_month' => self::sumDue(FmyLedger::obligations(), $currentMonth),
+                'payable_this_month' => self::sumDue($fmy, $currentMonth),
                 'this_month' => self::monthAmount(FmyLedger::monthly(), $currentMonth),
             ],
             'efka' => [
-                'payable_this_month' => self::sumDue(EfkaLedger::obligations(), $currentMonth),
+                'payable_this_month' => self::sumDue($efka, $currentMonth),
                 'this_month' => self::monthAmount(EfkaLedger::monthly(), $currentMonth),
             ],
             'income' => [
-                'payable_this_month' => self::sumDue(IncomeTaxLedger::obligations(), $currentMonth),
-                'this_year' => self::sumDue(IncomeTaxLedger::obligations(), $currentYear),
+                'payable_this_month' => self::sumDue($income, $currentMonth),
+                'this_year' => self::sumDue($income, $currentYear),
             ],
         ]);
     }
@@ -53,6 +72,9 @@ class TaxController extends Controller
     {
         return Inertia::render('taxes/vat', [
             'rows' => VatLedger::monthly(),
+            'transactions' => self::contributing(fn (Builder $q) => $q
+                ->whereIn('type', ['income', 'expense'])
+                ->where('vat_amount', '>', 0)),
         ]);
     }
 
@@ -60,6 +82,9 @@ class TaxController extends Controller
     {
         return Inertia::render('taxes/withheld', [
             'rows' => WithheldLedger::monthly(),
+            'transactions' => self::contributing(fn (Builder $q) => $q
+                ->where('type', 'expense')
+                ->where('withheld_amount', '>', 0)),
         ]);
     }
 
@@ -67,6 +92,8 @@ class TaxController extends Controller
     {
         return Inertia::render('taxes/fmy', [
             'rows' => FmyLedger::monthly(),
+            'transactions' => self::contributing(fn (Builder $q) => $q
+                ->where('fmy_amount', '>', 0)),
         ]);
     }
 
@@ -74,7 +101,30 @@ class TaxController extends Controller
     {
         return Inertia::render('taxes/efka', [
             'rows' => EfkaLedger::monthly(),
+            'transactions' => self::contributing(fn (Builder $q) => $q
+                ->where(fn (Builder $inner) => $inner
+                    ->where('efka_employee_amount', '>', 0)
+                    ->orWhere('efka_employer_amount', '>', 0))),
         ]);
+    }
+
+    /**
+     * The transactions contributing to a tax, scoped by the given query callback,
+     * with the wallet + entity loaded for the read-only table.
+     *
+     * @param  \Closure(Builder<Transaction>): mixed  $scope
+     * @return Collection<int, Transaction>
+     */
+    private static function contributing(\Closure $scope): Collection
+    {
+        $query = Transaction::query()
+            ->with(['wallet:id,name', 'entity:id,name'])
+            ->orderBy('date')
+            ->orderBy('id');
+
+        $scope($query);
+
+        return $query->get();
     }
 
     /**

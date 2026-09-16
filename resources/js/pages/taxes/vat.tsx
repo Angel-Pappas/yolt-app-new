@@ -3,6 +3,10 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { ColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import { formatAmount, formatDate, formatMonthYear } from '@/lib/format';
+import {
+    TaxTransactionsTable,
+    type TaxTransaction,
+} from './tax-transactions-table';
 
 type Row = {
     month: string;
@@ -14,7 +18,7 @@ type Row = {
     due_date: string;
 };
 
-type Props = { rows: Row[] };
+type Props = { rows: Row[]; transactions: TaxTransaction[] };
 
 /** First and last day of a "yyyy-mm" period. */
 function monthBounds(key: string): { first: string; last: string } {
@@ -46,7 +50,7 @@ function amountColumn(
     };
 }
 
-export default function TaxesVat({ rows }: Props) {
+export default function TaxesVat({ rows, transactions }: Props) {
     const columns: ColumnDef<Row>[] = [
         {
             id: 'month',
@@ -106,6 +110,11 @@ export default function TaxesVat({ rows }: Props) {
                     emptyMessage="No VAT activity yet."
                     pageSize={1000}
                 />
+
+                <h2 className="text-lg font-semibold">
+                    Contributing transactions
+                </h2>
+                <TaxTransactionsTable transactions={transactions} />
             </div>
         </>
     );

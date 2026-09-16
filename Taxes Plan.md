@@ -154,15 +154,20 @@ efka_employee_amount`** (all default 0). Non-payroll rows unchanged; payroll row
       obligations, zero) + `IncomeTaxYearTest` (view/create+normalise/unique/order/delete).
       195 tests green; full verify clean.
 
-### Slice 5 — The two views
+### Slice 5 — The two views ✅ DONE (2026-09-16)
 
-- [ ] `/taxes` per-month payment schedule (default current month, prev/next nav): gather
-      all obligations whose `due_date` falls in the viewed month across every tax; show
-      tax · period · amount · due date + a total.
-- [ ] `/taxes/{tax}` per-tax pages: bucket ledger + due dates + contributing-transactions
-      `DataTable` (mirror `categories/show.tsx`). Income tax page = yearly records + schedule.
-- [ ] Tests: per-month aggregation picks the right obligations; per-tax transaction query.
-- [ ] Verify; commit; push; CI green. Update Summary.md + progress log.
+- [x] `/taxes` opens on a **per-month payment schedule**: `TaxController@index` merges
+      every ledger's obligations into one flat, due-date-sorted list; the page has a
+      month navigator (prev/next, default current month, client-side) over a `DataTable`
+      of that month's obligations (Tax → page · For · Amount · Due date) + a "Total due"
+      figure, above the per-tax cards.
+- [x] Each `/taxes/{tax}` page (VAT/withholding/FMY/EFKA) shows its ledger **plus** a
+      read-only shared `TaxTransactionsTable` of its contributing transactions
+      (`TaxController::contributing(...)` scopes: VAT = income/expense w/ vat>0; withheld
+      = expense w/ withheld>0; FMY = fmy>0; EFKA = ee>0 or er>0). Income tax page keeps
+      its years + schedule.
+- [x] Tests: `TaxViewsTest` (index exposes obligations; each page lists only its
+      contributing transactions). 199 tests green; full verify clean.
 
 ### Later (not now)
 
@@ -205,4 +210,9 @@ php artisan test
 - 2026-09-16 — **Slice 4 done.** Income tax as the first stored tax: `income_tax_years`
   table + `IncomeTaxYearController` CRUD at `/taxes/income`, `IncomeTaxLedger` generating
   installments due on each month's own last working day, page (years + schedule) + index
-  card. 195 tests green; full verify clean. Next: Slice 5 (the two views).
+  card. 195 tests green; full verify clean.
+- 2026-09-16 — **Slice 5 done — taxes rebuild COMPLETE.** `/taxes` per-month payment
+  schedule (month nav + obligations due that month + total) above the per-tax cards;
+  each per-tax page gained a read-only "Contributing transactions" table (shared
+  `TaxTransactionsTable`). 199 tests green; full verify clean. Remaining (future): the
+  auto-generation of future tax-payment transactions from obligations (see "Later").

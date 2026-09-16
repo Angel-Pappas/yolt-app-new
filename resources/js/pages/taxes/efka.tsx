@@ -3,8 +3,18 @@ import {
     MonthlyLedgerTable,
     type MonthlyLedgerRow,
 } from './monthly-ledger-table';
+import {
+    TaxTransactionsTable,
+    type TaxTransaction,
+} from './tax-transactions-table';
 
-export default function TaxesEfka({ rows }: { rows: MonthlyLedgerRow[] }) {
+export default function TaxesEfka({
+    rows,
+    transactions,
+}: {
+    rows: MonthlyLedgerRow[];
+    transactions: TaxTransaction[];
+}) {
     return (
         <>
             <Head title="EFKA (social security)" />
@@ -23,6 +33,11 @@ export default function TaxesEfka({ rows }: { rows: MonthlyLedgerRow[] }) {
                     amountLabel="EFKA this month"
                     emptyMessage="No EFKA activity yet."
                 />
+
+                <h2 className="text-lg font-semibold">
+                    Contributing transactions
+                </h2>
+                <TaxTransactionsTable transactions={transactions} />
             </div>
         </>
     );
