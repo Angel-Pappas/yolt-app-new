@@ -2,7 +2,7 @@ import { Head, Link } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { ColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
-import { formatAmount, formatMonthYear } from '@/lib/format';
+import { formatAmount, formatDate, formatMonthYear } from '@/lib/format';
 
 type Row = {
     month: string;
@@ -10,8 +10,8 @@ type Row = {
     expense_vat: number | string;
     net: number | string;
     rollover_in: number | string;
-    payable_this_month: number | string;
-    payable_next_month: number | string;
+    payable: number | string;
+    due_date: string;
 };
 
 type Props = { rows: Row[] };
@@ -73,8 +73,20 @@ export default function TaxesVat({ rows }: Props) {
         amountColumn('expense_vat', 'Expenses VAT'),
         amountColumn('net', 'Net VAT'),
         amountColumn('rollover_in', 'Roll over', true),
-        amountColumn('payable_this_month', 'Payable this month'),
-        amountColumn('payable_next_month', 'Payable next month', true),
+        amountColumn('payable', 'Payable'),
+        {
+            id: 'due_date',
+            accessorFn: (row) => row.due_date,
+            meta: { align: 'right', filter: { type: 'date' } },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Due date" align="right" />
+            ),
+            cell: ({ row }) => (
+                <span className="whitespace-nowrap tabular-nums">
+                    {formatDate(row.original.due_date)}
+                </span>
+            ),
+        },
     ];
 
     return (
@@ -84,8 +96,8 @@ export default function TaxesVat({ rows }: Props) {
                 <h1 className="text-2xl font-semibold">VAT</h1>
                 <p className="text-muted-foreground text-sm">
                     Output VAT (income) less input VAT (expenses) per month, by
-                    invoice date. A credit rolls forward; a debit over €100 is
-                    split into two equal installments.
+                    invoice date. A credit rolls forward; a debit is paid in
+                    full on the last working day of the following month.
                 </p>
 
                 <DataTable

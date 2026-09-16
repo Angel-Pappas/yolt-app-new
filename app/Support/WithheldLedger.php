@@ -9,20 +9,18 @@ use Illuminate\Support\Carbon;
  * The monthly withholding-tax remittance ledger — derived live, never stored.
  *
  * Much simpler than VAT (no credit rollover, no installments): withholding kept
- * back on expense transactions in a month is remitted to the state by the end of
- * the **next** month. Unlike VAT, it is attributed to the transaction's **payment
- * date** (`date`), not `invoice_date` — it's due when the contractor is actually
- * paid. Income-side withholding, if ever recorded, is the client's liability and
- * is not summed here.
+ * back on expense transactions in a month is remitted to the state on the **last
+ * working day of the following month**. Like every tax it is attributed by
+ * **`invoice_date`**, not payment date. Income-side withholding, if ever recorded,
+ * is the client's liability and is not summed here.
  *
- * Every calendar month between the earliest withholding and the later of (latest
- * transaction, today) is emitted so last month's collection always has a row to be
- * payable in.
+ * Only months that actually have withholding are emitted (each is an independent
+ * bucket — nothing carries between them).
  */
 class WithheldLedger
 {
     /**
-     * @return list<array{month: string, withheld: float, payable_this_month: float}>
+     * @return list<array{month: string, withheld: float, due_date: string}>
      */
     public static function monthly(): array
     {
@@ -32,9 +30,9 @@ class WithheldLedger
         Transaction::query()
             ->where('type', 'expense')
             ->where('withheld_amount', '>', 0)
-            ->get(['date', 'withheld_amount'])
+            ->get(['invoice_date', 'withheld_amount'])
             ->each(function (Transaction $t) use (&$byMonth): void {
-                $key = substr((string) $t->date, 0, 7);
+                $key = substr((string) $t->invoice_date, 0, 7);
                 $byMonth[$key] = ($byMonth[$key] ?? 0.0) + (float) $t->withheld_amount;
             });
 
@@ -44,31 +42,34 @@ class WithheldLedger
 
         $keys = array_keys($byMonth);
         sort($keys);
-        // Append "-01": Carbon::createFromFormat('Y-m', …) would otherwise inherit
-        // today's day-of-month and overflow a short month (Feb on the 31st → Mar).
-        $start = Carbon::createFromFormat('Y-m-d', $keys[0].'-01')->startOfMonth();
-        $end = Carbon::createFromFormat('Y-m-d', end($keys).'-01')->startOfMonth();
-        $now = Carbon::now()->startOfMonth();
-        if ($now->greaterThan($end)) {
-            $end = $now;
-        }
 
+        $holidays = WorkingDays::holidaySet();
         $rows = [];
-        $previous = 0.0;
 
-        for ($m = $start->copy(); $m->lessThanOrEqualTo($end); $m->addMonth()) {
-            $key = $m->format('Y-m');
-            $withheld = round($byMonth[$key] ?? 0.0, 2);
-
+        foreach ($keys as $key) {
+            $due = Carbon::createFromFormat('Y-m-d', $key.'-01')->addMonth();
             $rows[] = [
                 'month' => $key,
-                'withheld' => $withheld,
-                'payable_this_month' => $previous,
+                'withheld' => round($byMonth[$key], 2),
+                'due_date' => WorkingDays::lastWorkingDay($due->year, $due->month, $holidays)->format('Y-m-d'),
             ];
-
-            $previous = $withheld;
         }
 
         return $rows;
+    }
+
+    /**
+     * @return list<TaxObligation>
+     */
+    public static function obligations(): array
+    {
+        $out = [];
+        foreach (self::monthly() as $row) {
+            if ($row['withheld'] > 0) {
+                $out[] = new TaxObligation('withheld', $row['month'], $row['withheld'], $row['due_date']);
+            }
+        }
+
+        return $out;
     }
 }

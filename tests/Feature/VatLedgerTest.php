@@ -1,103 +1,89 @@
 <?php
 
+use App\Models\PublicHoliday;
 use App\Models\Transaction;
-use App\Models\Wallet;
 use App\Support\VatLedger;
+use Illuminate\Support\Carbon;
 
-function vatRow(string $month): ?array
-{
-    return collect(VatLedger::monthly())->firstWhere('month', $month);
-}
-
-test('an empty ledger has no rows', function () {
-    expect(VatLedger::monthly())->toBe([]);
+beforeEach(function () {
+    Carbon::setTestNow('2026-09-16');
 });
 
-test('a small debit (<= €100) is payable in full the same month', function () {
-    $wallet = Wallet::factory()->create();
+test('a single income month is payable in full on the last working day of the next month', function () {
     Transaction::factory()->create([
-        'type' => 'income', 'wallet_id' => $wallet->id,
-        'vat_amount' => 100, 'invoice_date' => '2026-01-15',
-    ]);
-    Transaction::factory()->create([
-        'type' => 'expense', 'wallet_id' => $wallet->id,
-        'vat_amount' => 40, 'invoice_date' => '2026-01-20',
+        'type' => 'income', 'vat_amount' => 100, 'invoice_date' => '2026-01-15',
     ]);
 
-    $jan = vatRow('2026-01');
-    expect($jan['income_vat'])->toBe(100.0);
-    expect($jan['expense_vat'])->toBe(40.0);
-    expect($jan['net'])->toBe(60.0);
-    expect($jan['payable_this_month'])->toBe(60.0);
-    expect($jan['payable_next_month'])->toBe(0.0);
-});
+    $row = collect(VatLedger::monthly())->firstWhere('month', '2026-01');
 
-test('a debit over €100 splits into two equal installments', function () {
-    $wallet = Wallet::factory()->create();
-    Transaction::factory()->create([
-        'type' => 'income', 'wallet_id' => $wallet->id,
-        'vat_amount' => 300, 'invoice_date' => '2026-02-10',
-    ]);
-
-    $feb = vatRow('2026-02');
-    expect($feb['net'])->toBe(300.0);
-    expect($feb['payable_this_month'])->toBe(150.0);
-    expect($feb['payable_next_month'])->toBe(150.0);
-
-    // The deferred half lands on the following month's payable.
-    $mar = vatRow('2026-03');
-    expect($mar['payable_this_month'])->toBe(150.0);
-    expect($mar['payable_next_month'])->toBe(0.0);
+    expect($row['income_vat'])->toBe(100.0);
+    expect($row['net'])->toBe(100.0);
+    expect($row['payable'])->toBe(100.0);
+    // Feb 2026 ends on Sat 28 -> last working day is Fri 27.
+    expect($row['due_date'])->toBe('2026-02-27');
 });
 
 test('a credit rolls forward to offset a later debit', function () {
-    $wallet = Wallet::factory()->create();
-    // January is a credit month: only input VAT.
     Transaction::factory()->create([
-        'type' => 'expense', 'wallet_id' => $wallet->id,
-        'vat_amount' => 100, 'invoice_date' => '2026-01-15',
+        'type' => 'expense', 'vat_amount' => 100, 'invoice_date' => '2026-01-15',
     ]);
-    // February output VAT exactly cancels the carried credit.
     Transaction::factory()->create([
-        'type' => 'income', 'wallet_id' => $wallet->id,
-        'vat_amount' => 100, 'invoice_date' => '2026-02-15',
+        'type' => 'income', 'vat_amount' => 100, 'invoice_date' => '2026-02-15',
     ]);
 
-    $jan = vatRow('2026-01');
+    $rows = collect(VatLedger::monthly());
+    $jan = $rows->firstWhere('month', '2026-01');
+    $feb = $rows->firstWhere('month', '2026-02');
+
     expect($jan['net'])->toBe(-100.0);
-    expect($jan['payable_this_month'])->toBe(0.0);
-
-    $feb = vatRow('2026-02');
+    expect($jan['payable'])->toBe(0.0);
     expect($feb['rollover_in'])->toBe(100.0);
     expect($feb['net'])->toBe(100.0);
-    expect($feb['payable_this_month'])->toBe(0.0);
+    expect($feb['payable'])->toBe(0.0);
 });
 
-test('gap months are emitted so state passes through them', function () {
-    $wallet = Wallet::factory()->create();
+test('a debit is paid in full with no installment split', function () {
     Transaction::factory()->create([
-        'type' => 'expense', 'wallet_id' => $wallet->id,
-        'vat_amount' => 50, 'invoice_date' => '2026-01-10',
-    ]);
-    Transaction::factory()->create([
-        'type' => 'income', 'wallet_id' => $wallet->id,
-        'vat_amount' => 50, 'invoice_date' => '2026-04-10',
+        'type' => 'income', 'vat_amount' => 500, 'invoice_date' => '2026-03-15',
     ]);
 
-    // February and March have no activity but still appear, carrying the credit.
-    expect(vatRow('2026-02'))->not->toBeNull();
-    expect(vatRow('2026-03'))->not->toBeNull();
-    expect(vatRow('2026-02')['rollover_in'])->toBe(50.0);
-    expect(vatRow('2026-04')['payable_this_month'])->toBe(0.0);
+    $row = collect(VatLedger::monthly())->firstWhere('month', '2026-03');
+
+    expect($row['payable'])->toBe(500.0);
+    expect($row)->not->toHaveKey('payable_next_month');
+    expect($row['due_date'])->toStartWith('2026-04');
 });
 
-test('transfers carry no VAT and do not appear', function () {
-    $a = Wallet::factory()->create();
-    $b = Wallet::factory()->create();
+test('obligations lists one payment per positive-payable month', function () {
     Transaction::factory()->create([
-        'type' => 'transfer', 'wallet_id' => $a->id, 'to_wallet_id' => $b->id,
-        'net' => 500, 'vat_amount' => 0, 'invoice_date' => '2026-01-10',
+        'type' => 'income', 'vat_amount' => 200, 'invoice_date' => '2026-05-15',
     ]);
 
-    expect(VatLedger::monthly())->toBe([]);
+    $obligations = VatLedger::obligations();
+
+    expect($obligations)->toHaveCount(1);
+    expect($obligations[0]->tax)->toBe('vat');
+    expect($obligations[0]->period)->toBe('2026-05');
+    expect($obligations[0]->amount)->toBe(200.0);
+    expect($obligations[0]->dueDate)->toStartWith('2026-06');
+});
+
+test('a credit-only history produces no obligations', function () {
+    Transaction::factory()->create([
+        'type' => 'expense', 'vat_amount' => 100, 'invoice_date' => '2026-01-15',
+    ]);
+
+    expect(VatLedger::obligations())->toBeEmpty();
+});
+
+test('a public holiday shifts the VAT due date back', function () {
+    PublicHoliday::factory()->create(['date' => '2026-02-27']);
+    Transaction::factory()->create([
+        'type' => 'income', 'vat_amount' => 100, 'invoice_date' => '2026-01-15',
+    ]);
+
+    $row = collect(VatLedger::monthly())->firstWhere('month', '2026-01');
+
+    // The 27th (Fri) is now a holiday -> Thu 26.
+    expect($row['due_date'])->toBe('2026-02-26');
 });

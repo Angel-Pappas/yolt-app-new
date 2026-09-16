@@ -1,52 +1,58 @@
 <?php
 
 use App\Models\Transaction;
-use App\Models\Wallet;
 use App\Support\WithheldLedger;
+use Illuminate\Support\Carbon;
 
-function withheldRow(string $month): ?array
-{
-    return collect(WithheldLedger::monthly())->firstWhere('month', $month);
-}
-
-test('an empty withholding ledger has no rows', function () {
-    expect(WithheldLedger::monthly())->toBe([]);
+beforeEach(function () {
+    Carbon::setTestNow('2026-09-16');
 });
 
-test('withholding collected in a month is payable the next month', function () {
-    $wallet = Wallet::factory()->create();
+test('withholding is attributed by invoice date, not payment date', function () {
     Transaction::factory()->create([
-        'type' => 'expense', 'wallet_id' => $wallet->id,
-        'withheld_amount' => 200, 'date' => '2026-01-15',
+        'type' => 'expense', 'withheld_amount' => 50,
+        'date' => '2026-03-31', 'invoice_date' => '2026-04-10',
     ]);
 
-    $jan = withheldRow('2026-01');
-    expect($jan['withheld'])->toBe(200.0);
-    expect($jan['payable_this_month'])->toBe(0.0);
+    $rows = collect(WithheldLedger::monthly());
 
-    $feb = withheldRow('2026-02');
-    expect($feb['withheld'])->toBe(0.0);
-    expect($feb['payable_this_month'])->toBe(200.0);
+    // Keyed off the invoice month (April), not the payment month (March).
+    expect($rows->firstWhere('month', '2026-03'))->toBeNull();
+    $apr = $rows->firstWhere('month', '2026-04');
+    expect($apr['withheld'])->toBe(50.0);
+    expect($apr['due_date'])->toStartWith('2026-05');
 });
 
-test('withholding is keyed by payment date, not invoice date', function () {
-    $wallet = Wallet::factory()->create();
+test('withholding obligations are due the following month', function () {
     Transaction::factory()->create([
-        'type' => 'expense', 'wallet_id' => $wallet->id,
-        'withheld_amount' => 50,
-        'date' => '2026-03-01', 'invoice_date' => '2026-01-01',
+        'type' => 'expense', 'withheld_amount' => 50, 'invoice_date' => '2026-04-10',
     ]);
 
-    expect(withheldRow('2026-03')['withheld'])->toBe(50.0);
-    expect(withheldRow('2026-01'))->toBeNull();
+    $obligations = WithheldLedger::obligations();
+
+    expect($obligations)->toHaveCount(1);
+    expect($obligations[0]->tax)->toBe('withheld');
+    expect($obligations[0]->period)->toBe('2026-04');
+    expect($obligations[0]->amount)->toBe(50.0);
 });
 
-test('income withholding is not summed', function () {
-    $wallet = Wallet::factory()->create();
+test('several withholding transactions in a month sum into one bucket', function () {
     Transaction::factory()->create([
-        'type' => 'income', 'wallet_id' => $wallet->id,
-        'withheld_amount' => 90, 'date' => '2026-01-10',
+        'type' => 'expense', 'withheld_amount' => 30, 'invoice_date' => '2026-04-05',
+    ]);
+    Transaction::factory()->create([
+        'type' => 'expense', 'withheld_amount' => 20, 'invoice_date' => '2026-04-25',
     ]);
 
-    expect(WithheldLedger::monthly())->toBe([]);
+    $apr = collect(WithheldLedger::monthly())->firstWhere('month', '2026-04');
+
+    expect($apr['withheld'])->toBe(50.0);
+});
+
+test('income-side withholding is not counted', function () {
+    Transaction::factory()->create([
+        'type' => 'income', 'withheld_amount' => 30, 'invoice_date' => '2026-06-15',
+    ]);
+
+    expect(WithheldLedger::monthly())->toBeEmpty();
 });

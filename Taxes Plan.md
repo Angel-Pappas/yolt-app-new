@@ -102,21 +102,22 @@ efka_employee_amount`** (all default 0). Non-payroll rows unchanged; payroll row
       `PublicHolidayTest` (view/create/validate/unique/soft-delete/guest).
 - [x] Verify all (178 tests green, phpstan/pint/tsc/build clean); Summary.md updated.
 
-### Slice 2 — Bucket → obligation abstraction + refactor VAT/Withheld
+### Slice 2 — Bucket → obligation abstraction + refactor VAT/Withheld ✅ DONE (2026-09-16)
 
-- [ ] Define the shared shape: a `TaxObligation` value (`tax`, `period` month, `amount`,
-      `due_date`) and a way each ledger emits obligations + due dates (via
-      `WorkingDays::lastWorkingDay`).
-- [ ] Refactor `VatLedger`: **drop the `>100`/installment split** (always 1 payment of
-      the full positive amount), **keep credit rollover**, add `due_date` per row/obligation.
-- [ ] Refactor `WithheldLedger`: switch `date` → **`invoice_date`**; add `due_date`;
-      update the class doc that says "payment date".
-- [ ] Keep the existing `taxes/vat` + `taxes/withheld` pages rendering (adjust columns:
-      VAT loses the installment column, gains due date; withheld gains due date).
-- [ ] Tests: VAT rollover across a credit month; VAT single-payment (no split) incl. a
-      former >100 case; withheld now keyed off invoice_date; due dates correct incl. a
-      holiday-affected month.
-- [ ] Verify; commit; push; CI green. Update Summary.md + progress log.
+- [x] `App\Support\TaxObligation` value object (`tax`, `period`, `amount`, `dueDate`,
+      `toArray()`). Each ledger exposes `monthly()` (table rows) + `obligations()`.
+- [x] `VatLedger` refactored: **installment split dropped** (1 payment of the full
+      positive amount), **credit rollover kept**, each row gains `payable` + `due_date`
+      (= `WorkingDays::lastWorkingDay` of the following month).
+- [x] `WithheldLedger` refactored: keyed off **`invoice_date`**, each row gains
+      `due_date`; only active months emitted (nothing carries between them); doc fixed.
+- [x] `TaxController@index` now computes each card's "payable this month" from the
+      obligations **due in** the current month (correct under the M+1 model).
+- [x] Pages updated: `taxes/vat` (Payable + Due date columns, no installment column),
+      `taxes/withheld` (Due date column, invoice-date month link).
+- [x] Tests: `VatLedgerTest` (single month, credit rollover, no-split, obligations,
+      credit-only → none, holiday shift), `WithheldLedgerTest` (invoice-date attribution,
+      obligations, summing, income ignored). 178 tests green; full verify clean.
 
 ### Slice 3 — FMY + EFKA (payroll)
 
@@ -124,7 +125,7 @@ efka_employee_amount`** (all default 0). Non-payroll rows unchanged; payroll row
       (nullable `decimal(12,2)`) to `transactions`. Model fillable/casts.
 - [ ] Extend cash formula everywhere it's derived (`WalletBalances`, the transactions
       list "Total", any `computeTotal` equivalent): `+ net + vat − withheld − fmy −
-  efka_employee`. Confirm non-payroll rows are unchanged (new fields default 0/null→0).
+efka_employee`. Confirm non-payroll rows are unchanged (new fields default 0/null→0).
 - [ ] Transaction form morph: when selected category name === "Payroll", swap the
       amounts area for the 4 inputs and render the payroll summary row (Net · FMY− ·
       EFKA ee− · To Pay · EFKA er · Total Cost). Hide VAT/withheld/Net-Total toggle.
@@ -187,5 +188,9 @@ php artisan test
   (buckets/obligations, invoice-date universal, last-working-day M+1, payroll form &
   cash formula, income tax manual form, public-holidays config).
 - 2026-09-16 — **Slice 1 done.** Public holidays config list (`/configuration/public-holidays`)
-  + `App\Support\WorkingDays` (`lastWorkingDay`/`holidaySet`). Added a `date` field type
-  to the shared `CrudResource`. 178 tests green; full verify clean. Next: Slice 2.
+    - `App\Support\WorkingDays` (`lastWorkingDay`/`holidaySet`). Added a `date` field type
+      to the shared `CrudResource`. Full verify clean.
+- 2026-09-16 — **Slice 2 done.** `App\Support\TaxObligation`; VAT/Withheld ledgers
+  refactored onto buckets+obligations with real due dates (last working day of M+1); VAT
+  installment split removed (rollover kept); withheld switched to `invoice_date`. Pages +
+  index cards updated. Ledger tests added; full verify clean. Next: Slice 3 (FMY/EFKA).
