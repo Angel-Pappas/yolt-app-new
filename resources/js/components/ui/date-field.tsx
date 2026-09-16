@@ -63,7 +63,10 @@ export function DateField({
     showCalendar = true,
 }: Props) {
     const [parts, setParts] = useState<Parts>(() => split(value));
-    const [lastValue, setLastValue] = useState(value);
+    // The ISO value currently reflected in `parts`. Tracks our own emissions so a
+    // value coming back from the parent that we just emitted doesn't re-sync (and
+    // clobber) the segment mid-typing — see `emit`.
+    const synced = useRef(value);
     const [open, setOpen] = useState(false);
     const refs = {
         d: useRef<HTMLInputElement>(null),
@@ -71,11 +74,20 @@ export function DateField({
         y: useRef<HTMLInputElement>(null),
     };
 
-    // Re-sync when the ISO value changes from outside (e.g. the invoice date
-    // following the transaction date, or a filter being cleared).
-    if (value !== lastValue) {
-        setLastValue(value);
+    // Re-sync only when the ISO value changes from OUTSIDE (e.g. the invoice date
+    // following the transaction date, or a filter being cleared) — not when it's
+    // the value we just emitted ourselves, which would overwrite an in-progress
+    // edit (typing "15" into an already-filled day would collapse back to "01").
+    if (value !== synced.current) {
+        synced.current = value;
         setParts(split(value));
+    }
+
+    /** Emit an ISO value and remember it, so the resulting re-render doesn't
+     *  re-sync `parts` from it and interrupt what the user is typing. */
+    function emit(iso: string) {
+        synced.current = iso;
+        onChange(iso);
     }
 
     function focusSeg(seg: Seg) {
@@ -90,12 +102,12 @@ export function DateField({
     function apply(next: Parts) {
         setParts(next);
         if (!next.d && !next.m && !next.y) {
-            if (value) onChange('');
+            if (value) emit('');
             return;
         }
         if (next.d && next.m && next.y.length === 4) {
             const iso = displayToIso(`${next.d}/${next.m}/${next.y}`);
-            if (iso) onChange(iso);
+            if (iso) emit(iso);
         }
     }
 
@@ -163,7 +175,7 @@ export function DateField({
     function handleBlur(e: React.FocusEvent<HTMLDivElement>) {
         if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
         if (!parts.d && !parts.m && !parts.y) {
-            if (value) onChange('');
+            if (value) emit('');
             return;
         }
         let { y } = parts;
@@ -174,7 +186,7 @@ export function DateField({
                 : '';
         if (iso) {
             setParts(split(iso));
-            onChange(iso);
+            emit(iso);
         } else {
             setParts(split(value)); // revert an incomplete/invalid entry
         }
@@ -265,7 +277,7 @@ export function DateField({
                             onSelect={(d) => {
                                 if (d) {
                                     const iso = toIso(d);
-                                    onChange(iso);
+                                    emit(iso);
                                     setParts(split(iso));
                                 }
                                 setOpen(false);
