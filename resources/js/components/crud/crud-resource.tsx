@@ -7,6 +7,7 @@ import { ColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { DateField } from '@/components/ui/date-field';
 import {
     Dialog,
     DialogContent,
@@ -43,7 +44,7 @@ export type CrudColumn = {
 export type CrudField = {
     key: string;
     label: string;
-    type?: 'text' | 'decimal' | 'select' | 'textarea';
+    type?: 'text' | 'decimal' | 'select' | 'textarea' | 'date';
     options?: { value: string; label: string }[];
     placeholder?: string;
     required?: boolean;
@@ -276,6 +277,15 @@ export function CrudResource({
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                    ) : field.type === 'date' ? (
+                                        <DateField
+                                            id={field.key}
+                                            value={form.data[field.key]}
+                                            onChange={(iso) =>
+                                                form.setData(field.key, iso)
+                                            }
+                                            required={field.required}
+                                        />
                                     ) : field.type === 'textarea' ? (
                                         <Textarea
                                             id={field.key}

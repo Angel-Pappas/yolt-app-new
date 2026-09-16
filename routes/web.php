@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\PublicHolidayController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
@@ -61,6 +62,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('withheld-tax-rates', [WithheldTaxRateController::class, 'store'])->name('withheld-tax-rates.store');
         Route::patch('withheld-tax-rates/{withheldTaxRate}', [WithheldTaxRateController::class, 'update'])->name('withheld-tax-rates.update');
         Route::delete('withheld-tax-rates/{withheldTaxRate}', [WithheldTaxRateController::class, 'destroy'])->name('withheld-tax-rates.destroy');
+
+        Route::get('public-holidays', [PublicHolidayController::class, 'index'])->name('public-holidays.index');
+        Route::post('public-holidays', [PublicHolidayController::class, 'store'])->name('public-holidays.store');
+        Route::patch('public-holidays/{publicHoliday}', [PublicHolidayController::class, 'update'])->name('public-holidays.update');
+        Route::delete('public-holidays/{publicHoliday}', [PublicHolidayController::class, 'destroy'])->name('public-holidays.destroy');
 
         // Users — admin only.
         Route::middleware('can:admin')->group(function () {

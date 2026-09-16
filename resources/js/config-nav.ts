@@ -1,4 +1,11 @@
-import { Landmark, type LucideIcon, Percent, Tags, Users } from 'lucide-react';
+import {
+    CalendarDays,
+    Landmark,
+    type LucideIcon,
+    Percent,
+    Tags,
+    Users,
+} from 'lucide-react';
 
 /** An item in the Configuration area — a setup list you open, configure, and leave
  *  running. Shared by the sidebar (in config mode) and the Configuration tiles page. */
@@ -30,6 +37,13 @@ export const configItems: ConfigItem[] = [
         href: '/configuration/withheld-tax-rates',
         icon: Landmark,
         description: 'Withholding-tax rates kept back on contractor payments.',
+    },
+    {
+        title: 'Public holidays',
+        href: '/configuration/public-holidays',
+        icon: CalendarDays,
+        description:
+            'Holiday dates that (with weekends) shift tax payment dates back.',
     },
     {
         title: 'Users',
