@@ -55,7 +55,9 @@ export function InvoiceDialog({
                         <Label htmlFor="month">Month (1–13)</Label>
                         <Input
                             id="month"
+                            name="invoice-month"
                             inputMode="numeric"
+                            autoComplete="off"
                             value={form.data.month}
                             onChange={(e) =>
                                 form.setData(
