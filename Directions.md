@@ -62,6 +62,8 @@ behavior is documented in **`Summary.md`**; the established code patterns and th
 exact local verify workflow are in **`AGENTS.md`** — read those to get up to speed.
 Build new work in small, tested slices, each pushed to `main` (auto-deploys to
 Laravel Cloud) with CI kept green. The **old app** (`Angel-Pappas/yolt-app`, on
-Vercel + Supabase) is a **read-only fallback pending retirement** — don't work in it.
+Vercel + Supabase) has been **retired and its GitHub repo deleted (2026-09)** — it no
+longer exists, so there is nothing to fall back to or "not work in"; this Laravel app
+is the only app.
 
 We will add more to these as we move on with the app.

@@ -8,9 +8,11 @@ real data**. **The authoritative plan, decisions, and progress log live in
 — read both for the full context and roadmap.
 
 This is a fresh, idiomatic Laravel build. **Do not port** code from the old app —
-look at it only as a behavioural reference, then build clean. The old app
-(`Angel-Pappas/yolt-app`, on Vercel + Supabase) is a read-only fallback pending
-retirement — don't work in it.
+build clean. The old app (`Angel-Pappas/yolt-app`, on Vercel + Supabase) has been
+**retired and its GitHub repo deleted (2026-09)** — it is gone, not a fallback. This
+Laravel app is the only app now. (Historical references to the old app below and in
+`Summary.md`/`Stack Change Plan.md` describe how it behaved, kept only as a
+behavioural record — there is nothing left to run or fall back to.)
 
 ## Stack (verified 2026-08-28)
 
