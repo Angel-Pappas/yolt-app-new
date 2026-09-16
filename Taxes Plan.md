@@ -139,18 +139,20 @@ efka_employee_amount`** (all default 0). Non-payroll rows unchanged; payroll row
       normal row unaffected, edit-away clears), `PayrollLedgerTest` (FMY/EFKA sums +
       obligations + due dates). 185 tests green; full verify clean.
 
-### Slice 4 — Income tax (stored per-year)
+### Slice 4 — Income tax (stored per-year) ✅ DONE (2026-09-16)
 
-- [ ] Migration `income_tax_years` (`id`, `user_id`, `year` unique, `revenue_before_tax`,
-      `total_tax`, `first_installment_month` + `last_installment_month` (store as `YYYY-MM`
-      or a date on the 1st), `monthly_installment_amount`, timestamps, softDeletes).
-- [ ] Model + controller (CRUD) + routes. Page under `/taxes/income` (list of years +
-      add/edit; show generated installment schedule per year).
-- [ ] `IncomeTaxLedger`: one obligation per month in [first…last] = monthly amount, due
-      that month's last working day.
-- [ ] Tests: schedule generation (range inclusive, monthly amount, holiday-affected due
-      dates); CRUD.
-- [ ] Verify; commit; push; CI green. Update Summary.md + progress log.
+- [x] Migration `income_tax_years` (`year`, `revenue_before_tax`, `total_tax`,
+      `first`/`last_installment_month` as dates on the 1st, `monthly_installment_amount`,
+      audit `user_id`, softDeletes). Model + factory.
+- [x] `IncomeTaxYearController` (CRUD; validates unique-year-among-active,
+      last ≥ first, normalises months to the 1st) + routes under `/taxes/income`.
+      Page `taxes/income.tsx` = years `CrudResource` + the generated schedule table.
+- [x] `IncomeTaxLedger::schedule()` + `obligations()`: one installment per month in
+      [first…last] = the monthly amount, due **that month's own** last working day.
+- [x] Index card added; `TaxController` `dueInMonth`→`sumDue` (prefix match, reused for
+      "this year"). Tests: `IncomeTaxLedgerTest` (window count, own-month due date,
+      obligations, zero) + `IncomeTaxYearTest` (view/create+normalise/unique/order/delete).
+      195 tests green; full verify clean.
 
 ### Slice 5 — The two views
 
@@ -198,5 +200,9 @@ php artisan test
 - 2026-09-16 — **Slice 3 done.** Payroll FMY/EFKA: 3 nullable `transactions` columns,
   the "Payroll"-category form morph (4 manual inputs + To Pay/Total Cost summary), the
   extended cash formula (`WalletBalances::cashTotal`, employer EFKA excluded), `FmyLedger`
-  + `EfkaLedger` on a shared `MonthlyLedger`, `/taxes/fmy` + `/taxes/efka` pages + cards.
-  185 tests green; full verify clean. Next: Slice 4 (income tax).
+    - `EfkaLedger` on a shared `MonthlyLedger`, `/taxes/fmy` + `/taxes/efka` pages + cards.
+      185 tests green; full verify clean.
+- 2026-09-16 — **Slice 4 done.** Income tax as the first stored tax: `income_tax_years`
+  table + `IncomeTaxYearController` CRUD at `/taxes/income`, `IncomeTaxLedger` generating
+  installments due on each month's own last working day, page (years + schedule) + index
+  card. 195 tests green; full verify clean. Next: Slice 5 (the two views).

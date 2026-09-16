@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Support\EfkaLedger;
 use App\Support\FmyLedger;
+use App\Support\IncomeTaxLedger;
 use App\Support\TaxObligation;
 use App\Support\VatLedger;
 use App\Support\WithheldLedger;
@@ -22,23 +23,28 @@ class TaxController extends Controller
     public function index(): Response
     {
         $currentMonth = Carbon::now()->format('Y-m');
+        $currentYear = Carbon::now()->format('Y');
 
         return Inertia::render('taxes/index', [
             'vat' => [
-                'payable_this_month' => self::dueInMonth(VatLedger::obligations(), $currentMonth),
+                'payable_this_month' => self::sumDue(VatLedger::obligations(), $currentMonth),
                 'net' => self::monthAmount(VatLedger::monthly(), $currentMonth, 'net'),
             ],
             'withheld' => [
-                'payable_this_month' => self::dueInMonth(WithheldLedger::obligations(), $currentMonth),
+                'payable_this_month' => self::sumDue(WithheldLedger::obligations(), $currentMonth),
                 'this_month' => self::monthAmount(WithheldLedger::monthly(), $currentMonth),
             ],
             'fmy' => [
-                'payable_this_month' => self::dueInMonth(FmyLedger::obligations(), $currentMonth),
+                'payable_this_month' => self::sumDue(FmyLedger::obligations(), $currentMonth),
                 'this_month' => self::monthAmount(FmyLedger::monthly(), $currentMonth),
             ],
             'efka' => [
-                'payable_this_month' => self::dueInMonth(EfkaLedger::obligations(), $currentMonth),
+                'payable_this_month' => self::sumDue(EfkaLedger::obligations(), $currentMonth),
                 'this_month' => self::monthAmount(EfkaLedger::monthly(), $currentMonth),
+            ],
+            'income' => [
+                'payable_this_month' => self::sumDue(IncomeTaxLedger::obligations(), $currentMonth),
+                'this_year' => self::sumDue(IncomeTaxLedger::obligations(), $currentYear),
             ],
         ]);
     }
@@ -72,15 +78,16 @@ class TaxController extends Controller
     }
 
     /**
-     * Total amount of the given obligations whose due date falls in the "YYYY-MM" month.
+     * Total amount of the given obligations whose due date starts with the prefix —
+     * a "YYYY-MM" month or a "YYYY" year.
      *
      * @param  list<TaxObligation>  $obligations
      */
-    private static function dueInMonth(array $obligations, string $month): float
+    private static function sumDue(array $obligations, string $prefix): float
     {
         $total = 0.0;
         foreach ($obligations as $obligation) {
-            if (str_starts_with($obligation->dueDate, $month)) {
+            if (str_starts_with($obligation->dueDate, $prefix)) {
                 $total += $obligation->amount;
             }
         }

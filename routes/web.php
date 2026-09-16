@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\IncomeTaxYearController;
 use App\Http\Controllers\PublicHolidayController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TransactionController;
@@ -43,6 +44,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('taxes/withheld', [TaxController::class, 'withheld'])->name('taxes.withheld');
     Route::get('taxes/fmy', [TaxController::class, 'fmy'])->name('taxes.fmy');
     Route::get('taxes/efka', [TaxController::class, 'efka'])->name('taxes.efka');
+    Route::get('taxes/income', [IncomeTaxYearController::class, 'index'])->name('income-tax.index');
+    Route::post('taxes/income', [IncomeTaxYearController::class, 'store'])->name('income-tax.store');
+    Route::patch('taxes/income/{incomeTaxYear}', [IncomeTaxYearController::class, 'update'])->name('income-tax.update');
+    Route::delete('taxes/income/{incomeTaxYear}', [IncomeTaxYearController::class, 'destroy'])->name('income-tax.destroy');
 
     // Configuration — app setup lists, grouped under /configuration. The landing
     // page shows them as tiles; each opens its own list.

@@ -10,6 +10,7 @@ type Props = {
     withheld: { payable_this_month: Amount; this_month: Amount };
     fmy: { payable_this_month: Amount; this_month: Amount };
     efka: { payable_this_month: Amount; this_month: Amount };
+    income: { payable_this_month: Amount; this_year: Amount };
 };
 
 function Figure({ label, value }: { label: string; value: Amount }) {
@@ -50,7 +51,13 @@ function TaxCard({
     );
 }
 
-export default function TaxesIndex({ vat, withheld, fmy, efka }: Props) {
+export default function TaxesIndex({
+    vat,
+    withheld,
+    fmy,
+    efka,
+    income,
+}: Props) {
     return (
         <>
             <Head title="Taxes" />
@@ -104,6 +111,18 @@ export default function TaxesIndex({ vat, withheld, fmy, efka }: Props) {
                         secondary={{
                             label: 'EFKA this month',
                             value: efka.this_month,
+                        }}
+                    />
+                    <TaxCard
+                        href="/taxes/income"
+                        title="Income tax"
+                        primary={{
+                            label: 'Payable this month',
+                            value: income.payable_this_month,
+                        }}
+                        secondary={{
+                            label: 'Payable this year',
+                            value: income.this_year,
                         }}
                     />
                 </div>
