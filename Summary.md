@@ -2,7 +2,7 @@
 
 This file exists so a fresh session can get up to speed on this app quickly. Keep it current: update the relevant section whenever a major feature is added, removed, or changed.
 
-> **Old app retired & deleted (2026-09).** This app was rebuilt from a legacy **Next.js/Supabase app hosted on Vercel** (repo `Angel-Pappas/yolt-app`); the data cutover ran and was verified clean on 2026-09-09. That old app has now been **retired and its GitHub repo deleted** — it is gone, not a read-only fallback. The current live app is the **Laravel app** in this repo (`Angel-Pappas/yolt-app-new`, on **Laravel Cloud**, MySQL) — see `AGENTS.md` for its real stack. **Every mention of Next.js, Supabase, Vercel, RLS, Server Actions, `src/…` paths, etc. below is historical** — it documents how the old app behaved (the authoritative *feature behavior*), not the current implementation.
+> **Old app retired & deleted (2026-09).** This app was rebuilt from a legacy **Next.js/Supabase app hosted on Vercel** (repo `Angel-Pappas/yolt-app`); the data cutover ran and was verified clean on 2026-09-09. That old app has now been **retired and its GitHub repo deleted** — it is gone, not a read-only fallback. The current live app is the **Laravel app** in this repo (`Angel-Pappas/yolt-app-new`, on **Laravel Cloud**, MySQL) — see `AGENTS.md` for its real stack. **Every mention of Next.js, Supabase, Vercel, RLS, Server Actions, `src/…` paths, etc. below is historical** — it documents how the old app behaved (the authoritative _feature behavior_), not the current implementation.
 
 ## General description
 
