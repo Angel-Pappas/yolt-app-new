@@ -47,9 +47,15 @@ export type EditableTransaction = {
     to_wallet_id: number | null;
     net: string;
     vat_rate_id: number | null;
+    fmy_amount: string | null;
+    efka_employee_amount: string | null;
+    efka_employer_amount: string | null;
     vat_lines: VatLine[];
     withheld_lines: WithheldLine[];
 };
+
+/** The exact category name that turns the form into a payroll entry. */
+const PAYROLL_CATEGORY = 'Payroll';
 
 type Props = {
     open: boolean;
@@ -192,6 +198,9 @@ export function TransactionFormDialog({
                       ? String(editing.to_wallet_id)
                       : '',
                   net: editing.net,
+                  fmy: editing.fmy_amount ?? '',
+                  efka_employee: editing.efka_employee_amount ?? '',
+                  efka_employer: editing.efka_employer_amount ?? '',
                   amount_mode: 'net' as 'net' | 'total',
                   lines: editingLines(),
               }
@@ -205,6 +214,9 @@ export function TransactionFormDialog({
                   wallet_id: wallets[0] ? String(wallets[0].id) : '',
                   to_wallet_id: '',
                   net: '',
+                  fmy: '',
+                  efka_employee: '',
+                  efka_employer: '',
                   amount_mode: 'net' as 'net' | 'total',
                   lines: [emptyLine()],
               },
@@ -223,6 +235,22 @@ export function TransactionFormDialog({
     const availableCategories = categories.filter(
         (c) => c.type === form.data.type,
     );
+
+    const selectedCategory = categories.find(
+        (c) => String(c.id) === form.data.category_id,
+    );
+    const isPayroll =
+        !isTransfer && selectedCategory?.name === PAYROLL_CATEGORY;
+
+    // Payroll figures (all manual): To Pay = Net − FMY − EFKA ee is the cash the
+    // employee actually receives (and what the wallet moves by); Total Cost =
+    // Net + EFKA er is informational — employer EFKA is a liability paid later.
+    const payNet = parseAmount(form.data.net);
+    const payFmy = parseAmount(form.data.fmy);
+    const payEfkaEe = parseAmount(form.data.efka_employee);
+    const payEfkaEr = parseAmount(form.data.efka_employer);
+    const payToPay = round2(payNet - payFmy - payEfkaEe);
+    const payTotalCost = round2(payNet + payEfkaEr);
 
     const transferAmount = parseAmount(form.data.net);
 
@@ -314,6 +342,27 @@ export function TransactionFormDialog({
                 };
             }
 
+            const cat = categories.find(
+                (c) => String(c.id) === data.category_id,
+            );
+            if (cat?.name === PAYROLL_CATEGORY) {
+                const amount = (v: string) =>
+                    v ? String(v).replace(',', '.') : null;
+                return {
+                    type: data.type,
+                    date: data.date,
+                    invoice_date: data.invoice_date,
+                    description: data.description,
+                    entity_id: data.entity_id || null,
+                    category_id: data.category_id || null,
+                    wallet_id: data.wallet_id,
+                    net: String(data.net).replace(',', '.'),
+                    fmy_amount: amount(data.fmy),
+                    efka_employee_amount: amount(data.efka_employee),
+                    efka_employer_amount: amount(data.efka_employer),
+                };
+            }
+
             return {
                 type: data.type,
                 date: data.date,
@@ -355,11 +404,15 @@ export function TransactionFormDialog({
                     setInvoiceDateTouched(false);
                 } else {
                     // 'same' — keep the fields (incl. each line's VAT/withholding
-                    // setup), blank only the typed amounts.
+                    // setup and the payroll category), blank only the typed amounts.
                     form.setData(
                         'lines',
                         form.data.lines.map((l) => ({ ...l, amount: '' })),
                     );
+                    form.setData('net', '');
+                    form.setData('fmy', '');
+                    form.setData('efka_employee', '');
+                    form.setData('efka_employer', '');
                 }
             },
         });
@@ -549,6 +602,74 @@ export function TransactionFormDialog({
                                     required
                                 />
                                 <InputError message={netError} />
+                            </div>
+                        ) : isPayroll ? (
+                            <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="net">Net amount</Label>
+                                    <Input
+                                        id="net"
+                                        inputMode="decimal"
+                                        value={form.data.net}
+                                        onChange={(e) =>
+                                            form.setData('net', e.target.value)
+                                        }
+                                        required
+                                    />
+                                    <InputError message={form.errors.net} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="fmy">FMY</Label>
+                                    <Input
+                                        id="fmy"
+                                        inputMode="decimal"
+                                        value={form.data.fmy}
+                                        onChange={(e) =>
+                                            form.setData('fmy', e.target.value)
+                                        }
+                                    />
+                                    <InputError
+                                        message={errors['fmy_amount']}
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="efka_employee">
+                                        EFKA Employee
+                                    </Label>
+                                    <Input
+                                        id="efka_employee"
+                                        inputMode="decimal"
+                                        value={form.data.efka_employee}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'efka_employee',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={errors['efka_employee_amount']}
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="efka_employer">
+                                        EFKA Employer
+                                    </Label>
+                                    <Input
+                                        id="efka_employer"
+                                        inputMode="decimal"
+                                        value={form.data.efka_employer}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'efka_employer',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={errors['efka_employer_amount']}
+                                    />
+                                </div>
                             </div>
                         ) : (
                             <div className="grid gap-2 sm:col-span-2">
@@ -772,6 +893,53 @@ export function TransactionFormDialog({
                                 </span>
                                 <div className="font-medium">
                                     {formatAmount(transferAmount)}
+                                </div>
+                            </div>
+                        ) : isPayroll ? (
+                            <div className="bg-muted/50 grid grid-cols-3 gap-2 rounded-lg p-3 text-sm tabular-nums sm:col-span-2">
+                                <div>
+                                    <div className="text-muted-foreground text-xs">
+                                        Net
+                                    </div>
+                                    {formatAmount(payNet)}
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground text-xs">
+                                        FMY
+                                    </div>
+                                    <span className="text-red-600 dark:text-red-500">
+                                        −{formatAmount(payFmy)}
+                                    </span>
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground text-xs">
+                                        EFKA ee
+                                    </div>
+                                    <span className="text-red-600 dark:text-red-500">
+                                        −{formatAmount(payEfkaEe)}
+                                    </span>
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground text-xs">
+                                        To Pay
+                                    </div>
+                                    <span className="font-medium">
+                                        {formatAmount(payToPay)}
+                                    </span>
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground text-xs">
+                                        EFKA er
+                                    </div>
+                                    {formatAmount(payEfkaEr)}
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground text-xs">
+                                        Total Cost
+                                    </div>
+                                    <span className="font-medium">
+                                        {formatAmount(payTotalCost)}
+                                    </span>
                                 </div>
                             </div>
                         ) : (

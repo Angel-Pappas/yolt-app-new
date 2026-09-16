@@ -36,6 +36,9 @@ type Transaction = {
     net: string;
     vat_amount: string;
     withheld_amount: string;
+    fmy_amount: string | null;
+    efka_employee_amount: string | null;
+    efka_employer_amount: string | null;
     entity_id: number | null;
     category_id: number | null;
     wallet_id: number;
@@ -88,7 +91,13 @@ const typeMeta: Record<TransactionType, { label: string; className: string }> =
     };
 
 function total(t: Transaction): number {
-    return Number(t.net) + Number(t.vat_amount) - Number(t.withheld_amount);
+    return (
+        Number(t.net) +
+        Number(t.vat_amount) -
+        Number(t.withheld_amount) -
+        Number(t.fmy_amount ?? 0) -
+        Number(t.efka_employee_amount ?? 0)
+    );
 }
 
 export default function CategoryShow({

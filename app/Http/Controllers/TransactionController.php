@@ -27,6 +27,12 @@ use Inertia\Response;
  */
 class TransactionController extends Controller
 {
+    /**
+     * The category name that turns an expense into a payroll entry: the form then
+     * captures FMY + EFKA (employee/employer) instead of VAT/withholding lines.
+     */
+    private const PAYROLL_CATEGORY = 'Payroll';
+
     public function index(Request $request): Response|RedirectResponse
     {
         // Default the view to the current month. A bare visit redirects to this
@@ -388,16 +394,48 @@ class TransactionController extends Controller
         } else {
             $rules['entity_id'] = ['nullable', 'integer', 'exists:entities,id'];
             $rules['category_id'] = ['nullable', 'integer', 'exists:categories,id'];
-            $rules['amount_mode'] = ['required', 'in:net,total'];
-            $rules['lines'] = ['required', 'array', 'min:1'];
-            $rules['lines.*.amount'] = ['required', 'numeric', 'min:0'];
-            $rules['lines.*.vat_rate_id'] = ['nullable', 'integer', 'exists:vat_rates,id'];
-            // Withholding is a per-line option now: a line carries a withheld rate
-            // and its base is the line's own net (computed server-side).
-            $rules['lines.*.withheld_rate_id'] = ['nullable', 'integer', 'exists:withheld_tax_rates,id'];
+
+            if ($this->isPayrollRequest($request)) {
+                // Payroll: a plain net plus manual FMY/EFKA amounts (no VAT lines).
+                $rules['net'] = ['required', 'numeric', 'min:0'];
+                $rules['fmy_amount'] = ['nullable', 'numeric', 'min:0'];
+                $rules['efka_employee_amount'] = ['nullable', 'numeric', 'min:0'];
+                $rules['efka_employer_amount'] = ['nullable', 'numeric', 'min:0'];
+            } else {
+                $rules['amount_mode'] = ['required', 'in:net,total'];
+                $rules['lines'] = ['required', 'array', 'min:1'];
+                $rules['lines.*.amount'] = ['required', 'numeric', 'min:0'];
+                $rules['lines.*.vat_rate_id'] = ['nullable', 'integer', 'exists:vat_rates,id'];
+                // Withholding is a per-line option now: a line carries a withheld rate
+                // and its base is the line's own net (computed server-side).
+                $rules['lines.*.withheld_rate_id'] = ['nullable', 'integer', 'exists:withheld_tax_rates,id'];
+            }
         }
 
         return $request->validate($rules);
+    }
+
+    /** Whether the request's selected category is the payroll category. */
+    private function isPayrollRequest(Request $request): bool
+    {
+        $categoryId = $request->input('category_id');
+
+        return $categoryId !== null && $this->isPayrollCategory((int) $categoryId);
+    }
+
+    private function isPayrollCategory(int $categoryId): bool
+    {
+        return Category::query()->whereKey($categoryId)->value('name') === self::PAYROLL_CATEGORY;
+    }
+
+    /**
+     * A payroll amount from validated data: the rounded number, or null when blank.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function payrollAmount(array $data, string $key): ?float
+    {
+        return isset($data[$key]) ? round((float) $data[$key], 2) : null;
     }
 
     /**
@@ -424,6 +462,37 @@ class TransactionController extends Controller
                 'net' => round((float) $data['net'], 2),
                 'vat_amount' => 0,
                 'withheld_amount' => 0,
+                'fmy_amount' => null,
+                'efka_employee_amount' => null,
+                'efka_employer_amount' => null,
+            ]);
+            $transaction->save();
+            $transaction->vatLines()->delete();
+            $transaction->withheldLines()->delete();
+
+            return;
+        }
+
+        if (isset($data['category_id']) && $this->isPayrollCategory((int) $data['category_id'])) {
+            // Payroll: store the net (gross) plus the manual FMY/EFKA amounts. VAT and
+            // withholding are always zero here; the cash the wallet moves is the "To
+            // Pay" = net − FMY − employee EFKA, derived by WalletBalances::cashTotal.
+            $transaction->fill([
+                'type' => $data['type'],
+                'date' => $data['date'],
+                'invoice_date' => $data['invoice_date'],
+                'description' => $data['description'] ?? '',
+                'entity_id' => $data['entity_id'] ?? null,
+                'category_id' => $data['category_id'],
+                'wallet_id' => $data['wallet_id'],
+                'to_wallet_id' => null,
+                'vat_rate_id' => null,
+                'net' => round((float) $data['net'], 2),
+                'vat_amount' => 0,
+                'withheld_amount' => 0,
+                'fmy_amount' => self::payrollAmount($data, 'fmy_amount'),
+                'efka_employee_amount' => self::payrollAmount($data, 'efka_employee_amount'),
+                'efka_employer_amount' => self::payrollAmount($data, 'efka_employer_amount'),
             ]);
             $transaction->save();
             $transaction->vatLines()->delete();
@@ -446,6 +515,9 @@ class TransactionController extends Controller
             'net' => $resolved['net'],
             'vat_amount' => $resolved['vat_amount'],
             'withheld_amount' => $resolved['withheld_amount'],
+            'fmy_amount' => null,
+            'efka_employee_amount' => null,
+            'efka_employer_amount' => null,
             // A single line keeps the (denormalized) rate; mixed rates = null.
             'vat_rate_id' => count($resolved['vat_lines']) === 1
                 ? $resolved['vat_lines'][0]['vat_rate_id']

@@ -20,6 +20,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $net
  * @property string $vat_amount
  * @property string $withheld_amount
+ * @property string|null $fmy_amount
+ * @property string|null $efka_employee_amount
+ * @property string|null $efka_employer_amount
  * @property int|null $entity_id
  * @property int|null $category_id
  * @property int $wallet_id
@@ -37,6 +40,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'net',
     'vat_amount',
     'withheld_amount',
+    'fmy_amount',
+    'efka_employee_amount',
+    'efka_employer_amount',
     'entity_id',
     'category_id',
     'wallet_id',
@@ -59,6 +65,9 @@ class Transaction extends Model
             'net' => 'decimal:2',
             'vat_amount' => 'decimal:2',
             'withheld_amount' => 'decimal:2',
+            'fmy_amount' => 'decimal:2',
+            'efka_employee_amount' => 'decimal:2',
+            'efka_employer_amount' => 'decimal:2',
             'is_reconciled' => 'boolean',
             'invoice_not_required' => 'boolean',
             'invoice_month' => 'integer',

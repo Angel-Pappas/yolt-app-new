@@ -41,6 +41,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('taxes', [TaxController::class, 'index'])->name('taxes.index');
     Route::get('taxes/vat', [TaxController::class, 'vat'])->name('taxes.vat');
     Route::get('taxes/withheld', [TaxController::class, 'withheld'])->name('taxes.withheld');
+    Route::get('taxes/fmy', [TaxController::class, 'fmy'])->name('taxes.fmy');
+    Route::get('taxes/efka', [TaxController::class, 'efka'])->name('taxes.efka');
 
     // Configuration — app setup lists, grouped under /configuration. The landing
     // page shows them as tiles; each opens its own list.

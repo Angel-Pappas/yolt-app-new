@@ -7,7 +7,9 @@ type Amount = number | string;
 
 type Props = {
     vat: { payable_this_month: Amount; net: Amount };
-    withheld: { payable_this_month: Amount; withheld: Amount };
+    withheld: { payable_this_month: Amount; this_month: Amount };
+    fmy: { payable_this_month: Amount; this_month: Amount };
+    efka: { payable_this_month: Amount; this_month: Amount };
 };
 
 function Figure({ label, value }: { label: string; value: Amount }) {
@@ -48,7 +50,7 @@ function TaxCard({
     );
 }
 
-export default function TaxesIndex({ vat, withheld }: Props) {
+export default function TaxesIndex({ vat, withheld, fmy, efka }: Props) {
     return (
         <>
             <Head title="Taxes" />
@@ -77,7 +79,31 @@ export default function TaxesIndex({ vat, withheld }: Props) {
                         }}
                         secondary={{
                             label: 'Withheld this month',
-                            value: withheld.withheld,
+                            value: withheld.this_month,
+                        }}
+                    />
+                    <TaxCard
+                        href="/taxes/fmy"
+                        title="FMY (payroll tax)"
+                        primary={{
+                            label: 'Payable this month',
+                            value: fmy.payable_this_month,
+                        }}
+                        secondary={{
+                            label: 'FMY this month',
+                            value: fmy.this_month,
+                        }}
+                    />
+                    <TaxCard
+                        href="/taxes/efka"
+                        title="EFKA (social security)"
+                        primary={{
+                            label: 'Payable this month',
+                            value: efka.payable_this_month,
+                        }}
+                        secondary={{
+                            label: 'EFKA this month',
+                            value: efka.this_month,
                         }}
                     />
                 </div>

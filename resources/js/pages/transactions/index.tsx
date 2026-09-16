@@ -32,6 +32,9 @@ type Transaction = {
     net: string;
     vat_amount: string;
     withheld_amount: string;
+    fmy_amount: string | null;
+    efka_employee_amount: string | null;
+    efka_employer_amount: string | null;
     is_reconciled: boolean;
     invoice_month: number | null;
     invoice_not_required: boolean;
@@ -82,8 +85,17 @@ const typeMeta: Record<TransactionType, { label: string; className: string }> =
         transfer: { label: 'Transfer', className: 'text-muted-foreground' },
     };
 
+// Cash the transaction moves: net + VAT − withheld − FMY − employee EFKA. The
+// payroll amounts are null (→ 0) on every non-payroll row, so this is the plain
+// net + VAT − withheld elsewhere. Employer EFKA is a liability, never cash out.
 function total(t: Transaction): number {
-    return Number(t.net) + Number(t.vat_amount) - Number(t.withheld_amount);
+    return (
+        Number(t.net) +
+        Number(t.vat_amount) -
+        Number(t.withheld_amount) -
+        Number(t.fmy_amount ?? 0) -
+        Number(t.efka_employee_amount ?? 0)
+    );
 }
 
 export default function TransactionsIndex({

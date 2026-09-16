@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\EfkaLedger;
+use App\Support\FmyLedger;
 use App\Support\TaxObligation;
 use App\Support\VatLedger;
 use App\Support\WithheldLedger;
@@ -21,17 +23,22 @@ class TaxController extends Controller
     {
         $currentMonth = Carbon::now()->format('Y-m');
 
-        $vatRow = collect(VatLedger::monthly())->firstWhere('month', $currentMonth);
-        $withheldRow = collect(WithheldLedger::monthly())->firstWhere('month', $currentMonth);
-
         return Inertia::render('taxes/index', [
             'vat' => [
                 'payable_this_month' => self::dueInMonth(VatLedger::obligations(), $currentMonth),
-                'net' => $vatRow['net'] ?? 0,
+                'net' => self::monthAmount(VatLedger::monthly(), $currentMonth, 'net'),
             ],
             'withheld' => [
                 'payable_this_month' => self::dueInMonth(WithheldLedger::obligations(), $currentMonth),
-                'withheld' => $withheldRow['withheld'] ?? 0,
+                'this_month' => self::monthAmount(WithheldLedger::monthly(), $currentMonth),
+            ],
+            'fmy' => [
+                'payable_this_month' => self::dueInMonth(FmyLedger::obligations(), $currentMonth),
+                'this_month' => self::monthAmount(FmyLedger::monthly(), $currentMonth),
+            ],
+            'efka' => [
+                'payable_this_month' => self::dueInMonth(EfkaLedger::obligations(), $currentMonth),
+                'this_month' => self::monthAmount(EfkaLedger::monthly(), $currentMonth),
             ],
         ]);
     }
@@ -50,6 +57,20 @@ class TaxController extends Controller
         ]);
     }
 
+    public function fmy(): Response
+    {
+        return Inertia::render('taxes/fmy', [
+            'rows' => FmyLedger::monthly(),
+        ]);
+    }
+
+    public function efka(): Response
+    {
+        return Inertia::render('taxes/efka', [
+            'rows' => EfkaLedger::monthly(),
+        ]);
+    }
+
     /**
      * Total amount of the given obligations whose due date falls in the "YYYY-MM" month.
      *
@@ -65,5 +86,21 @@ class TaxController extends Controller
         }
 
         return round($total, 2);
+    }
+
+    /**
+     * A field off the ledger row for the given month (0 when the month has no row).
+     *
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private static function monthAmount(array $rows, string $month, string $key = 'amount'): float
+    {
+        foreach ($rows as $row) {
+            if (($row['month'] ?? null) === $month) {
+                return (float) ($row[$key] ?? 0);
+            }
+        }
+
+        return 0.0;
     }
 }

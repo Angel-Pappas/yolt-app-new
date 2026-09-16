@@ -9,8 +9,10 @@ use Illuminate\Support\Collection;
 /**
  * Current wallet balances, derived live (never stored, so they can't drift):
  * each wallet's `starting_balance` plus every active transaction's effect.
- * Income/expense move the cash total (net + VAT − withheld); a transfer moves
- * net out of `wallet_id` and into `to_wallet_id`.
+ * Income/expense move the cash total (net + VAT − withheld − FMY − employee EFKA —
+ * the last two are the payroll amounts withheld from the employee, so a payroll
+ * expense moves the wallet by its "To Pay"; employer EFKA is a liability that never
+ * touches the wallet); a transfer moves net out of `wallet_id` into `to_wallet_id`.
  */
 class WalletBalances
 {
@@ -41,7 +43,7 @@ class WalletBalances
             ->orderBy('id')
             ->get()
             ->each(function (Transaction $t) use (&$running, $walletId): void {
-                $total = (float) $t->net + (float) $t->vat_amount - (float) $t->withheld_amount;
+                $total = self::cashTotal($t);
 
                 if ($t->type === 'income' && $t->wallet_id === $walletId) {
                     $running += $total;
@@ -61,6 +63,21 @@ class WalletBalances
     }
 
     /**
+     * The cash a transaction actually moves: net + VAT − withheld − FMY − employee
+     * EFKA. The two payroll amounts default to 0 for every non-payroll row (they are
+     * null there), so this reduces to the plain net + VAT − withheld everywhere else.
+     * Employer EFKA is deliberately excluded — it is a liability, not cash out.
+     */
+    public static function cashTotal(Transaction $t): float
+    {
+        return (float) $t->net
+            + (float) $t->vat_amount
+            - (float) $t->withheld_amount
+            - (float) $t->fmy_amount
+            - (float) $t->efka_employee_amount;
+    }
+
+    /**
      * @return array<int, float> wallet id => current balance
      */
     public static function all(): array
@@ -71,9 +88,9 @@ class WalletBalances
         }
 
         Transaction::query()
-            ->get(['type', 'net', 'vat_amount', 'withheld_amount', 'wallet_id', 'to_wallet_id'])
+            ->get(['type', 'net', 'vat_amount', 'withheld_amount', 'fmy_amount', 'efka_employee_amount', 'wallet_id', 'to_wallet_id'])
             ->each(function (Transaction $t) use (&$balances): void {
-                $total = (float) $t->net + (float) $t->vat_amount - (float) $t->withheld_amount;
+                $total = self::cashTotal($t);
 
                 if ($t->type === 'income') {
                     $balances[$t->wallet_id] = ($balances[$t->wallet_id] ?? 0.0) + $total;

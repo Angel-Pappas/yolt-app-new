@@ -19,7 +19,7 @@ test('withholding is attributed by invoice date, not payment date', function () 
     // Keyed off the invoice month (April), not the payment month (March).
     expect($rows->firstWhere('month', '2026-03'))->toBeNull();
     $apr = $rows->firstWhere('month', '2026-04');
-    expect($apr['withheld'])->toBe(50.0);
+    expect($apr['amount'])->toBe(50.0);
     expect($apr['due_date'])->toStartWith('2026-05');
 });
 
@@ -46,7 +46,7 @@ test('several withholding transactions in a month sum into one bucket', function
 
     $apr = collect(WithheldLedger::monthly())->firstWhere('month', '2026-04');
 
-    expect($apr['withheld'])->toBe(50.0);
+    expect($apr['amount'])->toBe(50.0);
 });
 
 test('income-side withholding is not counted', function () {

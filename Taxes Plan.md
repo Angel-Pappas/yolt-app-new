@@ -119,24 +119,25 @@ efka_employee_amount`** (all default 0). Non-payroll rows unchanged; payroll row
       credit-only → none, holiday shift), `WithheldLedgerTest` (invoice-date attribution,
       obligations, summing, income ignored). 178 tests green; full verify clean.
 
-### Slice 3 — FMY + EFKA (payroll)
+### Slice 3 — FMY + EFKA (payroll) ✅ DONE (2026-09-16)
 
-- [ ] Migration: add `fmy_amount`, `efka_employee_amount`, `efka_employer_amount`
-      (nullable `decimal(12,2)`) to `transactions`. Model fillable/casts.
-- [ ] Extend cash formula everywhere it's derived (`WalletBalances`, the transactions
-      list "Total", any `computeTotal` equivalent): `+ net + vat − withheld − fmy −
-efka_employee`. Confirm non-payroll rows are unchanged (new fields default 0/null→0).
-- [ ] Transaction form morph: when selected category name === "Payroll", swap the
-      amounts area for the 4 inputs and render the payroll summary row (Net · FMY− ·
-      EFKA ee− · To Pay · EFKA er · Total Cost). Hide VAT/withheld/Net-Total toggle.
-- [ ] `TransactionController` validation: accept the 3 payroll fields; when payroll,
-      ignore/zero VAT+withheld lines. Persist the 3 amounts; server-derive nothing that
-      the client shouldn't be trusted for (amounts are manual, but re-validate numerics).
-- [ ] `FmyLedger` + `EfkaLedger` (monthly, by `invoice_date`, no rollover, due M+1;
-      EFKA sums ee+er). Add both to `TaxController@index` cards + their `/taxes/{tax}` pages.
-- [ ] Tests: cash formula (payroll row → wallet moves by To Pay, EFKA er excluded;
-      normal row unchanged); form persistence; FMY/EFKA ledger sums + due dates.
-- [ ] Verify; commit; push; CI green. Update Summary.md + progress log.
+- [x] Migration adds `fmy_amount`, `efka_employee_amount`, `efka_employer_amount`
+      (nullable `decimal(12,2)`) to `transactions`; model fillable/casts/docblock.
+- [x] Cash formula extended in `WalletBalances::cashTotal` (used by `runningFor` +
+      `all`) and the two frontend `total()` fns (transactions + category pages):
+      `net + vat − withheld − fmy − efka_employee`. Non-payroll rows unchanged (nulls→0).
+- [x] Form morph: category name === "Payroll" → 4 manual inputs (Net, EFKA ee, EFKA er,
+      FMY) + the summary row (Net · FMY− · EFKA ee− · To Pay · EFKA er · Total Cost);
+      VAT/withheld/Net-Total hidden. Payroll payload branch in the submit transform.
+- [x] `TransactionController`: `PAYROLL_CATEGORY` const + `isPayroll*` helpers; validate
+      branch (net + nullable FMY/EFKA, no lines); persist branch (vat/withheld = 0, no
+      lines); payroll fields nulled on the transfer + normal paths.
+- [x] `FmyLedger` + `EfkaLedger` on the shared `MonthlyLedger` (withheld refactored onto
+      it too; row key unified to `amount`). `/taxes/fmy` + `/taxes/efka` pages (shared
+      `MonthlyLedgerTable`), routes, and index cards.
+- [x] Tests: `PayrollTransactionTest` (persistence, To Pay wallet move, EFKA er excluded,
+      normal row unaffected, edit-away clears), `PayrollLedgerTest` (FMY/EFKA sums +
+      obligations + due dates). 185 tests green; full verify clean.
 
 ### Slice 4 — Income tax (stored per-year)
 
@@ -193,4 +194,9 @@ php artisan test
 - 2026-09-16 — **Slice 2 done.** `App\Support\TaxObligation`; VAT/Withheld ledgers
   refactored onto buckets+obligations with real due dates (last working day of M+1); VAT
   installment split removed (rollover kept); withheld switched to `invoice_date`. Pages +
-  index cards updated. Ledger tests added; full verify clean. Next: Slice 3 (FMY/EFKA).
+  index cards updated. Ledger tests added; full verify clean.
+- 2026-09-16 — **Slice 3 done.** Payroll FMY/EFKA: 3 nullable `transactions` columns,
+  the "Payroll"-category form morph (4 manual inputs + To Pay/Total Cost summary), the
+  extended cash formula (`WalletBalances::cashTotal`, employer EFKA excluded), `FmyLedger`
+  + `EfkaLedger` on a shared `MonthlyLedger`, `/taxes/fmy` + `/taxes/efka` pages + cards.
+  185 tests green; full verify clean. Next: Slice 4 (income tax).
