@@ -71,7 +71,8 @@ test('an invoice month 1-12 files the transaction under that month', function ()
     $wallet = Wallet::factory()->create();
     $t = Transaction::factory()->create(['wallet_id' => $wallet->id]);
 
-    $this->actingAs($user)->post("/transactions/{$t->id}/invoice", ['month' => 6])
+    // The browser posts the month as a string, so exercise that path.
+    $this->actingAs($user)->post("/transactions/{$t->id}/invoice", ['month' => '6'])
         ->assertRedirect();
 
     $t->refresh();
@@ -86,7 +87,9 @@ test('invoice month 13 marks it as not required', function () {
         'wallet_id' => $wallet->id, 'invoice_month' => 4,
     ]);
 
-    $this->actingAs($user)->post("/transactions/{$t->id}/invoice", ['month' => 13])
+    // A real request sends "13" as a string; the controller must still treat it
+    // as the "no invoice needed" sentinel.
+    $this->actingAs($user)->post("/transactions/{$t->id}/invoice", ['month' => '13'])
         ->assertRedirect();
 
     $t->refresh();

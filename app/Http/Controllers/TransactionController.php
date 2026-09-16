@@ -357,7 +357,9 @@ class TransactionController extends Controller
         $data = $request->validate([
             'month' => ['nullable', 'integer', 'between:1,13'],
         ]);
-        $input = $data['month'] ?? null;
+        // Cast to int: validated data keeps the raw request value (a string like
+        // "13"), so the strict comparisons below (=== 13) would never match.
+        $input = isset($data['month']) ? (int) $data['month'] : null;
 
         $transaction->update([
             'invoice_month' => $input !== null && $input <= 12 ? $input : null,
