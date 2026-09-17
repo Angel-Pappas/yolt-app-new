@@ -1,5 +1,5 @@
 import { type Column } from '@tanstack/react-table';
-import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ColumnFilter } from './column-filter';
 
@@ -25,10 +25,19 @@ export function ColumnHeader<TData, TValue>({
     const canSort = column.getCanSort();
     const sorted = column.getIsSorted();
 
+    // Tri-state cycle: unsorted → ascending → descending → back to the table's
+    // default order. No indicator on an unsorted column (only the active sort shows
+    // an arrow) to keep the header uncluttered.
+    function cycleSort() {
+        if (!sorted) column.toggleSorting(false);
+        else if (sorted === 'asc') column.toggleSorting(true);
+        else column.clearSorting();
+    }
+
     const titleEl = canSort ? (
         <button
             type="button"
-            onClick={() => column.toggleSorting(sorted === 'asc')}
+            onClick={cycleSort}
             className="hover:text-foreground -mx-1 flex items-center gap-1 rounded px-1 py-0.5"
         >
             {title}
@@ -36,9 +45,7 @@ export function ColumnHeader<TData, TValue>({
                 <ArrowUp className="size-3.5" />
             ) : sorted === 'desc' ? (
                 <ArrowDown className="size-3.5" />
-            ) : (
-                <ChevronsUpDown className="size-3.5 opacity-50" />
-            )}
+            ) : null}
         </button>
     ) : (
         <span>{title}</span>

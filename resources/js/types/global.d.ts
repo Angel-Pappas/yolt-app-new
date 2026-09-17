@@ -1,3 +1,4 @@
+import type { FinanceLookups } from '@/components/transactions/lookups';
 import type { Auth } from '@/types/auth';
 
 declare module 'react' {
@@ -12,6 +13,7 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            financeLookups: FinanceLookups;
             [key: string]: unknown;
         };
     }

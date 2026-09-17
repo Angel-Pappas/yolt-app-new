@@ -118,7 +118,7 @@ class TaxController extends Controller
     private static function contributing(\Closure $scope): Collection
     {
         $query = Transaction::query()
-            ->with(['wallet:id,name', 'entity:id,name'])
+            ->withListData()
             ->orderBy('date')
             ->orderBy('id');
 

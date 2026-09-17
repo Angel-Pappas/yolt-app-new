@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\TransactionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -56,6 +57,25 @@ class Transaction extends Model
 {
     /** @use HasFactory<TransactionFactory> */
     use HasFactory, SoftDeletes;
+
+    /**
+     * Eager-load everything the shared transactions table needs to display a row and
+     * seed its edit modal — the single definition of that shape, used everywhere a
+     * list of transactions is rendered.
+     *
+     * @param  Builder<Transaction>  $query
+     */
+    public function scopeWithListData(Builder $query): void
+    {
+        $query->with([
+            'wallet:id,name',
+            'toWallet:id,name',
+            'entity:id,name',
+            'category:id,name',
+            'vatLines' => fn ($q) => $q->orderBy('position')->select('id', 'transaction_id', 'net', 'vat_rate_id', 'position'),
+            'withheldLines' => fn ($q) => $q->orderBy('position')->select('id', 'transaction_id', 'net', 'withheld_rate_id', 'position'),
+        ]);
+    }
 
     protected function casts(): array
     {

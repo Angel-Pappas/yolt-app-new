@@ -23,6 +23,8 @@ type Props = {
     onOpenChange: (open: boolean) => void;
     /** The type pre-selected when the dialog opens (still changeable). */
     initialType?: CategoryType;
+    /** Props to reload after save (default: the config page's `categories` list). */
+    only?: string[];
     /** Called with the fresh page after a successful save (e.g. to select the new row). */
     onSaved?: (page: Page) => void;
 };
@@ -39,6 +41,7 @@ export function CategoryFormDialog({
     open,
     onOpenChange,
     initialType = 'income',
+    only = ['categories'],
     onSaved,
 }: Props) {
     const form = useForm({ name: '', description: '', type: initialType });
@@ -48,7 +51,7 @@ export function CategoryFormDialog({
         form.post('/configuration/categories', {
             preserveState: true,
             preserveScroll: true,
-            only: ['categories'],
+            only,
             onSuccess: (page) => {
                 onSaved?.(page);
                 onOpenChange(false);

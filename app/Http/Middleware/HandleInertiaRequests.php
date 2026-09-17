@@ -2,6 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Category;
+use App\Models\Entity;
+use App\Models\VatRate;
+use App\Models\Wallet;
+use App\Models\WithheldTaxRate;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -42,6 +47,18 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            // The finance lookup lists the transaction edit form needs, shared on every
+            // authenticated page so a transactions table can be dropped in ANYWHERE and
+            // its edit modal just works — one source of truth, no per-page wiring. A
+            // closure, so it evaluates on full loads and refreshes on a partial reload
+            // (e.g. after inline-creating an entity) but not on unrelated partials.
+            'financeLookups' => $request->user() ? fn (): array => [
+                'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
+                'entities' => Entity::query()->orderBy('name')->get(['id', 'name']),
+                'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
+                'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+                'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+            ] : null,
         ];
     }
 }

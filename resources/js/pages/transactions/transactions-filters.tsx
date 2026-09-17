@@ -1,5 +1,13 @@
 import { router } from '@inertiajs/react';
-import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
+import {
+    endOfMonth,
+    endOfYear,
+    format,
+    startOfMonth,
+    startOfYear,
+    subMonths,
+    subYears,
+} from 'date-fns';
 import { CircleCheck, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DateField } from '@/components/ui/date-field';
@@ -28,12 +36,21 @@ export function TransactionsFilters({ filters }: Props) {
     const thisTo = iso(endOfMonth(now));
     const lastFrom = iso(startOfMonth(subMonths(now, 1)));
     const lastTo = iso(endOfMonth(subMonths(now, 1)));
+    const yearFrom = iso(startOfYear(now));
+    const yearTo = iso(endOfYear(now));
+    const lastYearFrom = iso(startOfYear(subYears(now, 1)));
+    const lastYearTo = iso(endOfYear(subYears(now, 1)));
 
-    const isAllTime = filters.all;
     const isThisMonth =
         !filters.all && filters.from === thisFrom && filters.to === thisTo;
     const isLastMonth =
         !filters.all && filters.from === lastFrom && filters.to === lastTo;
+    const isThisYear =
+        !filters.all && filters.from === yearFrom && filters.to === yearTo;
+    const isLastYear =
+        !filters.all &&
+        filters.from === lastYearFrom &&
+        filters.to === lastYearTo;
 
     function apply(next: Partial<TransactionFilters>) {
         const merged = { ...filters, ...next };
@@ -78,15 +95,6 @@ export function TransactionsFilters({ filters }: Props) {
             <Button
                 variant="outline"
                 size="sm"
-                aria-pressed={isAllTime}
-                className={cn(isAllTime && 'text-primary border-primary')}
-                onClick={() => apply({ all: true })}
-            >
-                All time
-            </Button>
-            <Button
-                variant="outline"
-                size="sm"
                 aria-pressed={isThisMonth}
                 className={cn(isThisMonth && 'text-primary border-primary')}
                 onClick={() => apply({ from: thisFrom, to: thisTo })}
@@ -101,6 +109,24 @@ export function TransactionsFilters({ filters }: Props) {
                 onClick={() => apply({ from: lastFrom, to: lastTo })}
             >
                 Last month
+            </Button>
+            <Button
+                variant="outline"
+                size="sm"
+                aria-pressed={isThisYear}
+                className={cn(isThisYear && 'text-primary border-primary')}
+                onClick={() => apply({ from: yearFrom, to: yearTo })}
+            >
+                This year
+            </Button>
+            <Button
+                variant="outline"
+                size="sm"
+                aria-pressed={isLastYear}
+                className={cn(isLastYear && 'text-primary border-primary')}
+                onClick={() => apply({ from: lastYearFrom, to: lastYearTo })}
+            >
+                Last year
             </Button>
 
             <div className="ml-auto flex items-center gap-2">

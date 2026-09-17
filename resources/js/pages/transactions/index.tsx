@@ -1,389 +1,56 @@
-import { Head, router } from '@inertiajs/react';
-import { type ColumnDef } from '@tanstack/react-table';
-import { CircleCheck, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Head } from '@inertiajs/react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { ColumnHeader } from '@/components/data-table/column-header';
-import { DataTable } from '@/components/data-table/data-table';
+import { useFinanceLookups } from '@/components/transactions/lookups';
+import { TransactionsTable } from '@/components/transactions/transactions-table';
+import { type Transaction } from '@/components/transactions/types';
 import { Button } from '@/components/ui/button';
-import { formatAmount, formatDate } from '@/lib/format';
-import { cn } from '@/lib/utils';
 import { BalanceViewControl } from './balance-view-control';
-import { InvoiceDialog } from './invoice-dialog';
-import { ReconcileModal } from './reconcile-modal';
-import {
-    type EditableTransaction,
-    TransactionFormDialog,
-} from './transaction-form-dialog';
+import { TransactionFormDialog } from './transaction-form-dialog';
 import {
     type TransactionFilters,
     TransactionsFilters,
 } from './transactions-filters';
 
-type Related = { id: number; name: string } | null;
-
-type TransactionType = 'income' | 'expense' | 'transfer';
-
-type Transaction = {
-    id: number;
-    date: string;
-    invoice_date: string;
-    description: string;
-    type: TransactionType;
-    net: string;
-    vat_amount: string;
-    withheld_amount: string;
-    fmy_amount: string | null;
-    efka_employee_amount: string | null;
-    efka_employer_amount: string | null;
-    is_reconciled: boolean;
-    invoice_month: number | null;
-    invoice_not_required: boolean;
-    entity_id: number | null;
-    category_id: number | null;
-    wallet_id: number;
-    to_wallet_id: number | null;
-    vat_rate_id: number | null;
-    wallet: Related;
-    to_wallet: Related;
-    entity: Related;
-    category: Related;
-    vat_lines: { net: string; vat_rate_id: number | null; position: number }[];
-    withheld_lines: {
-        net: string;
-        withheld_rate_id: number | null;
-        position: number;
-    }[];
-    // Present only in balance view: the running balance after this row.
-    balance?: string | number;
-};
-
-type Option = { id: number; name: string };
-type Category = { id: number; name: string; type: string };
-type Rate = { id: number; name: string; rate: string };
-
 type Props = {
     transactions: Transaction[];
     filters: TransactionFilters;
     balance: { wallet_id: number; wallet_name: string } | null;
-    wallets: Option[];
-    entities: Option[];
-    categories: Category[];
-    vatRates: Rate[];
-    withheldRates: Rate[];
+    /** Set by the `?edit=<id>` deep-link — opens that transaction's edit modal. */
+    editing: Transaction | null;
 };
-
-const typeMeta: Record<TransactionType, { label: string; className: string }> =
-    {
-        income: {
-            label: 'Income',
-            className: 'text-green-600 dark:text-green-500',
-        },
-        expense: {
-            label: 'Expense',
-            className: 'text-red-600 dark:text-red-500',
-        },
-        transfer: { label: 'Transfer', className: 'text-muted-foreground' },
-    };
-
-// Cash the transaction moves: net + VAT − withheld − FMY − employee EFKA. The
-// payroll amounts are null (→ 0) on every non-payroll row, so this is the plain
-// net + VAT − withheld elsewhere. Employer EFKA is a liability, never cash out.
-function total(t: Transaction): number {
-    return (
-        Number(t.net) +
-        Number(t.vat_amount) -
-        Number(t.withheld_amount) -
-        Number(t.fmy_amount ?? 0) -
-        Number(t.efka_employee_amount ?? 0)
-    );
-}
 
 export default function TransactionsIndex({
     transactions,
     filters,
     balance,
-    wallets,
-    entities,
-    categories,
-    vatRates,
-    withheldRates,
+    editing,
 }: Props) {
-    const balanceMode = balance !== null;
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const [editing, setEditing] = useState<EditableTransaction | null>(null);
+    const { wallets } = useFinanceLookups();
+    const [addOpen, setAddOpen] = useState(false);
     // Bumped on every open so the reused dialog remounts with a fresh form.
-    const [formKey, setFormKey] = useState(0);
-    const [invoiceFor, setInvoiceFor] = useState<Transaction | null>(null);
-    const [invoiceKey, setInvoiceKey] = useState(0);
-    const [reconcileFor, setReconcileFor] = useState<Transaction | null>(null);
-    const [reconcileKey, setReconcileKey] = useState(0);
+    const [addKey, setAddKey] = useState(0);
 
-    function openReconcile(t: Transaction) {
-        setReconcileFor(t);
-        setReconcileKey((k) => k + 1);
+    function openAdd() {
+        setAddKey((k) => k + 1);
+        setAddOpen(true);
     }
-
-    function openInvoice(t: Transaction) {
-        setInvoiceFor(t);
-        setInvoiceKey((k) => k + 1);
-    }
-
-    function invoiceValue(t: Transaction): string {
-        if (t.invoice_not_required) return '13';
-        return t.invoice_month != null ? String(t.invoice_month) : '';
-    }
-
-    function invoiceLit(t: Transaction): boolean {
-        return t.invoice_not_required || t.invoice_month != null;
-    }
-
-    function openCreate() {
-        setEditing(null);
-        setFormKey((k) => k + 1);
-        setDialogOpen(true);
-    }
-
-    function openEdit(t: Transaction) {
-        setEditing(t);
-        setFormKey((k) => k + 1);
-        setDialogOpen(true);
-    }
-
-    function destroy(t: Transaction) {
-        if (confirm('Delete this transaction?')) {
-            router.delete(`/transactions/${t.id}`, { preserveScroll: true });
-        }
-    }
-
-    const typeOptions = (['income', 'expense', 'transfer'] as const).map(
-        (t) => ({ value: t, label: typeMeta[t].label }),
-    );
-    const walletOptions = wallets.map((w) => ({
-        value: w.name,
-        label: w.name,
-    }));
-    const categoryOptions = categories.map((c) => ({
-        value: c.name,
-        label: c.name,
-    }));
-    const entityOptions = entities.map((e) => ({
-        value: e.name,
-        label: e.name,
-    }));
-
-    const walletColumn: ColumnDef<Transaction> = {
-        id: 'wallet',
-        accessorFn: (row) => row.wallet?.name ?? '',
-        meta: { filter: { type: 'select', options: walletOptions } },
-        header: ({ column }) => <ColumnHeader column={column} title="Wallet" />,
-        cell: ({ row }) =>
-            row.original.type === 'transfer' ? (
-                <div className="leading-tight">
-                    <div>{row.original.wallet?.name ?? '—'}</div>
-                    <div className="text-muted-foreground text-xs">
-                        → {row.original.to_wallet?.name ?? '—'}
-                    </div>
-                </div>
-            ) : (
-                (row.original.wallet?.name ?? '—')
-            ),
-    };
-
-    const balanceColumn: ColumnDef<Transaction> = {
-        id: 'balance',
-        accessorFn: (row) => (row.balance != null ? Number(row.balance) : 0),
-        meta: { align: 'right' },
-        header: ({ column }) => (
-            <ColumnHeader column={column} title="Balance" align="right" />
-        ),
-        cell: ({ row }) =>
-            row.original.balance != null ? (
-                <span className="font-medium">
-                    {formatAmount(row.original.balance)}
-                </span>
-            ) : (
-                '—'
-            ),
-    };
-
-    const columns: ColumnDef<Transaction>[] = [
-        {
-            accessorKey: 'type',
-            meta: { filter: { type: 'select', options: typeOptions } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Type" />
-            ),
-            cell: ({ row }) => (
-                <span
-                    className={cn(
-                        'font-medium',
-                        typeMeta[row.original.type].className,
-                    )}
-                >
-                    {typeMeta[row.original.type].label}
-                </span>
-            ),
-        },
-        {
-            accessorKey: 'date',
-            meta: { filter: { type: 'date' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Date" />
-            ),
-            cell: ({ row }) => (
-                <span className="text-muted-foreground whitespace-nowrap tabular-nums">
-                    {formatDate(row.original.date)}
-                </span>
-            ),
-        },
-        ...(balanceMode ? [] : [walletColumn]),
-        {
-            id: 'category',
-            accessorFn: (row) => row.category?.name ?? '',
-            meta: { filter: { type: 'select', options: categoryOptions } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Category" />
-            ),
-            cell: ({ row }) => (
-                <span className="text-muted-foreground">
-                    {row.original.category?.name ?? '—'}
-                </span>
-            ),
-        },
-        {
-            id: 'entity',
-            accessorFn: (row) =>
-                row.type === 'transfer' ? 'Transfer' : (row.entity?.name ?? ''),
-            meta: { filter: { type: 'select', options: entityOptions } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Entity" />
-            ),
-            cell: ({ row }) => (
-                <span className="text-muted-foreground">
-                    {row.original.type === 'transfer'
-                        ? 'Transfer'
-                        : (row.original.entity?.name ?? '—')}
-                </span>
-            ),
-        },
-        {
-            accessorKey: 'description',
-            meta: { filter: { type: 'text' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Description" />
-            ),
-            cell: ({ row }) => row.original.description || '—',
-        },
-        {
-            id: 'net',
-            accessorFn: (row) => Number(row.net),
-            meta: { align: 'right', filter: { type: 'number' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Net" align="right" />
-            ),
-            cell: ({ row }) => formatAmount(row.original.net),
-        },
-        {
-            id: 'vat',
-            accessorFn: (row) => Number(row.vat_amount),
-            meta: { align: 'right', filter: { type: 'number' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="VAT" align="right" />
-            ),
-            cell: ({ row }) => (
-                <span className="text-muted-foreground">
-                    {formatAmount(row.original.vat_amount)}
-                </span>
-            ),
-        },
-        {
-            id: 'total',
-            accessorFn: (row) => total(row),
-            meta: { align: 'right', filter: { type: 'number' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Total" align="right" />
-            ),
-            cell: ({ row }) => (
-                <span className="font-medium">
-                    {formatAmount(total(row.original))}
-                </span>
-            ),
-        },
-        ...(balanceMode ? [balanceColumn] : []),
-        {
-            id: 'actions',
-            enableSorting: false,
-            meta: { align: 'right' },
-            header: () => null,
-            cell: ({ row }) => {
-                const t = row.original;
-                return (
-                    <div className="flex justify-end gap-1">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openReconcile(t)}
-                            aria-label="Reconcile transaction"
-                            aria-pressed={t.is_reconciled}
-                            className={cn(
-                                t.is_reconciled &&
-                                    'text-emerald-600 dark:text-emerald-500',
-                            )}
-                        >
-                            <CircleCheck className="size-4" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openInvoice(t)}
-                            aria-label="Set invoice folder"
-                            className={cn(invoiceLit(t) && 'text-primary')}
-                        >
-                            <span className="relative inline-flex">
-                                <FileText className="size-4" />
-                                {t.invoice_month != null && (
-                                    <span className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[9px] leading-none font-semibold tabular-nums">
-                                        {t.invoice_month}
-                                    </span>
-                                )}
-                                {t.invoice_not_required && (
-                                    <span className="absolute top-1/2 left-1/2 h-[1.5px] w-5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-full bg-current" />
-                                )}
-                            </span>
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEdit(t)}
-                            aria-label="Edit transaction"
-                        >
-                            <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => destroy(t)}
-                            aria-label="Delete transaction"
-                        >
-                            <Trash2 className="size-4" />
-                        </Button>
-                    </div>
-                );
-            },
-        },
-    ];
 
     return (
         <>
             <Head title="Transactions" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
-                <DataTable
-                    columns={columns}
-                    data={transactions}
+                <TransactionsTable
+                    transactions={transactions}
+                    balanceMode={balance !== null}
+                    rowActions={{
+                        reconcile: true,
+                        invoice: true,
+                        delete: true,
+                    }}
+                    editing={editing}
                     title="Transactions"
                     searchPlaceholder="Search transactions…"
-                    emptyMessage="No transactions yet."
-                    pageSize={50}
                     controls={<TransactionsFilters filters={filters} />}
                     toolbar={
                         <BalanceViewControl
@@ -394,7 +61,7 @@ export default function TransactionsIndex({
                     }
                     action={
                         <Button
-                            onClick={openCreate}
+                            onClick={openAdd}
                             disabled={wallets.length === 0}
                             size="icon"
                             aria-label="Add transaction"
@@ -407,36 +74,11 @@ export default function TransactionsIndex({
             </div>
 
             <TransactionFormDialog
-                key={formKey}
-                open={dialogOpen}
-                onOpenChange={setDialogOpen}
-                editing={editing}
-                wallets={wallets}
-                entities={entities}
-                categories={categories}
-                vatRates={vatRates}
-                withheldRates={withheldRates}
+                key={`add-${addKey}`}
+                open={addOpen}
+                onOpenChange={setAddOpen}
+                editing={null}
             />
-
-            {invoiceFor && (
-                <InvoiceDialog
-                    key={invoiceKey}
-                    open={invoiceFor !== null}
-                    onOpenChange={(open) => !open && setInvoiceFor(null)}
-                    transactionId={invoiceFor.id}
-                    current={invoiceValue(invoiceFor)}
-                />
-            )}
-
-            {reconcileFor && (
-                <ReconcileModal
-                    key={reconcileKey}
-                    open={reconcileFor !== null}
-                    onOpenChange={(open) => !open && setReconcileFor(null)}
-                    transaction={reconcileFor}
-                    wallets={wallets}
-                />
-            )}
         </>
     );
 }

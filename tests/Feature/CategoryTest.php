@@ -149,9 +149,10 @@ test('the category page carries transaction lines and lookups for the edit dialo
             ->has('transactions', 1)
             ->has('transactions.0.vat_lines', 1)
             ->has('transactions.0.withheld_lines')
-            ->has('wallets')
-            ->has('vatRates')
-            ->has('withheldRates')
+            // The edit form's lookups come from the globally-shared financeLookups.
+            ->has('financeLookups.wallets')
+            ->has('financeLookups.vatRates')
+            ->has('financeLookups.withheldRates')
         );
 });
 

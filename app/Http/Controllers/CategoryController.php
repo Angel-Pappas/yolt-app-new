@@ -3,11 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
-use App\Models\Entity;
 use App\Models\Transaction;
-use App\Models\VatRate;
-use App\Models\Wallet;
-use App\Models\WithheldTaxRate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -41,15 +37,8 @@ class CategoryController extends Controller
     public function show(Category $category): Response
     {
         $transactions = Transaction::query()
+            ->withListData()
             ->where('category_id', $category->id)
-            ->with([
-                'wallet:id,name',
-                'toWallet:id,name',
-                'entity:id,name',
-                'category:id,name',
-                'vatLines' => fn ($q) => $q->orderBy('position')->select('id', 'transaction_id', 'net', 'vat_rate_id', 'position'),
-                'withheldLines' => fn ($q) => $q->orderBy('position')->select('id', 'transaction_id', 'net', 'withheld_rate_id', 'position'),
-            ])
             ->orderBy('date')
             ->orderBy('id')
             ->get();
@@ -57,18 +46,13 @@ class CategoryController extends Controller
         return Inertia::render('categories/show', [
             'category' => $category->only(['id', 'name', 'type', 'description']),
             'transactions' => $transactions,
-            // Same-type siblings are the valid targets for a bulk recategorise.
+            // Same-type siblings are the valid targets for a bulk recategorise. (The
+            // transaction edit form's own lookups come from the shared `financeLookups`.)
             'targets' => Category::query()
                 ->where('type', $category->type)
                 ->where('id', '!=', $category->id)
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            // Lookups for the transaction edit dialog opened from a row.
-            'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
-            'entities' => Entity::query()->orderBy('name')->get(['id', 'name']),
-            'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
-            'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
-            'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
         ]);
     }
 

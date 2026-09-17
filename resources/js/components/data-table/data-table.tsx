@@ -20,6 +20,7 @@ import {
     Table,
     TableBody,
     TableCell,
+    TableFooter,
     TableHead,
     TableHeader,
     TableRow,
@@ -50,6 +51,14 @@ type Props<TData, TValue> = {
     initialColumnFilters?: ColumnFiltersState;
     /** Called when a row is clicked (e.g. to open it). */
     onRowClick?: (row: TData) => void;
+    /**
+     * A link target for each row — makes rows openable in a new tab (middle /
+     * Ctrl/⌘-click) via a stretched anchor, while a plain left-click still calls
+     * `onRowClick`. Interactive cells must be lifted above it (`relative z-10`).
+     */
+    rowHref?: (row: TData) => string;
+    /** Render a totals footer row from each column's `footer` (sums, a count, …). */
+    enableTotals?: boolean;
     emptyMessage?: string;
     /** How many rows to render initially and to reveal per scroll step. */
     pageSize?: number;
@@ -86,6 +95,8 @@ export function DataTable<TData, TValue>({
     controls,
     initialColumnFilters,
     onRowClick,
+    rowHref,
+    enableTotals = false,
     emptyMessage = 'Nothing here yet.',
     pageSize = 50,
     enableSelection = false,
@@ -155,6 +166,8 @@ export function DataTable<TData, TValue>({
                     onCheckedChange={(v) => row.toggleSelected(!!v)}
                     aria-label="Select row"
                     onClick={(e) => e.stopPropagation()}
+                    // Lift above a row's stretched link overlay so it stays clickable.
+                    className="relative z-10"
                 />
             ),
         };
@@ -292,37 +305,71 @@ export function DataTable<TData, TValue>({
                     </TableHeader>
                     <TableBody>
                         {visibleRows.length ? (
-                            visibleRows.map((row) => (
-                                <TableRow
-                                    key={row.id}
-                                    onClick={
-                                        onRowClick
-                                            ? () => onRowClick(row.original)
-                                            : undefined
-                                    }
-                                    className={
-                                        onRowClick
-                                            ? 'cursor-pointer'
-                                            : undefined
-                                    }
-                                >
-                                    {row.getVisibleCells().map((cell) => (
-                                        <TableCell
-                                            key={cell.id}
-                                            className={cn(
-                                                cellAlign(
-                                                    cell.column.columnDef.meta,
-                                                ),
-                                            )}
-                                        >
-                                            {flexRender(
-                                                cell.column.columnDef.cell,
-                                                cell.getContext(),
-                                            )}
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
-                            ))
+                            visibleRows.map((row) => {
+                                const href = rowHref?.(row.original);
+                                return (
+                                    <TableRow
+                                        key={row.id}
+                                        onClick={
+                                            !href && onRowClick
+                                                ? () => onRowClick(row.original)
+                                                : undefined
+                                        }
+                                        className={cn(
+                                            (href || onRowClick) &&
+                                                'cursor-pointer',
+                                            // Positioning context for the row's
+                                            // stretched link overlay.
+                                            href && 'relative',
+                                        )}
+                                    >
+                                        {row
+                                            .getVisibleCells()
+                                            .map((cell, i) => (
+                                                <TableCell
+                                                    key={cell.id}
+                                                    className={cn(
+                                                        cellAlign(
+                                                            cell.column
+                                                                .columnDef.meta,
+                                                        ),
+                                                    )}
+                                                >
+                                                    {href && i === 0 && (
+                                                        <a
+                                                            href={href}
+                                                            aria-label="Open"
+                                                            className="absolute inset-0"
+                                                            onClick={(e) => {
+                                                                // Modified clicks
+                                                                // (new tab/window)
+                                                                // go to the browser;
+                                                                // a plain click opens
+                                                                // in place.
+                                                                if (
+                                                                    e.metaKey ||
+                                                                    e.ctrlKey ||
+                                                                    e.shiftKey ||
+                                                                    e.altKey
+                                                                )
+                                                                    return;
+                                                                e.preventDefault();
+                                                                onRowClick?.(
+                                                                    row.original,
+                                                                );
+                                                            }}
+                                                        />
+                                                    )}
+                                                    {flexRender(
+                                                        cell.column.columnDef
+                                                            .cell,
+                                                        cell.getContext(),
+                                                    )}
+                                                </TableCell>
+                                            ))}
+                                    </TableRow>
+                                );
+                            })
                         ) : (
                             <TableRow>
                                 <TableCell
@@ -334,6 +381,38 @@ export function DataTable<TData, TValue>({
                             </TableRow>
                         )}
                     </TableBody>
+                    {enableTotals && rows.length > 0 && (
+                        <TableFooter>
+                            {table.getFooterGroups().map((footerGroup) => (
+                                <TableRow
+                                    key={footerGroup.id}
+                                    className="border-t-2"
+                                >
+                                    {footerGroup.headers.map((header) => (
+                                        <TableCell
+                                            key={header.id}
+                                            className={cn(
+                                                'font-semibold',
+                                                cellAlign(
+                                                    header.column.columnDef
+                                                        .meta,
+                                                ),
+                                            )}
+                                        >
+                                            {header.isPlaceholder ||
+                                            !header.column.columnDef.footer
+                                                ? null
+                                                : flexRender(
+                                                      header.column.columnDef
+                                                          .footer,
+                                                      header.getContext(),
+                                                  )}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))}
+                        </TableFooter>
+                    )}
                 </Table>
             </div>
 

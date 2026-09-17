@@ -1,9 +1,8 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { type ColumnDef } from '@tanstack/react-table';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
-import { ColumnHeader } from '@/components/data-table/column-header';
-import { DataTable } from '@/components/data-table/data-table';
+import { TransactionsTable } from '@/components/transactions/transactions-table';
+import { type Transaction } from '@/components/transactions/types';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,43 +16,6 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { formatAmount, formatDate } from '@/lib/format';
-import { cn } from '@/lib/utils';
-import {
-    type EditableTransaction,
-    TransactionFormDialog,
-} from '@/pages/transactions/transaction-form-dialog';
-
-type Related = { id: number; name: string } | null;
-type TransactionType = 'income' | 'expense' | 'transfer';
-
-type Transaction = {
-    id: number;
-    date: string;
-    invoice_date: string;
-    description: string;
-    type: TransactionType;
-    net: string;
-    vat_amount: string;
-    withheld_amount: string;
-    fmy_amount: string | null;
-    efka_employee_amount: string | null;
-    efka_employer_amount: string | null;
-    entity_id: number | null;
-    category_id: number | null;
-    wallet_id: number;
-    to_wallet_id: number | null;
-    vat_rate_id: number | null;
-    wallet: Related;
-    to_wallet: Related;
-    entity: Related;
-    vat_lines: { net: string; vat_rate_id: number | null; position: number }[];
-    withheld_lines: {
-        net: string;
-        withheld_rate_id: number | null;
-        position: number;
-    }[];
-};
 
 type Category = {
     id: number;
@@ -63,52 +25,18 @@ type Category = {
 };
 
 type Option = { id: number; name: string };
-type CategoryOption = { id: number; name: string; type: string };
-type Rate = { id: number; name: string; rate: string };
 
 type Props = {
     category: Category;
     transactions: Transaction[];
+    /** Same-type sibling categories — the valid targets for a bulk recategorise. */
     targets: Option[];
-    wallets: Option[];
-    entities: Option[];
-    categories: CategoryOption[];
-    vatRates: Rate[];
-    withheldRates: Rate[];
 };
-
-const typeMeta: Record<TransactionType, { label: string; className: string }> =
-    {
-        income: {
-            label: 'Income',
-            className: 'text-green-600 dark:text-green-500',
-        },
-        expense: {
-            label: 'Expense',
-            className: 'text-red-600 dark:text-red-500',
-        },
-        transfer: { label: 'Transfer', className: 'text-muted-foreground' },
-    };
-
-function total(t: Transaction): number {
-    return (
-        Number(t.net) +
-        Number(t.vat_amount) -
-        Number(t.withheld_amount) -
-        Number(t.fmy_amount ?? 0) -
-        Number(t.efka_employee_amount ?? 0)
-    );
-}
 
 export default function CategoryShow({
     category,
     transactions,
     targets,
-    wallets,
-    entities,
-    categories,
-    vatRates,
-    withheldRates,
 }: Props) {
     const form = useForm({
         name: category.name,
@@ -116,16 +44,6 @@ export default function CategoryShow({
         type: category.type,
     });
     const [moveTarget, setMoveTarget] = useState('');
-    const [editing, setEditing] = useState<EditableTransaction | null>(null);
-    const [dialogOpen, setDialogOpen] = useState(false);
-    // Bumped on every open so the reused dialog remounts with a fresh form.
-    const [formKey, setFormKey] = useState(0);
-
-    function openEdit(t: Transaction) {
-        setEditing(t);
-        setFormKey((k) => k + 1);
-        setDialogOpen(true);
-    }
 
     function save(e: FormEvent) {
         e.preventDefault();
@@ -157,111 +75,6 @@ export default function CategoryShow({
             onSuccess: clear,
         });
     }
-
-    const columns: ColumnDef<Transaction>[] = [
-        {
-            accessorKey: 'type',
-            meta: {
-                filter: {
-                    type: 'select',
-                    options: [
-                        { value: 'income', label: 'Income' },
-                        { value: 'expense', label: 'Expense' },
-                    ],
-                },
-            },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Type" />
-            ),
-            cell: ({ row }) => (
-                <span
-                    className={cn(
-                        'font-medium',
-                        typeMeta[row.original.type].className,
-                    )}
-                >
-                    {typeMeta[row.original.type].label}
-                </span>
-            ),
-        },
-        {
-            accessorKey: 'date',
-            meta: { filter: { type: 'date' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Date" />
-            ),
-            cell: ({ row }) => (
-                <span className="text-muted-foreground whitespace-nowrap tabular-nums">
-                    {formatDate(row.original.date)}
-                </span>
-            ),
-        },
-        {
-            id: 'wallet',
-            accessorFn: (row) => row.wallet?.name ?? '',
-            meta: { filter: { type: 'select' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Wallet" />
-            ),
-            cell: ({ row }) => row.original.wallet?.name ?? '—',
-        },
-        {
-            id: 'entity',
-            accessorFn: (row) => row.entity?.name ?? '',
-            meta: { filter: { type: 'select' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Entity" />
-            ),
-            cell: ({ row }) => (
-                <span className="text-muted-foreground">
-                    {row.original.entity?.name ?? '—'}
-                </span>
-            ),
-        },
-        {
-            accessorKey: 'description',
-            meta: { filter: { type: 'text' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Description" />
-            ),
-            cell: ({ row }) => row.original.description || '—',
-        },
-        {
-            id: 'net',
-            accessorFn: (row) => Number(row.net),
-            meta: { align: 'right', filter: { type: 'number' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Net" align="right" />
-            ),
-            cell: ({ row }) => formatAmount(row.original.net),
-        },
-        {
-            id: 'vat',
-            accessorFn: (row) => Number(row.vat_amount),
-            meta: { align: 'right', filter: { type: 'number' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="VAT" align="right" />
-            ),
-            cell: ({ row }) => (
-                <span className="text-muted-foreground">
-                    {formatAmount(row.original.vat_amount)}
-                </span>
-            ),
-        },
-        {
-            id: 'total',
-            accessorFn: (row) => total(row),
-            meta: { align: 'right', filter: { type: 'number' } },
-            header: ({ column }) => (
-                <ColumnHeader column={column} title="Total" align="right" />
-            ),
-            cell: ({ row }) => (
-                <span className="font-medium">
-                    {formatAmount(total(row.original))}
-                </span>
-            ),
-        },
-    ];
 
     return (
         <>
@@ -334,16 +147,12 @@ export default function CategoryShow({
                     </CardContent>
                 </Card>
 
-                <DataTable
-                    columns={columns}
-                    data={transactions}
+                <TransactionsTable
+                    transactions={transactions}
                     title="Transactions"
                     searchPlaceholder="Search transactions…"
                     emptyMessage="No transactions in this category."
-                    pageSize={50}
-                    onRowClick={openEdit}
                     enableSelection
-                    getRowId={(t) => String(t.id)}
                     renderBulkActions={(selected, clear) => {
                         const ids = selected.map((t) => t.id);
                         return (
@@ -389,20 +198,6 @@ export default function CategoryShow({
                     }}
                 />
             </div>
-
-            {editing && (
-                <TransactionFormDialog
-                    key={formKey}
-                    open={dialogOpen}
-                    onOpenChange={setDialogOpen}
-                    editing={editing}
-                    wallets={wallets}
-                    entities={entities}
-                    categories={categories}
-                    vatRates={vatRates}
-                    withheldRates={withheldRates}
-                />
-            )}
         </>
     );
 }

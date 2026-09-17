@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
-use App\Models\Entity;
 use App\Models\Transaction;
 use App\Models\VatRate;
 use App\Models\Wallet;
@@ -68,17 +67,20 @@ class TransactionController extends Controller
             ? $this->balanceRows($balanceWallet, $filters)
             : $this->listRows($filters);
 
+        // Deep-link: `?edit=<id>` opens that transaction's edit modal, even when it
+        // falls outside the current date filter — so the row's "open in new tab" link
+        // (which points here) always works.
+        $editing = $request->filled('edit')
+            ? Transaction::query()->withListData()->find((int) $request->input('edit'))
+            : null;
+
         return Inertia::render('transactions/index', [
             'transactions' => $transactions,
             'filters' => $filters,
             'balance' => $balanceWallet !== null
                 ? ['wallet_id' => $balanceWallet->id, 'wallet_name' => $balanceWallet->name]
                 : null,
-            'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
-            'entities' => Entity::query()->orderBy('name')->get(['id', 'name']),
-            'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
-            'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
-            'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+            'editing' => $editing,
         ]);
     }
 
@@ -90,14 +92,7 @@ class TransactionController extends Controller
      */
     private function listRows(array $filters): \Illuminate\Database\Eloquent\Collection
     {
-        $query = Transaction::query()->with([
-            'wallet:id,name',
-            'toWallet:id,name',
-            'entity:id,name',
-            'category:id,name',
-            'vatLines' => fn ($q) => $q->orderBy('position')->select('id', 'transaction_id', 'net', 'vat_rate_id', 'position'),
-            'withheldLines' => fn ($q) => $q->orderBy('position')->select('id', 'transaction_id', 'net', 'withheld_rate_id', 'position'),
-        ]);
+        $query = Transaction::query()->withListData();
 
         if ($filters['from'] !== null) {
             $query->whereDate('date', '>=', $filters['from']);
@@ -371,6 +366,24 @@ class TransactionController extends Controller
             'invoice_month' => $input !== null && $input <= 12 ? $input : null,
             'invoice_not_required' => $input === 13,
         ]);
+
+        return back();
+    }
+
+    /**
+     * Update just a transaction's description — the ⓘ description editor on the
+     * transactions table. A dedicated partial update so it needn't resubmit the whole
+     * transaction. The column is NOT NULL, so a cleared description stores "".
+     */
+    public function describe(Request $request, Transaction $transaction): RedirectResponse
+    {
+        $data = $request->validate([
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $transaction->update(['description' => $data['description'] ?? '']);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Description updated.')]);
 
         return back();
     }

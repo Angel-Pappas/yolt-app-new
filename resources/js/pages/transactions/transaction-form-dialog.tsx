@@ -6,6 +6,10 @@ import { CrudFormDialog } from '@/components/crud/crud-form-dialog';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
+import {
+    type FinanceLookups,
+    useFinanceLookups,
+} from '@/components/transactions/lookups';
 import { CategoryFormDialog } from '@/pages/categories/category-form-dialog';
 import {
     entityDescription,
@@ -32,8 +36,6 @@ import {
 import { formatAmount } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
-type Option = { id: number; name: string };
-type Category = { id: number; name: string; type: string };
 type Rate = { id: number; name: string; rate: string };
 type VatLine = { net: string; vat_rate_id: number | null; position: number };
 type WithheldLine = {
@@ -67,11 +69,6 @@ const PAYROLL_CATEGORY = 'Payroll';
 type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    wallets: Option[];
-    entities: Option[];
-    categories: Category[];
-    vatRates: Rate[];
-    withheldRates: Rate[];
     editing?: EditableTransaction | null;
 };
 
@@ -131,16 +128,11 @@ function lineCalc(
     };
 }
 
-export function TransactionFormDialog({
-    open,
-    onOpenChange,
-    wallets,
-    entities,
-    categories,
-    vatRates,
-    withheldRates,
-    editing,
-}: Props) {
+export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
+    // Lookups come from the globally-shared source, so this form works wherever it's
+    // opened without each page having to pass them.
+    const { wallets, entities, categories, vatRates, withheldRates } =
+        useFinanceLookups();
     // The withholding rate a freshly-toggled line gets: the 20% one (the usual
     // Greek contractor rate) when it exists, else the first available rate.
     const defaultWithheldRateId = (): string => {
@@ -344,16 +336,21 @@ export function TransactionFormDialog({
         setAddCategoryOpen(true);
     }
 
-    // After the add dialog saves (which reloaded the list while preserving this form),
-    // select the newly-created record — the one whose id wasn't in the old list.
+    // After the add dialog saves (which reloaded the shared lookups while preserving
+    // this form), select the newly-created record — the one whose id wasn't there before.
+    function lookupsOf(page: Page): FinanceLookups | undefined {
+        return (page.props as { financeLookups?: FinanceLookups })
+            .financeLookups;
+    }
+
     function selectNewEntity(page: Page) {
-        const list = (page.props.entities ?? []) as Option[];
+        const list = lookupsOf(page)?.entities ?? [];
         const added = list.find((e) => !entities.some((o) => o.id === e.id));
         if (added) form.setData('entity_id', String(added.id));
     }
 
     function selectNewCategory(page: Page) {
-        const list = (page.props.categories ?? []) as Category[];
+        const list = lookupsOf(page)?.categories ?? [];
         // Match the transaction's type — with "Both", two are created and we want the
         // one that fits this transaction.
         const added = list.find(
@@ -430,6 +427,7 @@ export function TransactionFormDialog({
 
         if (editing) {
             form.patch(`/transactions/${editing.id}`, {
+                preserveState: true,
                 preserveScroll: true,
                 onSuccess: () => onOpenChange(false),
             });
@@ -437,6 +435,7 @@ export function TransactionFormDialog({
         }
 
         form.post('/transactions', {
+            preserveState: true,
             preserveScroll: true,
             onSuccess: () => {
                 if (mode === 'close') {
@@ -1162,7 +1161,7 @@ export function TransactionFormDialog({
                 baseUrl="/entities"
                 fields={entityFields}
                 description={entityDescription}
-                only={['entities']}
+                only={['financeLookups']}
                 onSaved={selectNewEntity}
             />
             <CategoryFormDialog
@@ -1170,6 +1169,7 @@ export function TransactionFormDialog({
                 open={addCategoryOpen}
                 onOpenChange={setAddCategoryOpen}
                 initialType={form.data.type === 'income' ? 'income' : 'expense'}
+                only={['financeLookups']}
                 onSaved={selectNewCategory}
             />
         </>
