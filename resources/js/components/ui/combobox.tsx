@@ -18,6 +18,24 @@ import { cn } from '@/lib/utils';
 
 export type ComboboxOption = { value: string; label: string };
 
+/** Lower-case, strip accents, and fold Greek final sigma so search ignores tones/case. */
+function normalize(text: string): string {
+    return text
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .replace(/ς/g, 'σ');
+}
+
+/**
+ * cmdk filter: keep an item only when its text **contains** the query as a
+ * contiguous run (accent/case-insensitive) — a plain "contains" match, not cmdk's
+ * default fuzzy subsequence (which matched e.g. "σουν" inside "σύλλογος λογο…").
+ */
+function containsFilter(value: string, search: string): number {
+    return normalize(value).includes(normalize(search)) ? 1 : 0;
+}
+
 type Props = {
     options: ComboboxOption[];
     value: string;
@@ -53,7 +71,7 @@ export function Combobox({
 
     const selected = options.find((o) => o.value === value);
     const exactMatch = options.some(
-        (o) => o.label.toLowerCase() === query.trim().toLowerCase(),
+        (o) => normalize(o.label) === normalize(query.trim()),
     );
 
     function choose(v: string) {
@@ -82,7 +100,7 @@ export function Combobox({
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
-                <Command>
+                <Command filter={containsFilter}>
                     <CommandInput
                         placeholder={searchPlaceholder}
                         value={query}
