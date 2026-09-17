@@ -1,4 +1,4 @@
-import { useForm } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import { X } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import InputError from '@/components/input-error';
@@ -320,6 +320,49 @@ export function TransactionFormDialog({
         );
     }
 
+    // Inline-create an entity from the combobox's "Create" option: POST it, keep the
+    // form's state (preserveState) so no progress is lost, reload just the entity list,
+    // then select the newly-added one (the id not present in the old list).
+    function createEntity(name: string) {
+        router.post(
+            '/entities',
+            { name },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                only: ['entities'],
+                onSuccess: (page) => {
+                    const list = (page.props.entities ?? []) as Option[];
+                    const added = list.find(
+                        (e) => !entities.some((o) => o.id === e.id),
+                    );
+                    if (added) form.setData('entity_id', String(added.id));
+                },
+            },
+        );
+    }
+
+    // Inline-create a category, tagged with the transaction's current income/expense
+    // type so it shows in this form and matches on save. Same preserve-and-select flow.
+    function createCategory(name: string) {
+        router.post(
+            '/configuration/categories',
+            { name, type: form.data.type },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                only: ['categories'],
+                onSuccess: (page) => {
+                    const list = (page.props.categories ?? []) as Category[];
+                    const added = list.find(
+                        (c) => !categories.some((o) => o.id === c.id),
+                    );
+                    if (added) form.setData('category_id', String(added.id));
+                },
+            },
+        );
+    }
+
     function submit(e: FormEvent) {
         e.preventDefault();
         doSubmit('close');
@@ -506,6 +549,7 @@ export function TransactionFormDialog({
                                     searchPlaceholder="Search entities…"
                                     emptyText="No entities found."
                                     allowNone
+                                    onCreate={createEntity}
                                 />
                             </div>
                         )}
@@ -529,6 +573,7 @@ export function TransactionFormDialog({
                                     searchPlaceholder="Search categories…"
                                     emptyText="No categories found."
                                     allowNone
+                                    onCreate={createCategory}
                                 />
                             </div>
                         )}
