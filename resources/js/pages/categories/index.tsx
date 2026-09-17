@@ -1,5 +1,6 @@
 import { Head, router } from '@inertiajs/react';
 import { type CrudColumn, CrudResource } from '@/components/crud/crud-resource';
+import { categoryFields } from './category-fields';
 
 type Category = {
     id: number;
@@ -31,16 +32,6 @@ export default function CategoriesIndex({
             ),
         },
     ];
-    const fields = [
-        { key: 'name', label: 'Name', type: 'text' as const, required: true },
-        {
-            key: 'description',
-            label: 'Description',
-            type: 'textarea' as const,
-            placeholder: 'Optional — what this category is for',
-        },
-    ];
-
     return (
         <>
             <Head title="Categories" />
@@ -51,7 +42,7 @@ export default function CategoriesIndex({
                     baseUrl="/configuration/categories"
                     items={categories.filter((c) => c.type === 'income')}
                     columns={nameColumn}
-                    fields={fields}
+                    fields={categoryFields}
                     fixedValues={{ type: 'income' }}
                     onRowClick={(item) =>
                         router.visit(`/configuration/categories/${item.id}`)
@@ -65,7 +56,7 @@ export default function CategoriesIndex({
                     baseUrl="/configuration/categories"
                     items={categories.filter((c) => c.type === 'expense')}
                     columns={nameColumn}
-                    fields={fields}
+                    fields={categoryFields}
                     fixedValues={{ type: 'expense' }}
                     onRowClick={(item) =>
                         router.visit(`/configuration/categories/${item.id}`)

@@ -1,36 +1,18 @@
-import { router, useForm } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { type FormEvent, type ReactNode, useState } from 'react';
+import { type ReactNode, useState } from 'react';
+import {
+    type CrudField,
+    type CrudItem,
+    CrudFormDialog,
+} from '@/components/crud/crud-form-dialog';
 import { type ColumnFilterMeta } from '@/components/data-table/column-filter';
 import { ColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
-import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { DateField } from '@/components/ui/date-field';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 
-export type CrudItem = { id: number } & Record<
-    string,
-    string | number | boolean | null
->;
+export type { CrudField, CrudItem };
 
 export type CrudColumn = {
     key: string;
@@ -39,15 +21,6 @@ export type CrudColumn = {
     render?: (item: CrudItem) => ReactNode;
     /** Header filter for this column (text/select/number/date). */
     filter?: ColumnFilterMeta;
-};
-
-export type CrudField = {
-    key: string;
-    label: string;
-    type?: 'text' | 'decimal' | 'select' | 'textarea' | 'date';
-    options?: { value: string; label: string }[];
-    placeholder?: string;
-    required?: boolean;
 };
 
 type Props = {
@@ -72,23 +45,11 @@ type Props = {
     disableEdit?: boolean;
 };
 
-function blankData(
-    fields: CrudField[],
-    fixedValues: Record<string, string>,
-): Record<string, string> {
-    const data: Record<string, string> = { ...fixedValues };
-    for (const field of fields) {
-        data[field.key] =
-            field.type === 'select' ? (field.options?.[0]?.value ?? '') : '';
-    }
-    return data;
-}
-
 /**
  * A generic list + add/edit dialog + soft-delete for the simple lookup/reference
  * resources (categories, VAT rates, etc.). Backed by RESTful routes at `baseUrl`
- * (POST create, PATCH `{id}`, DELETE `{id}`). Fields render as text, decimal
- * (comma or dot accepted, normalized to a dot), or a select.
+ * (POST create, PATCH `{id}`, DELETE `{id}`). The add/edit form is the shared
+ * {@see CrudFormDialog}, remounted via `key` on each open for a fresh form.
  */
 export function CrudResource({
     title,
@@ -104,53 +65,19 @@ export function CrudResource({
 }: Props) {
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<CrudItem | null>(null);
-    const form = useForm<Record<string, string>>(
-        blankData(fields, fixedValues),
-    );
+    // Bumped on every open so the reused dialog remounts with a fresh form.
+    const [formKey, setFormKey] = useState(0);
 
     function openCreate() {
         setEditing(null);
-        form.setData(blankData(fields, fixedValues));
-        form.clearErrors();
+        setFormKey((k) => k + 1);
         setOpen(true);
     }
 
     function openEdit(item: CrudItem) {
         setEditing(item);
-        const data: Record<string, string> = { ...fixedValues };
-        for (const field of fields) {
-            const value = item[field.key];
-            data[field.key] =
-                value === null || value === undefined ? '' : String(value);
-        }
-        form.setData(data);
-        form.clearErrors();
+        setFormKey((k) => k + 1);
         setOpen(true);
-    }
-
-    function submit(e: FormEvent) {
-        e.preventDefault();
-
-        form.transform((data) => {
-            const out = { ...data };
-            for (const field of fields) {
-                if (field.type === 'decimal') {
-                    out[field.key] = String(out[field.key]).replace(',', '.');
-                }
-            }
-            return out;
-        });
-
-        const options = {
-            onSuccess: () => setOpen(false),
-            preserveScroll: true,
-        };
-
-        if (editing) {
-            form.patch(`${baseUrl}/${editing.id}`, options);
-        } else {
-            form.post(baseUrl, options);
-        }
     }
 
     function destroy(item: CrudItem) {
@@ -230,117 +157,17 @@ export function CrudResource({
                 }
             />
 
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent>
-                    <form onSubmit={submit}>
-                        <DialogHeader>
-                            <DialogTitle>
-                                {editing
-                                    ? `Edit ${singular}`
-                                    : `Add ${singular}`}
-                            </DialogTitle>
-                            {description && (
-                                <DialogDescription>
-                                    {description}
-                                </DialogDescription>
-                            )}
-                        </DialogHeader>
-
-                        <div className="grid gap-4 py-4">
-                            {fields.map((field) => (
-                                <div key={field.key} className="grid gap-2">
-                                    <Label htmlFor={field.key}>
-                                        {field.label}
-                                    </Label>
-                                    {field.type === 'select' ? (
-                                        <Select
-                                            value={form.data[field.key]}
-                                            onValueChange={(v) =>
-                                                form.setData(field.key, v)
-                                            }
-                                        >
-                                            <SelectTrigger id={field.key}>
-                                                <SelectValue
-                                                    placeholder={
-                                                        field.placeholder
-                                                    }
-                                                />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {field.options?.map((o) => (
-                                                    <SelectItem
-                                                        key={o.value}
-                                                        value={o.value}
-                                                    >
-                                                        {o.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    ) : field.type === 'date' ? (
-                                        <DateField
-                                            id={field.key}
-                                            value={form.data[field.key]}
-                                            onChange={(iso) =>
-                                                form.setData(field.key, iso)
-                                            }
-                                            required={field.required}
-                                        />
-                                    ) : field.type === 'textarea' ? (
-                                        <Textarea
-                                            id={field.key}
-                                            value={form.data[field.key]}
-                                            onChange={(e) =>
-                                                form.setData(
-                                                    field.key,
-                                                    e.target.value,
-                                                )
-                                            }
-                                            placeholder={field.placeholder}
-                                            required={field.required}
-                                            rows={3}
-                                        />
-                                    ) : (
-                                        <Input
-                                            id={field.key}
-                                            inputMode={
-                                                field.type === 'decimal'
-                                                    ? 'decimal'
-                                                    : undefined
-                                            }
-                                            value={form.data[field.key]}
-                                            onChange={(e) =>
-                                                form.setData(
-                                                    field.key,
-                                                    e.target.value,
-                                                )
-                                            }
-                                            placeholder={field.placeholder}
-                                            required={field.required}
-                                        />
-                                    )}
-                                    <InputError
-                                        message={form.errors[field.key]}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-
-                        <DialogFooter>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setOpen(false)}
-                            >
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={form.processing}>
-                                {editing ? 'Save' : 'Add'}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+            <CrudFormDialog
+                key={formKey}
+                open={open}
+                onOpenChange={setOpen}
+                singular={singular}
+                baseUrl={baseUrl}
+                fields={fields}
+                editing={editing}
+                fixedValues={fixedValues}
+                description={description}
+            />
         </>
     );
 }
