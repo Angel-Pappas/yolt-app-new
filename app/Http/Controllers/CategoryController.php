@@ -74,11 +74,30 @@ class CategoryController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $category = new Category($this->validateCategory($request));
-        $category->user_id = $request->user()->id;
-        $category->save();
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'type' => ['required', Rule::in(['income', 'expense', 'both'])],
+            'description' => ['nullable', 'string', 'max:2000'],
+        ]);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Category created.')]);
+        // "both" creates a matching income and expense category in one go — two
+        // independent rows, not linked in any way.
+        $types = $data['type'] === 'both' ? ['income', 'expense'] : [$data['type']];
+
+        foreach ($types as $type) {
+            $category = new Category([
+                'name' => $data['name'],
+                'type' => $type,
+                'description' => $data['description'] ?? null,
+            ]);
+            $category->user_id = $request->user()->id;
+            $category->save();
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => count($types) > 1 ? __('Categories created.') : __('Category created.'),
+        ]);
 
         return back();
     }

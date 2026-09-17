@@ -14,18 +14,10 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
+import { includesNormalized, normalizeSearch } from '@/lib/search';
 import { cn } from '@/lib/utils';
 
 export type ComboboxOption = { value: string; label: string };
-
-/** Lower-case, strip accents, and fold Greek final sigma so search ignores tones/case. */
-function normalize(text: string): string {
-    return text
-        .normalize('NFD')
-        .replace(/\p{Diacritic}/gu, '')
-        .toLowerCase()
-        .replace(/ς/g, 'σ');
-}
 
 /**
  * cmdk filter: keep an item only when its text **contains** the query as a
@@ -33,7 +25,7 @@ function normalize(text: string): string {
  * default fuzzy subsequence (which matched e.g. "σουν" inside "σύλλογος λογο…").
  */
 function containsFilter(value: string, search: string): number {
-    return normalize(value).includes(normalize(search)) ? 1 : 0;
+    return includesNormalized(value, search) ? 1 : 0;
 }
 
 type Props = {
@@ -71,7 +63,7 @@ export function Combobox({
 
     const selected = options.find((o) => o.value === value);
     const exactMatch = options.some(
-        (o) => normalize(o.label) === normalize(query.trim()),
+        (o) => normalizeSearch(o.label) === normalizeSearch(query.trim()),
     );
 
     function choose(v: string) {

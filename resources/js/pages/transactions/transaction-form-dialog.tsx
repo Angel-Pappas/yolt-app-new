@@ -6,11 +6,11 @@ import { CrudFormDialog } from '@/components/crud/crud-form-dialog';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
+import { CategoryFormDialog } from '@/pages/categories/category-form-dialog';
 import {
     entityDescription,
     entityFields,
 } from '@/pages/entities/entity-fields';
-import { categoryFields } from '@/pages/categories/category-fields';
 import { DateField } from '@/components/ui/date-field';
 import {
     Dialog,
@@ -354,7 +354,13 @@ export function TransactionFormDialog({
 
     function selectNewCategory(page: Page) {
         const list = (page.props.categories ?? []) as Category[];
-        const added = list.find((c) => !categories.some((o) => o.id === c.id));
+        // Match the transaction's type — with "Both", two are created and we want the
+        // one that fits this transaction.
+        const added = list.find(
+            (c) =>
+                c.type === form.data.type &&
+                !categories.some((o) => o.id === c.id),
+        );
         if (added) form.setData('category_id', String(added.id));
     }
 
@@ -1159,15 +1165,11 @@ export function TransactionFormDialog({
                 only={['entities']}
                 onSaved={selectNewEntity}
             />
-            <CrudFormDialog
+            <CategoryFormDialog
                 key={`category-${addCategoryKey}`}
                 open={addCategoryOpen}
                 onOpenChange={setAddCategoryOpen}
-                singular="category"
-                baseUrl="/configuration/categories"
-                fields={categoryFields}
-                fixedValues={{ type: form.data.type }}
-                only={['categories']}
+                initialType={form.data.type === 'income' ? 'income' : 'expense'}
                 onSaved={selectNewCategory}
             />
         </>

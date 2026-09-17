@@ -30,6 +30,25 @@ test('a finance user can create a category', function () {
     expect($category->user_id)->toBe($user->id);
 });
 
+test('creating a category as "both" makes one income and one expense', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post('/configuration/categories', [
+        'name' => 'Travel',
+        'type' => 'both',
+        'description' => 'Trips',
+    ])->assertRedirect();
+
+    $rows = Category::where('name', 'Travel')->get();
+    expect($rows)->toHaveCount(2);
+    expect($rows->pluck('type')->sort()->values()->all())->toBe([
+        'expense',
+        'income',
+    ]);
+    // Both carry the same description but are otherwise independent rows.
+    expect($rows->pluck('description')->unique()->all())->toBe(['Trips']);
+});
+
 test('a category type must be income or expense', function () {
     $user = User::factory()->create();
 
