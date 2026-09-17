@@ -39,6 +39,20 @@ test('an empty vat number is stored as null', function () {
     expect(Entity::where('name', 'No VAT')->first()->vat_number)->toBeNull();
 });
 
+test('an entity can be created with no vat_number field at all (inline create)', function () {
+    $user = User::factory()->create();
+
+    // The transaction form's inline "Create" sends only a name — the vat_number
+    // key is absent, which used to throw "Undefined array key".
+    $this->actingAs($user)->post('/entities', [
+        'name' => 'Inline Co',
+    ])->assertRedirect();
+
+    $entity = Entity::where('name', 'Inline Co')->first();
+    expect($entity)->not->toBeNull();
+    expect($entity->vat_number)->toBeNull();
+});
+
 test('creating an entity requires a name', function () {
     $user = User::factory()->create();
 

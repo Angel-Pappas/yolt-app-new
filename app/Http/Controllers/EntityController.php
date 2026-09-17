@@ -62,7 +62,9 @@ class EntityController extends Controller
             'vat_number' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $data['vat_number'] = $data['vat_number'] ?: null;
+        // Normalize a blank or absent VAT number to null (the field isn't sent at all
+        // when an entity is created inline from the transaction form).
+        $data['vat_number'] = ($data['vat_number'] ?? null) ?: null;
 
         return $data;
     }
