@@ -37,8 +37,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('entities', [EntityController::class, 'index'])->name('entities.index');
     Route::post('entities', [EntityController::class, 'store'])->name('entities.store');
-    Route::patch('entities/{entity}', [EntityController::class, 'update'])->name('entities.update');
-    Route::delete('entities/{entity}', [EntityController::class, 'destroy'])->name('entities.destroy');
+    // Bulk classify — before {entity} so "bulk" is never parsed as an id.
+    Route::patch('entities/bulk/type', [EntityController::class, 'bulkType'])->name('entities.bulk.type');
+    // Per-type lists (and the Cheese bucket) — static slugs, registered before the
+    // numeric-constrained detail/update/delete routes so they don't collide.
+    Route::get('entities/{slug}', [EntityController::class, 'byType'])
+        ->whereIn('slug', ['customers', 'suppliers', 'contractors', 'employees', 'cheese'])
+        ->name('entities.type');
+    Route::patch('entities/{entity}', [EntityController::class, 'update'])->whereNumber('entity')->name('entities.update');
+    Route::delete('entities/{entity}', [EntityController::class, 'destroy'])->whereNumber('entity')->name('entities.destroy');
 
     Route::get('taxes', [TaxController::class, 'index'])->name('taxes.index');
     Route::get('taxes/vat', [TaxController::class, 'vat'])->name('taxes.vat');

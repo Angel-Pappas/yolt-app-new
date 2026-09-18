@@ -2,12 +2,16 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     ArrowLeft,
     ArrowLeftRight,
-    Building2,
+    Boxes,
+    Landmark,
     PanelLeftClose,
     PanelLeftOpen,
-    Receipt,
     Settings2,
+    Truck,
+    UserRound,
+    Users,
     Wallet,
+    Wrench,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
@@ -31,8 +35,17 @@ import type { NavItem } from '@/types';
 const financeNavItems: NavItem[] = [
     { title: 'Transactions', href: '/transactions', icon: ArrowLeftRight },
     { title: 'Wallets', href: '/wallets', icon: Wallet },
-    { title: 'Taxes', href: '/taxes', icon: Receipt },
-    { title: 'Entities', href: '/entities', icon: Building2 },
+];
+
+// The counterparties, one list per type. "State" is the tax pages; "Cheese" is the
+// bucket of not-yet-classified entities.
+const entitiesNavItems: NavItem[] = [
+    { title: 'Customers', href: '/entities/customers', icon: UserRound },
+    { title: 'Suppliers', href: '/entities/suppliers', icon: Truck },
+    { title: 'Contractors', href: '/entities/contractors', icon: Wrench },
+    { title: 'Employees', href: '/entities/employees', icon: Users },
+    { title: 'State', href: '/taxes', icon: Landmark },
+    { title: 'Cheese', href: '/entities/cheese', icon: Boxes },
 ];
 
 /** The sidebar collapse/expand toggle, living at the bottom of the panel. */
@@ -124,6 +137,7 @@ export function AppSidebar() {
                 ) : (
                     <>
                         <NavMain items={financeNavItems} label="Finance" />
+                        <NavMain items={entitiesNavItems} label="Entities" />
                         <SidebarLink
                             href="/configuration"
                             label="Configuration"
