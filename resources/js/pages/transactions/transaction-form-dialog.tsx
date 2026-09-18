@@ -2,7 +2,10 @@ import { type Page } from '@inertiajs/core';
 import { useForm } from '@inertiajs/react';
 import { Plus, X } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
-import { CrudFormDialog } from '@/components/crud/crud-form-dialog';
+import {
+    type CrudField,
+    CrudFormDialog,
+} from '@/components/crud/crud-form-dialog';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
@@ -241,6 +244,45 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
     const availableCategories = categories.filter(
         (c) => c.type === form.data.type,
     );
+
+    // Which entities the picker offers: income → customers; expense → the payee
+    // types (suppliers, contractors, employees, the State). An already-selected
+    // entity is always kept, so editing a legacy/unclassified (Cheese) row never
+    // drops its entity.
+    const entityTypesForType =
+        form.data.type === 'income'
+            ? ['customer']
+            : ['supplier', 'contractor', 'employee', 'state'];
+    const availableEntities = entities.filter(
+        (e) =>
+            (e.type !== null && entityTypesForType.includes(e.type)) ||
+            String(e.id) === form.data.entity_id,
+    );
+
+    // Inline "+ Add entity": income adds a customer (type locked); expense lets the
+    // user pick which payee type, so the new entity lands in the right list.
+    const entityAddIsCustomer = form.data.type === 'income';
+    const entityAddFields: CrudField[] = entityAddIsCustomer
+        ? entityFields
+        : [
+              { key: 'name', label: 'Name', type: 'text', required: true },
+              {
+                  key: 'type',
+                  label: 'Type',
+                  type: 'select',
+                  options: [
+                      { value: 'supplier', label: 'Supplier' },
+                      { value: 'contractor', label: 'Contractor' },
+                      { value: 'employee', label: 'Employee' },
+                  ],
+                  placeholder: 'Choose a type',
+              },
+              {
+                  key: 'vat_number',
+                  label: 'VAT number (optional)',
+                  type: 'text',
+              },
+          ];
 
     const selectedCategory = categories.find(
         (c) => String(c.id) === form.data.category_id,
@@ -550,7 +592,7 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                                                 onChange={(v) =>
                                                     form.setData('entity_id', v)
                                                 }
-                                                options={entities.map(
+                                                options={availableEntities.map(
                                                     (entity) => ({
                                                         value: String(
                                                             entity.id,
@@ -1159,7 +1201,8 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                 onOpenChange={setAddEntityOpen}
                 singular="entity"
                 baseUrl="/entities"
-                fields={entityFields}
+                fields={entityAddFields}
+                fixedValues={entityAddIsCustomer ? { type: 'customer' } : {}}
                 description={entityDescription}
                 only={['financeLookups']}
                 onSaved={selectNewEntity}

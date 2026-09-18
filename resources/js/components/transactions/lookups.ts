@@ -1,7 +1,7 @@
 import { usePage } from '@inertiajs/react';
 
 export type WalletOption = { id: number; name: string };
-export type EntityOption = { id: number; name: string };
+export type EntityOption = { id: number; name: string; type: string | null };
 export type CategoryOption = { id: number; name: string; type: string };
 export type RateOption = { id: number; name: string; rate: string };
 

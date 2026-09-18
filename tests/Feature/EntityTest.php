@@ -154,6 +154,17 @@ test('entities can be bulk-classified into a type', function () {
     expect($b->refresh()->type)->toBe('supplier');
 });
 
+test('the shared entity lookup carries the entity type', function () {
+    $user = User::factory()->create();
+    Entity::factory()->customer()->create();
+
+    $this->actingAs($user)
+        ->get('/entities/customers')
+        ->assertInertia(
+            fn ($page) => $page->has('financeLookups.entities.0.type'),
+        );
+});
+
 test('an entity defaults to no type (the Cheese bucket)', function () {
     expect(Entity::factory()->create()->type)->toBeNull();
 });

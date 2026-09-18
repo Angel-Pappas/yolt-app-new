@@ -54,7 +54,7 @@ class HandleInertiaRequests extends Middleware
             // (e.g. after inline-creating an entity) but not on unrelated partials.
             'financeLookups' => $request->user() ? fn (): array => [
                 'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
-                'entities' => Entity::query()->orderBy('name')->get(['id', 'name']),
+                'entities' => Entity::query()->orderBy('name')->get(['id', 'name', 'type']),
                 'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
                 'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
                 'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
