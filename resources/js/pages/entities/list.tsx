@@ -144,8 +144,11 @@ export default function EntitiesList({
                             ? 'Unclassified entities. Assign each a type to move it into the right list.'
                             : undefined
                     }
-                    onRowClick={(item: CrudItem) =>
-                        router.visit(`/entities/${item.id}`)
+                    onRowClick={
+                        classify
+                            ? undefined
+                            : (item: CrudItem) =>
+                                  router.visit(`/entities/${item.id}`)
                     }
                     disableEdit={!classify}
                     enableSelection={classify}
