@@ -35,14 +35,20 @@ class TaxSync
 
     public static function run(): void
     {
-        $wallet = Wallet::query()->orderBy('id')->first();
-        if ($wallet === null) {
+        $setting = Setting::current();
+
+        // The chosen tax wallet (if it still exists), else the first wallet.
+        $walletId = $setting->tax_wallet_id !== null
+            && Wallet::query()->whereKey($setting->tax_wallet_id)->exists()
+                ? $setting->tax_wallet_id
+                : Wallet::query()->orderBy('id')->value('id');
+        if ($walletId === null) {
             return; // no wallet to pay from yet
         }
 
         $stateId = self::stateEntity()->id;
         $taxesId = self::taxesCategory()->id;
-        $floor = Setting::managedFrom();
+        $floor = $setting->managed_from?->startOfDay();
 
         /** @var array<string, TaxObligation> $desired */
         $desired = [];
@@ -68,13 +74,13 @@ class TaxSync
             $row = $existing->get($key);
             if ($row !== null) {
                 if (! $row->is_reconciled) {
-                    self::write($row, $obligation, $key, $wallet->id, $stateId, $taxesId);
+                    self::write($row, $obligation, $key, $walletId, $stateId, $taxesId);
                 }
                 $existing->forget($key);
 
                 continue;
             }
-            self::write(new Transaction, $obligation, $key, $wallet->id, $stateId, $taxesId);
+            self::write(new Transaction, $obligation, $key, $walletId, $stateId, $taxesId);
         }
 
         // Obligations no longer owed: drop the unreconciled rows, keep reconciled ones.

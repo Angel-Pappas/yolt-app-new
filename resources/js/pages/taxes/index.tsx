@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
@@ -6,6 +6,14 @@ import { ColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { formatAmount, formatDate, formatMonthYear } from '@/lib/format';
 
 type Amount = number | string;
@@ -17,9 +25,13 @@ type Obligation = {
     due_date: string;
 };
 
+type Wallet = { id: number; name: string };
+
 type Props = {
     obligations: Obligation[];
     current_month: string;
+    wallets: Wallet[];
+    tax_wallet_id: number | null;
     vat: { payable_this_month: Amount; net: Amount };
     withheld: { payable_this_month: Amount; this_month: Amount };
     fmy: { payable_this_month: Amount; this_month: Amount };
@@ -84,6 +96,8 @@ function TaxCard({
 export default function TaxesIndex({
     obligations,
     current_month,
+    wallets,
+    tax_wallet_id,
     vat,
     withheld,
     fmy,
@@ -91,6 +105,14 @@ export default function TaxesIndex({
     income,
 }: Props) {
     const [month, setMonth] = useState(current_month);
+
+    function setTaxWallet(value: string) {
+        router.patch(
+            '/taxes/wallet',
+            { tax_wallet_id: Number(value) },
+            { preserveScroll: true },
+        );
+    }
 
     const due = obligations.filter((o) => String(o.due_date).startsWith(month));
     const total = due.reduce((sum, o) => sum + Number(o.amount), 0);
@@ -161,6 +183,35 @@ export default function TaxesIndex({
             <Head title="Taxes" />
             <div className="flex h-full flex-1 flex-col gap-6 p-4">
                 <h1 className="text-2xl font-semibold">Taxes</h1>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Tax payments</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap items-center gap-3">
+                        <Label htmlFor="tax_wallet">Default wallet</Label>
+                        <Select
+                            value={tax_wallet_id ? String(tax_wallet_id) : ''}
+                            onValueChange={setTaxWallet}
+                        >
+                            <SelectTrigger id="tax_wallet" className="w-56">
+                                <SelectValue placeholder="Select a wallet" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {wallets.map((w) => (
+                                    <SelectItem key={w.id} value={String(w.id)}>
+                                        {w.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <span className="text-muted-foreground text-sm">
+                            Generated tax transactions are filed here. Changing
+                            it moves every unreconciled tax transaction to the
+                            new wallet.
+                        </span>
+                    </CardContent>
+                </Card>
 
                 <div className="flex flex-col gap-2">
                     <DataTable

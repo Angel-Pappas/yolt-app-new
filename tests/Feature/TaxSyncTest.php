@@ -2,6 +2,7 @@
 
 use App\Models\Setting;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Models\Wallet;
 use App\Support\TaxSync;
 use App\Support\VatLedger;
@@ -94,6 +95,37 @@ test('a tax payment due before the managed floor is not generated', function () 
 
     // The March-due payment is before the April floor, so it isn't materialised.
     expect(Transaction::where('managed_key', 'tax:vat:2026-02')->exists())->toBeFalse();
+});
+
+test('tax transactions use the configured tax wallet', function () {
+    $fallback = Wallet::factory()->create(); // first by id — the default
+    $chosen = Wallet::factory()->create();
+    Setting::current()->update(['tax_wallet_id' => $chosen->id]);
+    vatIncome($fallback);
+
+    TaxSync::run();
+
+    expect(Transaction::where('managed_key', 'tax:vat:2026-02')->value('wallet_id'))->toBe($chosen->id);
+});
+
+test('changing the tax wallet moves unreconciled tax rows but not reconciled ones', function () {
+    $user = User::factory()->create();
+    $walletA = Wallet::factory()->create();
+    $walletB = Wallet::factory()->create();
+    Setting::current()->update(['tax_wallet_id' => $walletA->id]);
+    vatIncome($walletA);
+    TaxSync::run();
+
+    $row = Transaction::where('managed_key', 'tax:vat:2026-02')->first();
+    expect($row->wallet_id)->toBe($walletA->id);
+    $row->update(['is_reconciled' => true]); // pay it → frozen
+
+    $this->actingAs($user)
+        ->patch('/taxes/wallet', ['tax_wallet_id' => $walletB->id])
+        ->assertRedirect();
+
+    // Reconciled row stays on wallet A (frozen).
+    expect(Transaction::where('managed_key', 'tax:vat:2026-02')->value('wallet_id'))->toBe($walletA->id);
 });
 
 test('generated tax rows do not feed back into the VAT ledger', function () {

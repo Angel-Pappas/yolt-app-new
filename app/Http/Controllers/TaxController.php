@@ -2,15 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Setting;
 use App\Models\Transaction;
+use App\Models\Wallet;
 use App\Support\EfkaLedger;
 use App\Support\FmyLedger;
 use App\Support\IncomeTaxLedger;
 use App\Support\TaxObligation;
+use App\Support\TaxSync;
 use App\Support\VatLedger;
 use App\Support\WithheldLedger;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -45,6 +50,8 @@ class TaxController extends Controller
         return Inertia::render('taxes/index', [
             'obligations' => $obligations,
             'current_month' => $currentMonth,
+            'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
+            'tax_wallet_id' => Setting::current()->tax_wallet_id,
             'vat' => [
                 'payable_this_month' => self::sumDue($vat, $currentMonth),
                 'net' => self::monthAmount(VatLedger::monthly(), $currentMonth, 'net'),
@@ -66,6 +73,24 @@ class TaxController extends Controller
                 'this_year' => self::sumDue($income, $currentYear),
             ],
         ]);
+    }
+
+    /**
+     * Set the default wallet for generated tax payments. Re-runs the sync so every
+     * unreconciled tax transaction moves to the chosen wallet (reconciled ones stay).
+     */
+    public function updateWallet(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'tax_wallet_id' => ['nullable', 'integer', 'exists:wallets,id'],
+        ]);
+
+        Setting::current()->update(['tax_wallet_id' => $data['tax_wallet_id'] ?? null]);
+        TaxSync::run();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Tax wallet updated.')]);
+
+        return back();
     }
 
     public function vat(): Response

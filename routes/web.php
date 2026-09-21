@@ -55,6 +55,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('recurrences/{recurrence}', [RecurrenceController::class, 'destroy'])->name('recurrences.destroy');
 
     Route::get('taxes', [TaxController::class, 'index'])->name('taxes.index');
+    Route::patch('taxes/wallet', [TaxController::class, 'updateWallet'])->name('taxes.wallet');
     Route::get('taxes/vat', [TaxController::class, 'vat'])->name('taxes.vat');
     Route::get('taxes/withheld', [TaxController::class, 'withheld'])->name('taxes.withheld');
     Route::get('taxes/fmy', [TaxController::class, 'fmy'])->name('taxes.fmy');

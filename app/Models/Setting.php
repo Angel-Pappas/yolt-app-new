@@ -12,8 +12,9 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property int $id
  * @property CarbonImmutable|null $managed_from
+ * @property int|null $tax_wallet_id
  */
-#[Fillable(['managed_from'])]
+#[Fillable(['managed_from', 'tax_wallet_id'])]
 class Setting extends Model
 {
     protected function casts(): array
