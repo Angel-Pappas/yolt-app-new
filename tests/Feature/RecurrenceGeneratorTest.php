@@ -2,6 +2,7 @@
 
 use App\Models\Recurrence;
 use App\Models\RecurrenceEntry;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\VatRate;
 use App\Models\WithheldTaxRate;
@@ -184,6 +185,32 @@ test('the day-of-month clamps on short months without drifting', function () {
         "recurrence:{$recurrence->id}:2026-03-31",
         "recurrence:{$recurrence->id}:2026-04-30",
     ]);
+});
+
+test('the managed floor excludes occurrences dated before it', function () {
+    Setting::current()->update(['managed_from' => '2026-09-01']);
+    $recurrence = monthlyRecurrence(); // start 2026-01-01, monthly on the 1st
+
+    RecurrenceGenerator::sync($recurrence);
+
+    expect(Transaction::where('recurrence_id', $recurrence->id)->where('date', '<', '2026-09-01')->count())->toBe(0);
+    expect(Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-09-01")->exists())->toBeTrue();
+    expect(Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-08-01")->exists())->toBeFalse();
+});
+
+test('setting a floor purges pre-floor unreconciled rows but keeps reconciled ones', function () {
+    $recurrence = monthlyRecurrence();
+    RecurrenceGenerator::sync($recurrence); // no floor yet — generates from 2026-01
+
+    Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-03-01")
+        ->first()->update(['is_reconciled' => true]);
+
+    Setting::current()->update(['managed_from' => '2026-09-01']);
+    RecurrenceGenerator::sync($recurrence->fresh());
+
+    // Feb (unreconciled, pre-floor) is gone; March (reconciled) is kept as history.
+    expect(Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-02-01")->exists())->toBeFalse();
+    expect(Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-03-01")->exists())->toBeTrue();
 });
 
 test('a weekly recurrence steps by whole weeks from the start date', function () {

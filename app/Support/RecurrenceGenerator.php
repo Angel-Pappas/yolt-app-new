@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Recurrence;
 use App\Models\RecurrenceEntry;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\VatRate;
 use App\Models\WithheldTaxRate;
@@ -117,16 +118,21 @@ class RecurrenceGenerator
     }
 
     /**
-     * The occurrence dates from `start_date` through min(end_date, today + horizon).
-     * Month/year cadence lands on `day_of_month` (clamped to short months); week
-     * cadence steps from the start date. Dates are CarbonImmutable, so every step
-     * reassigns rather than mutating in place.
+     * The occurrence dates from max(`start_date`, the managed floor) through
+     * min(end_date, today + horizon). The cadence rhythm stays anchored to the real
+     * `start_date` (so phase is preserved), but nothing before the floor is emitted —
+     * that's the boundary where the app takes over from manual history. Month/year
+     * cadence lands on `day_of_month` (clamped to short months); week cadence steps
+     * from the start date. Dates are CarbonImmutable, so every step reassigns.
      *
      * @return list<CarbonInterface>
      */
     public static function occurrenceDates(Recurrence $recurrence): array
     {
         $start = $recurrence->start_date->startOfDay();
+        $floor = Setting::managedFrom();
+        $lower = ($floor !== null && $floor->greaterThan($start)) ? $floor : $start;
+
         $horizonEnd = Carbon::today()->addMonths(self::HORIZON_MONTHS);
         $end = $recurrence->end_date
             ? $recurrence->end_date->startOfDay()
@@ -134,7 +140,7 @@ class RecurrenceGenerator
         if ($end->greaterThan($horizonEnd)) {
             $end = $horizonEnd;
         }
-        if ($end->lessThan($start)) {
+        if ($end->lessThan($lower)) {
             return [];
         }
 
@@ -143,7 +149,9 @@ class RecurrenceGenerator
         if ($recurrence->interval_unit === 'week') {
             $dates = [];
             for ($cur = $start; $cur->lessThanOrEqualTo($end); $cur = $cur->addWeeks($step)) {
-                $dates[] = $cur;
+                if ($cur->greaterThanOrEqualTo($lower)) {
+                    $dates[] = $cur;
+                }
             }
 
             return $dates;
@@ -156,9 +164,6 @@ class RecurrenceGenerator
         $onDay = fn (CarbonInterface $m): CarbonInterface => $m->day(min($day, $m->daysInMonth));
 
         $base = $recurrence->start_date->startOfMonth();
-        if ($onDay($base)->lessThan($start)) {
-            $base = $base->addMonths($stepMonths);
-        }
 
         $dates = [];
         while (true) {
@@ -166,7 +171,7 @@ class RecurrenceGenerator
             if ($occ->greaterThan($end)) {
                 break;
             }
-            if ($occ->greaterThanOrEqualTo($start)) {
+            if ($occ->greaterThanOrEqualTo($lower)) {
                 $dates[] = $occ;
             }
             $base = $base->addMonths($stepMonths);

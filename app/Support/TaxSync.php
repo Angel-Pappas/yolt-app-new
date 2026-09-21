@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Category;
 use App\Models\Entity;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\Wallet;
 use Illuminate\Support\Carbon;
@@ -41,11 +42,17 @@ class TaxSync
 
         $stateId = self::stateEntity()->id;
         $taxesId = self::taxesCategory()->id;
+        $floor = Setting::managedFrom();
 
         /** @var array<string, TaxObligation> $desired */
         $desired = [];
         foreach (self::allObligations() as $obligation) {
             if ($obligation->amount <= 0) {
+                continue;
+            }
+            // No tax payment is generated before the managed floor — the app takes
+            // over from manual history there.
+            if ($floor !== null && Carbon::parse($obligation->dueDate)->lessThan($floor)) {
                 continue;
             }
             $desired["tax:{$obligation->tax}:{$obligation->period}"] = $obligation;

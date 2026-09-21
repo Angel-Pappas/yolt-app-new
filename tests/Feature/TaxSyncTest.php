@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\Wallet;
 use App\Support\TaxSync;
@@ -82,6 +83,17 @@ test('a reconciled tax row is frozen against recompute', function () {
     TaxSync::run();
 
     expect((float) Transaction::where('managed_key', 'tax:vat:2026-02')->value('net'))->toBe(30.0);
+});
+
+test('a tax payment due before the managed floor is not generated', function () {
+    $wallet = Wallet::factory()->create();
+    vatIncome($wallet); // Feb 2026 VAT, due end of March 2026
+
+    Setting::current()->update(['managed_from' => '2026-04-01']);
+    TaxSync::run();
+
+    // The March-due payment is before the April floor, so it isn't materialised.
+    expect(Transaction::where('managed_key', 'tax:vat:2026-02')->exists())->toBeFalse();
 });
 
 test('generated tax rows do not feed back into the VAT ledger', function () {
