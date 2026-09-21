@@ -43,6 +43,13 @@ type Props = {
      * page instead of in the list's dialog. The Add dialog is unaffected.
      */
     disableEdit?: boolean;
+    /**
+     * Opt-in row selection + a bulk-actions bar (forwarded to {@see DataTable}).
+     * `renderBulkActions` receives the selected items and a clear callback.
+     */
+    enableSelection?: boolean;
+    getRowId?: (item: CrudItem) => string;
+    renderBulkActions?: (selected: CrudItem[], clear: () => void) => ReactNode;
 };
 
 /**
@@ -62,6 +69,9 @@ export function CrudResource({
     fixedValues = {},
     onRowClick,
     disableEdit = false,
+    enableSelection = false,
+    getRowId,
+    renderBulkActions,
 }: Props) {
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<CrudItem | null>(null);
@@ -145,6 +155,9 @@ export function CrudResource({
                 searchPlaceholder={`Search ${title.toLowerCase()}…`}
                 emptyMessage={`No ${title.toLowerCase()} yet.`}
                 onRowClick={onRowClick}
+                enableSelection={enableSelection}
+                getRowId={getRowId}
+                renderBulkActions={renderBulkActions}
                 action={
                     <Button
                         onClick={openCreate}

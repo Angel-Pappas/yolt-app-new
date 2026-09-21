@@ -1,9 +1,18 @@
 import { Head, router } from '@inertiajs/react';
+import { useState } from 'react';
 import {
     type CrudField,
     type CrudItem,
     CrudResource,
 } from '@/components/crud/crud-resource';
+import { Button } from '@/components/ui/button';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 
 type Entity = {
     id: number;
@@ -26,6 +35,52 @@ const TYPE_OPTIONS = [
     { value: 'contractor', label: 'Contractor' },
     { value: 'employee', label: 'Employee' },
 ];
+
+/** The Cheese bulk-actions bar: pick a type and move every selected entity to it. */
+function CheeseBulkBar({
+    selected,
+    clear,
+}: {
+    selected: CrudItem[];
+    clear: () => void;
+}) {
+    const [type, setType] = useState('');
+
+    function assign() {
+        if (!type) return;
+        router.patch(
+            '/entities/bulk/type',
+            { ids: selected.map((e) => e.id), type },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    clear();
+                    setType('');
+                },
+            },
+        );
+    }
+
+    return (
+        <>
+            <Select value={type} onValueChange={setType}>
+                <SelectTrigger className="h-8 w-44" aria-label="Assign type">
+                    <SelectValue placeholder="Assign type…" />
+                </SelectTrigger>
+                <SelectContent>
+                    {TYPE_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            <Button size="sm" disabled={!type} onClick={assign}>
+                Assign
+            </Button>
+        </>
+    );
+}
 
 export default function EntitiesList({
     entities,
@@ -93,6 +148,18 @@ export default function EntitiesList({
                         router.visit(`/entities/${item.id}`)
                     }
                     disableEdit={!classify}
+                    enableSelection={classify}
+                    getRowId={(item: CrudItem) => String(item.id)}
+                    renderBulkActions={
+                        classify
+                            ? (selected, clear) => (
+                                  <CheeseBulkBar
+                                      selected={selected}
+                                      clear={clear}
+                                  />
+                              )
+                            : undefined
+                    }
                 />
             </div>
         </>
