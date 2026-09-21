@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Transaction;
 use App\Models\Wallet;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -71,6 +72,11 @@ class WalletBalances
     }
 
     /**
+     * The current balance of each wallet — as of today. Only transactions dated up
+     * to today count; future-dated rows (auto-generated recurrences and taxes, or a
+     * manually post-dated entry) are projections, shown running forward in the
+     * balance view, not folded into the headline current balance.
+     *
      * @return array<int, float> wallet id => current balance
      */
     public static function all(): array
@@ -81,6 +87,7 @@ class WalletBalances
         }
 
         Transaction::query()
+            ->where('date', '<=', Carbon::today()->toDateString())
             ->get(['type', 'net', 'vat_amount', 'withheld_amount', 'fmy_amount', 'efka_employee_amount', 'wallet_id', 'to_wallet_id'])
             ->each(function (Transaction $t) use (&$balances): void {
                 $total = self::cashTotal($t);

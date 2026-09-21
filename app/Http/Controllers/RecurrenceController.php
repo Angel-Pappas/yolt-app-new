@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Recurrence;
 use App\Support\RecurrenceGenerator;
+use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,7 @@ class RecurrenceController extends Controller
             $recurrence->save();
             $this->writeEntries($recurrence, $data['entries']);
             RecurrenceGenerator::sync($recurrence);
+            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Recurring transaction created.')]);
@@ -44,6 +46,7 @@ class RecurrenceController extends Controller
             $recurrence->entries()->delete();
             $this->writeEntries($recurrence, $data['entries']);
             RecurrenceGenerator::sync($recurrence->fresh());
+            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Recurring transaction updated.')]);
@@ -57,6 +60,7 @@ class RecurrenceController extends Controller
             $recurrence->delete();
             // Trashed → the generator drops its unreconciled rows, keeps reconciled ones.
             RecurrenceGenerator::sync($recurrence);
+            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Recurring transaction deleted.')]);

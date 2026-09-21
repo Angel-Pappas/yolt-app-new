@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Support\RecurrenceGenerator;
+use App\Support\TaxSync;
 use Illuminate\Console\Command;
 
 /**
@@ -18,7 +19,10 @@ class SyncManagedTransactions extends Command
 
     public function handle(): int
     {
+        // Recurrences first, so the tax obligations they feed are computed on the
+        // updated set of future income/expenses.
         RecurrenceGenerator::syncAll();
+        TaxSync::run();
 
         $this->info('Managed transactions synced.');
 

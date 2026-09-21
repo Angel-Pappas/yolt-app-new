@@ -459,6 +459,27 @@ Two codebases will coexist for the whole build.
 
 ## 20. Progress log
 
+- **2026-09-21** — **Entity types + recurring transactions + self-syncing taxes
+  (the auto-created-transactions foundation).** Shipped in slices, all green.
+  **Phase A:** added a nullable `type` to entities (customer/supplier/contractor/
+  employee/state; null = the **Cheese** bucket); new sidebar **Entities** section
+  with a per-type list each (Taxes re-homed under it as **State**); a Cheese
+  classify flow (per-row + bulk); per-entity **detail pages** (`/entities/{id}`);
+  and the transaction entity picker **filtered by type** (income → customers;
+  expense → the payee types). **Phase B:** `recurrences` + `recurrence_entries`
+  tables and `transactions.source`/`recurrence_id`/`managed_key`; a recurrence =
+  fixed template + cadence (N × week/month/year on a day-of-month) + window + a
+  dated amount timeline; `App\Support\RecurrenceGenerator` materialises it into
+  real transactions over a rolling **24-month horizon** (immutable-date-safe,
+  reconciled rows frozen); `RecurrenceController` + an on-entity editor; a daily
+  `managed:sync` command (**needs the scheduler enabled on Laravel Cloud**).
+  **Phase C:** `App\Support\TaxSync` turns each positive tax obligation into a
+  managed **State/Taxes expense**, kept **live** (recomputed after every
+  transaction/recurrence write and daily; updated/created/deleted to match; no
+  feedback loop since tax rows carry zero tax fields). **`WalletBalances::all()`
+  now counts only transactions dated ≤ today** (future rows are projections).
+  Projections/cash-flow view deferred. **235 Pest tests** green (types, lint,
+  build, pint, phpstan all clean).
 - **2026-09-14 (later still)** — **Configuration area + simplified access
   control.** Moved the setup lists (Categories, VAT rates, Withheld tax) and the
   admin **Users** page out of the main nav / Settings into a dedicated

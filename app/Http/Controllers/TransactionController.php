@@ -7,6 +7,7 @@ use App\Models\Transaction;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
+use App\Support\TaxSync;
 use App\Support\WalletBalances;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -161,6 +162,7 @@ class TransactionController extends Controller
             $transaction = new Transaction;
             $transaction->user_id = $request->user()->id;
             $this->persist($transaction, $data);
+            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction added.')]);
@@ -172,7 +174,10 @@ class TransactionController extends Controller
     {
         $data = $this->validateTransaction($request);
 
-        DB::transaction(fn () => $this->persist($transaction, $data));
+        DB::transaction(function () use ($transaction, $data) {
+            $this->persist($transaction, $data);
+            TaxSync::run();
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction updated.')]);
 
@@ -181,7 +186,10 @@ class TransactionController extends Controller
 
     public function destroy(Transaction $transaction): RedirectResponse
     {
-        $transaction->delete();
+        DB::transaction(function () use ($transaction) {
+            $transaction->delete();
+            TaxSync::run();
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction deleted.')]);
 
@@ -209,6 +217,8 @@ class TransactionController extends Controller
             ->where('type', $category->type)
             ->update(['category_id' => $category->id]);
 
+        TaxSync::run();
+
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => trans_choice(':count transaction moved to :name.|:count transactions moved to :name.', $moved, ['count' => $moved, 'name' => $category->name]),
@@ -228,6 +238,8 @@ class TransactionController extends Controller
         ]);
 
         $deleted = Transaction::query()->whereIn('id', $data['ids'])->delete();
+
+        TaxSync::run();
 
         Inertia::flash('toast', [
             'type' => 'success',
@@ -275,6 +287,7 @@ class TransactionController extends Controller
             }
 
             $transaction->save();
+            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction reconciled.')]);

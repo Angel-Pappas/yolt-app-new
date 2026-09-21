@@ -1,0 +1,97 @@
+<?php
+
+use App\Models\Transaction;
+use App\Models\Wallet;
+use App\Support\TaxSync;
+use App\Support\VatLedger;
+use Illuminate\Support\Carbon;
+
+beforeEach(function () {
+    Carbon::setTestNow('2026-03-10');
+});
+
+afterEach(function () {
+    Carbon::setTestNow();
+});
+
+/** A February income with VAT — payable the following month. */
+function vatIncome(Wallet $wallet, float $vat = 24): Transaction
+{
+    return Transaction::factory()->create([
+        'type' => 'income',
+        'date' => '2026-02-15',
+        'invoice_date' => '2026-02-15',
+        'net' => 100,
+        'vat_amount' => $vat,
+        'wallet_id' => $wallet->id,
+    ]);
+}
+
+test('a VAT obligation materialises as a State/Taxes expense', function () {
+    $wallet = Wallet::factory()->create();
+    vatIncome($wallet);
+
+    TaxSync::run();
+
+    $tax = Transaction::where('managed_key', 'tax:vat:2026-02')->first();
+    expect($tax)->not->toBeNull();
+    expect($tax->source)->toBe('tax');
+    expect($tax->type)->toBe('expense');
+    expect((float) $tax->net)->toBe(24.0);
+    expect($tax->entity->type)->toBe('state');
+    expect($tax->category->name)->toBe('Taxes');
+    expect($tax->description)->toContain('VAT');
+});
+
+test('the tax row is recomputed when the underlying VAT changes', function () {
+    $wallet = Wallet::factory()->create();
+    $income = vatIncome($wallet, 24);
+    TaxSync::run();
+
+    $income->update(['vat_amount' => 50]);
+    TaxSync::run();
+
+    expect((float) Transaction::where('managed_key', 'tax:vat:2026-02')->value('net'))->toBe(50.0);
+    // Still exactly one VAT tax row for the month.
+    expect(Transaction::where('managed_key', 'tax:vat:2026-02')->count())->toBe(1);
+});
+
+test('the tax row is removed when the obligation disappears', function () {
+    $wallet = Wallet::factory()->create();
+    $income = vatIncome($wallet);
+    TaxSync::run();
+    expect(Transaction::where('managed_key', 'tax:vat:2026-02')->exists())->toBeTrue();
+
+    $income->delete();
+    TaxSync::run();
+
+    expect(Transaction::where('managed_key', 'tax:vat:2026-02')->exists())->toBeFalse();
+});
+
+test('a reconciled tax row is frozen against recompute', function () {
+    $wallet = Wallet::factory()->create();
+    $income = vatIncome($wallet, 24);
+    TaxSync::run();
+
+    // The user pays it: reconcile with the actual amount.
+    Transaction::where('managed_key', 'tax:vat:2026-02')
+        ->first()
+        ->update(['is_reconciled' => true, 'net' => 30]);
+
+    $income->update(['vat_amount' => 90]);
+    TaxSync::run();
+
+    expect((float) Transaction::where('managed_key', 'tax:vat:2026-02')->value('net'))->toBe(30.0);
+});
+
+test('generated tax rows do not feed back into the VAT ledger', function () {
+    $wallet = Wallet::factory()->create();
+    vatIncome($wallet, 24);
+
+    TaxSync::run();
+
+    $feb = collect(VatLedger::monthly())->firstWhere('month', '2026-02');
+    expect((float) $feb['income_vat'])->toBe(24.0);
+    // The generated tax expense carries vat 0, so it never adds input VAT.
+    expect((float) $feb['expense_vat'])->toBe(0.0);
+});
