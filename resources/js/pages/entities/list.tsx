@@ -34,6 +34,7 @@ const TYPE_OPTIONS = [
     { value: 'supplier', label: 'Supplier' },
     { value: 'contractor', label: 'Contractor' },
     { value: 'employee', label: 'Employee' },
+    { value: 'shareholder', label: 'Shareholder' },
 ];
 
 /** The Cheese bulk-actions bar: pick a type and move every selected entity to it. */

@@ -14,10 +14,7 @@ import {
     useFinanceLookups,
 } from '@/components/transactions/lookups';
 import { CategoryFormDialog } from '@/pages/categories/category-form-dialog';
-import {
-    entityDescription,
-    entityFields,
-} from '@/pages/entities/entity-fields';
+import { entityDescription } from '@/pages/entities/entity-fields';
 import { DateField } from '@/components/ui/date-field';
 import {
     Dialog,
@@ -246,43 +243,48 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
     );
 
     // Which entities the picker offers: income → customers; expense → the payee
-    // types (suppliers, contractors, employees, the State). An already-selected
-    // entity is always kept, so editing a legacy/unclassified (Cheese) row never
-    // drops its entity.
+    // types (suppliers, contractors, employees, the State). Shareholders are
+    // both-sided (dividends out / investment in), so they show on either side.
+    // "Show all" reveals every entity for one-off cross-side cases — e.g. a supplier
+    // refunding you (income against a supplier). An already-selected entity is always
+    // kept, so editing a legacy/unclassified (Cheese) row never drops its entity.
+    const [showAllEntities, setShowAllEntities] = useState(false);
     const entityTypesForType =
         form.data.type === 'income'
-            ? ['customer']
-            : ['supplier', 'contractor', 'employee', 'state'];
-    const availableEntities = entities.filter(
-        (e) =>
-            (e.type !== null && entityTypesForType.includes(e.type)) ||
-            String(e.id) === form.data.entity_id,
-    );
+            ? ['customer', 'shareholder']
+            : ['supplier', 'contractor', 'employee', 'state', 'shareholder'];
+    const availableEntities = showAllEntities
+        ? entities
+        : entities.filter(
+              (e) =>
+                  (e.type !== null && entityTypesForType.includes(e.type)) ||
+                  String(e.id) === form.data.entity_id,
+          );
 
-    // Inline "+ Add entity": income adds a customer (type locked); expense lets the
-    // user pick which payee type, so the new entity lands in the right list.
-    const entityAddIsCustomer = form.data.type === 'income';
-    const entityAddFields: CrudField[] = entityAddIsCustomer
-        ? entityFields
-        : [
-              { key: 'name', label: 'Name', type: 'text', required: true },
-              {
-                  key: 'type',
-                  label: 'Type',
-                  type: 'select',
-                  options: [
-                      { value: 'supplier', label: 'Supplier' },
-                      { value: 'contractor', label: 'Contractor' },
-                      { value: 'employee', label: 'Employee' },
-                  ],
-                  placeholder: 'Choose a type',
-              },
-              {
-                  key: 'vat_number',
-                  label: 'VAT number (optional)',
-                  type: 'text',
-              },
-          ];
+    // Inline "+ Add entity": pick the type (side-appropriate; shareholders are
+    // both-sided, so offered either way) — the new entity lands in the right list.
+    const entityAddFields: CrudField[] = [
+        { key: 'name', label: 'Name', type: 'text', required: true },
+        {
+            key: 'type',
+            label: 'Type',
+            type: 'select',
+            options:
+                form.data.type === 'income'
+                    ? [
+                          { value: 'customer', label: 'Customer' },
+                          { value: 'shareholder', label: 'Shareholder' },
+                      ]
+                    : [
+                          { value: 'supplier', label: 'Supplier' },
+                          { value: 'contractor', label: 'Contractor' },
+                          { value: 'employee', label: 'Employee' },
+                          { value: 'shareholder', label: 'Shareholder' },
+                      ],
+            placeholder: 'Choose a type',
+        },
+        { key: 'vat_number', label: 'VAT number (optional)', type: 'text' },
+    ];
 
     const selectedCategory = categories.find(
         (c) => String(c.id) === form.data.category_id,
@@ -583,7 +585,22 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
 
                             {!isTransfer && (
                                 <div className="grid gap-2">
-                                    <Label htmlFor="entity_id">Entity</Label>
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="entity_id">
+                                            Entity
+                                        </Label>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setShowAllEntities((v) => !v)
+                                            }
+                                            className="text-muted-foreground hover:text-foreground text-xs"
+                                        >
+                                            {showAllEntities
+                                                ? 'Matching only'
+                                                : 'Show all'}
+                                        </button>
+                                    </div>
                                     <div className="flex gap-2">
                                         <div className="min-w-0 flex-1">
                                             <Combobox
@@ -1202,7 +1219,6 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                 singular="entity"
                 baseUrl="/entities"
                 fields={entityAddFields}
-                fixedValues={entityAddIsCustomer ? { type: 'customer' } : {}}
                 description={entityDescription}
                 only={['financeLookups']}
                 onSaved={selectNewEntity}

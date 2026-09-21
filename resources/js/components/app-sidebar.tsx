@@ -3,6 +3,7 @@ import {
     ArrowLeft,
     ArrowLeftRight,
     Boxes,
+    Handshake,
     Landmark,
     PanelLeftClose,
     PanelLeftOpen,
@@ -44,6 +45,7 @@ const entitiesNavItems: NavItem[] = [
     { title: 'Suppliers', href: '/entities/suppliers', icon: Truck },
     { title: 'Contractors', href: '/entities/contractors', icon: Wrench },
     { title: 'Employees', href: '/entities/employees', icon: Users },
+    { title: 'Shareholders', href: '/entities/shareholders', icon: Handshake },
     { title: 'State', href: '/taxes', icon: Landmark },
     { title: 'Cheese', href: '/entities/cheese', icon: Boxes },
 ];

@@ -22,8 +22,12 @@ class Entity extends Model
     /** @use HasFactory<EntityFactory> */
     use HasFactory, SoftDeletes;
 
-    /** The entity types. A null `type` is the unclassified "Cheese" bucket. */
-    public const TYPES = ['customer', 'supplier', 'contractor', 'employee', 'state'];
+    /**
+     * The entity types. A null `type` is the unclassified "Cheese" bucket.
+     * `shareholder` is both-sided (dividends out / investment in), so it appears in
+     * both the income and expense transaction pickers.
+     */
+    public const TYPES = ['customer', 'supplier', 'contractor', 'employee', 'state', 'shareholder'];
 
     /** @return HasMany<Transaction, $this> */
     public function transactions(): HasMany

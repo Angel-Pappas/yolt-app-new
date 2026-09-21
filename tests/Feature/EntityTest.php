@@ -36,6 +36,33 @@ test('a suppliers list shows only suppliers', function () {
         ->assertInertia(fn ($page) => $page->has('entities', 1));
 });
 
+test('shareholders have their own list', function () {
+    $user = User::factory()->create();
+    Entity::factory()->shareholder()->create(['name' => 'Investor A']);
+    Entity::factory()->customer()->create();
+
+    $this->actingAs($user)
+        ->get('/entities/shareholders')
+        ->assertInertia(
+            fn ($page) => $page
+                ->component('entities/list')
+                ->has('entities', 1)
+                ->where('entities.0.name', 'Investor A'),
+        );
+});
+
+test('an entity can be classified as a shareholder', function () {
+    $user = User::factory()->create();
+    $entity = Entity::factory()->create();
+
+    $this->actingAs($user)->patch("/entities/{$entity->id}", [
+        'name' => $entity->name,
+        'type' => 'shareholder',
+    ])->assertRedirect();
+
+    expect($entity->refresh()->type)->toBe('shareholder');
+});
+
 test('a bare /entities redirects to a list', function () {
     $user = User::factory()->create();
 

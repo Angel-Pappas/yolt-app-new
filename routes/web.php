@@ -43,7 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Per-type lists (and the Cheese bucket) — static slugs, registered before the
     // numeric-constrained detail/update/delete routes so they don't collide.
     Route::get('entities/{slug}', [EntityController::class, 'byType'])
-        ->whereIn('slug', ['customers', 'suppliers', 'contractors', 'employees', 'cheese'])
+        ->whereIn('slug', ['customers', 'suppliers', 'contractors', 'employees', 'shareholders', 'cheese'])
         ->name('entities.type');
     Route::get('entities/{entity}', [EntityController::class, 'show'])->whereNumber('entity')->name('entities.show');
     Route::patch('entities/{entity}', [EntityController::class, 'update'])->whereNumber('entity')->name('entities.update');

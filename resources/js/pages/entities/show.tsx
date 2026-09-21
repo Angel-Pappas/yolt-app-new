@@ -43,6 +43,7 @@ const TYPE_OPTIONS = [
     { value: 'supplier', label: 'Supplier' },
     { value: 'contractor', label: 'Contractor' },
     { value: 'employee', label: 'Employee' },
+    { value: 'shareholder', label: 'Shareholder' },
     { value: 'state', label: 'State' },
 ];
 

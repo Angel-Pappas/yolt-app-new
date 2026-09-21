@@ -43,4 +43,9 @@ class EntityFactory extends Factory
     {
         return $this->state(['type' => 'state']);
     }
+
+    public function shareholder(): static
+    {
+        return $this->state(['type' => 'shareholder']);
+    }
 }

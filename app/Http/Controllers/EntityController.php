@@ -27,6 +27,7 @@ class EntityController extends Controller
         'suppliers' => 'supplier',
         'contractors' => 'contractor',
         'employees' => 'employee',
+        'shareholders' => 'shareholder',
         'cheese' => null,
     ];
 
@@ -61,6 +62,7 @@ class EntityController extends Controller
         'supplier' => 'suppliers',
         'contractor' => 'contractors',
         'employee' => 'employees',
+        'shareholder' => 'shareholders',
     ];
 
     /**
