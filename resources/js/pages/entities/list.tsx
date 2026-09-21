@@ -1,5 +1,9 @@
-import { Head } from '@inertiajs/react';
-import { type CrudField, CrudResource } from '@/components/crud/crud-resource';
+import { Head, router } from '@inertiajs/react';
+import {
+    type CrudField,
+    type CrudItem,
+    CrudResource,
+} from '@/components/crud/crud-resource';
 
 type Entity = {
     id: number;
@@ -85,6 +89,10 @@ export default function EntitiesList({
                             ? 'Unclassified entities. Assign each a type to move it into the right list.'
                             : undefined
                     }
+                    onRowClick={(item: CrudItem) =>
+                        router.visit(`/entities/${item.id}`)
+                    }
+                    disableEdit={!classify}
                 />
             </div>
         </>

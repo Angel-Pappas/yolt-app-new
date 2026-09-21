@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Entity;
+use App\Models\Transaction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -51,6 +52,39 @@ class EntityController extends Controller
             'title' => $classify ? 'Cheese' : ucfirst($slug),
             'singular' => $classify ? 'entity' : rtrim($slug, 's'),
             'classify' => $classify,
+        ]);
+    }
+
+    /** URL slug for an entity's type — where its list (and its back link) live. */
+    private const TYPE_SLUG = [
+        'customer' => 'customers',
+        'supplier' => 'suppliers',
+        'contractor' => 'contractors',
+        'employee' => 'employees',
+    ];
+
+    /**
+     * An entity's own page: the edit form plus every transaction with this
+     * counterparty. Its recurrences will live here too (Phase B). Transactions
+     * carry their full shape and the finance lookups ride along (shared), so a row
+     * opens in the edit dialog.
+     */
+    public function show(Entity $entity): Response
+    {
+        $transactions = Transaction::query()
+            ->withListData()
+            ->where('entity_id', $entity->id)
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
+
+        $slug = self::TYPE_SLUG[$entity->type] ?? 'cheese';
+
+        return Inertia::render('entities/show', [
+            'entity' => $entity->only(['id', 'name', 'type', 'vat_number']),
+            'transactions' => $transactions,
+            'listSlug' => $slug,
+            'listTitle' => $entity->type === null ? 'Cheese' : ucfirst($slug),
         ]);
     }
 

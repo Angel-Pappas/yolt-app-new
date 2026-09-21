@@ -44,6 +44,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('entities/{slug}', [EntityController::class, 'byType'])
         ->whereIn('slug', ['customers', 'suppliers', 'contractors', 'employees', 'cheese'])
         ->name('entities.type');
+    Route::get('entities/{entity}', [EntityController::class, 'show'])->whereNumber('entity')->name('entities.show');
     Route::patch('entities/{entity}', [EntityController::class, 'update'])->whereNumber('entity')->name('entities.update');
     Route::delete('entities/{entity}', [EntityController::class, 'destroy'])->whereNumber('entity')->name('entities.destroy');
 

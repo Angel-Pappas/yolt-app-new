@@ -165,6 +165,20 @@ test('the shared entity lookup carries the entity type', function () {
         );
 });
 
+test('an entity has its own detail page', function () {
+    $user = User::factory()->create();
+    $entity = Entity::factory()->supplier()->create(['name' => 'Detail Co']);
+
+    $this->actingAs($user)
+        ->get("/entities/{$entity->id}")
+        ->assertInertia(
+            fn ($page) => $page
+                ->component('entities/show')
+                ->where('entity.name', 'Detail Co')
+                ->where('listSlug', 'suppliers'),
+        );
+});
+
 test('an entity defaults to no type (the Cheese bucket)', function () {
     expect(Entity::factory()->create()->type)->toBeNull();
 });
