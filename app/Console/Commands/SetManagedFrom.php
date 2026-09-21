@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Setting;
+use App\Models\Transaction;
 use App\Support\RecurrenceGenerator;
 use App\Support\TaxSync;
 use Illuminate\Console\Command;
@@ -34,10 +35,21 @@ class SetManagedFrom extends Command
         $parsed = Carbon::parse($date)->toDateString();
         Setting::current()->update(['managed_from' => $parsed]);
 
+        // The floor means the app owns nothing before it — so drop EVERY managed
+        // (recurrence/tax) row dated before the floor, reconciled ones included. The
+        // normal reconcile-freeze only protects rows on or after the floor; a
+        // reconciled pre-floor row is a leftover (e.g. reconciled during testing, or
+        // left behind when the floor moves forward), never real manual history, which
+        // is always source-null and untouched here.
+        $purged = Transaction::query()
+            ->whereIn('source', ['recurrence', 'tax'])
+            ->whereDate('date', '<', $parsed)
+            ->delete();
+
         RecurrenceGenerator::syncAll();
         TaxSync::run();
 
-        $this->info("Managed floor set to {$parsed}; managed transactions re-synced.");
+        $this->info("Managed floor set to {$parsed}; purged {$purged} pre-floor managed row(s); re-synced.");
 
         return self::SUCCESS;
     }
