@@ -24,14 +24,18 @@ function cadence(r: RecurrenceRecord): string {
         : `${base} · day ${r.day_of_month}`;
 }
 
-/** The amount currently in force (today), else the latest entry. */
+/** The amount currently in force (today) — the latest dated change on/before today,
+ *  so an open-ended earlier entry doesn't shadow a later one. */
 function currentNet(r: RecurrenceRecord): string {
     const today = new Date().toISOString().slice(0, 10);
-    const inForce = r.entries.find(
-        (e) =>
-            e.start_date.slice(0, 10) <= today &&
-            (e.end_date == null || e.end_date.slice(0, 10) >= today),
-    );
+    const inForce = r.entries
+        .filter(
+            (e) =>
+                e.start_date.slice(0, 10) <= today &&
+                (e.end_date == null || e.end_date.slice(0, 10) >= today),
+        )
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))
+        .at(-1);
     const entry = inForce ?? r.entries[r.entries.length - 1];
     return entry ? formatAmount(Number(entry.net)) : '—';
 }

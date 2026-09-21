@@ -76,6 +76,35 @@ test('the amount in force follows the dated entries', function () {
     expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2027-06-01")->value('net'))->toBe(120.0);
 });
 
+test('a later dated change supersedes an open-ended earlier entry', function () {
+    // Exactly the Capcut case: 100 from Jan (no end), then 200 from June (no end).
+    $recurrence = Recurrence::factory()->create([
+        'interval_count' => 1,
+        'interval_unit' => 'month',
+        'day_of_month' => 10,
+        'start_date' => '2026-01-01',
+    ]);
+    RecurrenceEntry::factory()->create([
+        'recurrence_id' => $recurrence->id,
+        'start_date' => '2026-01-01',
+        'end_date' => null,
+        'net' => 100,
+    ]);
+    RecurrenceEntry::factory()->create([
+        'recurrence_id' => $recurrence->id,
+        'start_date' => '2026-06-01',
+        'end_date' => null,
+        'net' => 200,
+        'position' => 1,
+    ]);
+
+    RecurrenceGenerator::sync($recurrence);
+
+    expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-05-10")->value('net'))->toBe(100.0);
+    expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-06-10")->value('net'))->toBe(200.0);
+    expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-07-10")->value('net'))->toBe(200.0);
+});
+
 test('VAT and withholding are computed from the current rates', function () {
     $vat = VatRate::factory()->create(['rate' => 24]);
     $withheld = WithheldTaxRate::factory()->create(['rate' => 20]);

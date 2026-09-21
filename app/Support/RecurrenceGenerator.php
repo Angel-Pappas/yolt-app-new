@@ -180,18 +180,25 @@ class RecurrenceGenerator
         return $dates;
     }
 
-    /** The entry whose span covers a date (first match; entries are start-ordered). */
+    /**
+     * The entry in force on a date: the one with the latest `start_date` on or before
+     * it, so a later dated change supersedes an earlier one **even when the earlier
+     * has no end date** (the next change's start implicitly ends it). A date before
+     * the first entry — or inside an explicit end-to-next-start gap — is uncovered
+     * (null), and that occurrence is skipped. Entries are start-ordered ascending.
+     */
     private static function entryFor(Recurrence $recurrence, CarbonInterface $date): ?RecurrenceEntry
     {
+        $inForce = null;
         foreach ($recurrence->entries as $entry) {
-            $from = $entry->start_date->copy()->startOfDay();
-            $to = $entry->end_date?->copy()->endOfDay();
-            if ($date->greaterThanOrEqualTo($from) && ($to === null || $date->lessThanOrEqualTo($to))) {
-                return $entry;
+            if ($entry->start_date->startOfDay()->greaterThan($date)) {
+                break; // this and every later entry start after the date
             }
+            $end = $entry->end_date?->endOfDay();
+            $inForce = ($end === null || $date->lessThanOrEqualTo($end)) ? $entry : null;
         }
 
-        return null;
+        return $inForce;
     }
 
     /** Fill and save one generated transaction (and its VAT/withholding lines). */
