@@ -4,6 +4,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
 use App\Http\Controllers\IncomeTaxYearController;
 use App\Http\Controllers\PublicHolidayController;
+use App\Http\Controllers\RecurrenceController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
@@ -47,6 +48,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('entities/{entity}', [EntityController::class, 'show'])->whereNumber('entity')->name('entities.show');
     Route::patch('entities/{entity}', [EntityController::class, 'update'])->whereNumber('entity')->name('entities.update');
     Route::delete('entities/{entity}', [EntityController::class, 'destroy'])->whereNumber('entity')->name('entities.destroy');
+
+    // Recurring transactions (defined on an entity's page).
+    Route::post('recurrences', [RecurrenceController::class, 'store'])->name('recurrences.store');
+    Route::patch('recurrences/{recurrence}', [RecurrenceController::class, 'update'])->name('recurrences.update');
+    Route::delete('recurrences/{recurrence}', [RecurrenceController::class, 'destroy'])->name('recurrences.destroy');
 
     Route::get('taxes', [TaxController::class, 'index'])->name('taxes.index');
     Route::get('taxes/vat', [TaxController::class, 'vat'])->name('taxes.vat');

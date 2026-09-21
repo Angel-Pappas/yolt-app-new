@@ -32,6 +32,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property bool $is_reconciled
  * @property int|null $invoice_month
  * @property bool $invoice_not_required
+ * @property string|null $source
+ * @property int|null $recurrence_id
+ * @property string|null $managed_key
  */
 #[Fillable([
     'date',
@@ -52,6 +55,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'is_reconciled',
     'invoice_month',
     'invoice_not_required',
+    'source',
+    'recurrence_id',
+    'managed_key',
 ])]
 class Transaction extends Model
 {
@@ -122,6 +128,12 @@ class Transaction extends Model
     public function vatRate(): BelongsTo
     {
         return $this->belongsTo(VatRate::class);
+    }
+
+    /** @return BelongsTo<Recurrence, $this> */
+    public function recurrence(): BelongsTo
+    {
+        return $this->belongsTo(Recurrence::class);
     }
 
     /** @return HasMany<TransactionVatLine, $this> */
