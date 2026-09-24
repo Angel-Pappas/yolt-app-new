@@ -7,10 +7,13 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
- * One dated amount line of a recurrence — the amount(s) in force for its span.
+ * One dated period of a recurrence — the amount(s) in force for its span: either its
+ * amount lines ({@see RecurrenceEntryLine}, read under `amount_mode` net/total) or,
+ * for a payroll recurrence, the Net/FMY/EFKA set on the entry itself.
  *
  * @property int $id
  * @property int $recurrence_id
@@ -20,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $fmy_amount
  * @property string|null $efka_employee_amount
  * @property string|null $efka_employer_amount
+ * @property string $amount_mode
  * @property int $position
  */
 #[Fillable([
@@ -30,6 +34,7 @@ use Illuminate\Support\Carbon;
     'fmy_amount',
     'efka_employee_amount',
     'efka_employer_amount',
+    'amount_mode',
     'position',
 ])]
 class RecurrenceEntry extends Model
@@ -54,5 +59,11 @@ class RecurrenceEntry extends Model
     public function recurrence(): BelongsTo
     {
         return $this->belongsTo(Recurrence::class);
+    }
+
+    /** @return HasMany<RecurrenceEntryLine, $this> */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(RecurrenceEntryLine::class)->orderBy('position');
     }
 }

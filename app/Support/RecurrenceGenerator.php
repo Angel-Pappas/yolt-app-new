@@ -4,10 +4,9 @@ namespace App\Support;
 
 use App\Models\Recurrence;
 use App\Models\RecurrenceEntry;
+use App\Models\RecurrenceEntryLine;
 use App\Models\Setting;
 use App\Models\Transaction;
-use App\Models\VatRate;
-use App\Models\WithheldTaxRate;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -22,8 +21,9 @@ use Illuminate\Support\Collection;
  * Occurrences run from the recurrence's `start_date` (history included) through the
  * earlier of its `end_date` and a rolling 24-month horizon. For each occurrence the
  * amount in force comes from the matching {@see RecurrenceEntry}; a date no entry
- * covers is skipped. VAT/withholding are computed server-side from the rates' current
- * percentages — never stored on the recurrence — exactly like a hand-entered row.
+ * covers is skipped. Each period's amount lines (VAT and optional withholding per
+ * line, Net/Total mode per period) are resolved server-side from the rates' current
+ * percentages by the same {@see AmountLines} resolver as a hand-entered row.
  */
 class RecurrenceGenerator
 {
@@ -33,7 +33,7 @@ class RecurrenceGenerator
     /** Sync every recurrence — the daily job, and a safety net after any change. */
     public static function syncAll(): void
     {
-        Recurrence::query()->withTrashed()->with('entries')->get()
+        Recurrence::query()->withTrashed()->with('entries.lines')->get()
             ->each(fn (Recurrence $r) => self::sync($r));
     }
 
@@ -42,14 +42,14 @@ class RecurrenceGenerator
      */
     public static function sync(Recurrence $recurrence): void
     {
-        $recurrence->loadMissing('entries');
+        $recurrence->loadMissing('entries.lines');
 
-        $vPct = $recurrence->vat_rate_id
-            ? (float) VatRate::query()->whereKey($recurrence->vat_rate_id)->value('rate')
-            : 0.0;
-        $wPct = $recurrence->withheld_rate_id
-            ? (float) WithheldTaxRate::query()->whereKey($recurrence->withheld_rate_id)->value('rate')
-            : 0.0;
+        // Each period's lines resolve to the same money on every occurrence, so
+        // resolve once per period rather than once per generated row.
+        $resolved = [];
+        foreach ($recurrence->entries as $entry) {
+            $resolved[$entry->id] = self::resolveEntry($entry);
+        }
 
         /** @var array<string, RecurrenceEntry> $desired */
         $desired = self::desiredOccurrences($recurrence);
@@ -65,13 +65,13 @@ class RecurrenceGenerator
             if ($row !== null) {
                 // A reconciled occurrence is frozen; leave it exactly as it was.
                 if (! $row->is_reconciled) {
-                    self::write($row, $recurrence, $key, $entry, $vPct, $wPct);
+                    self::write($row, $recurrence, $key, $entry, $resolved[$entry->id]);
                 }
                 $existing->forget($key);
 
                 continue;
             }
-            self::write(new Transaction, $recurrence, $key, $entry, $vPct, $wPct);
+            self::write(new Transaction, $recurrence, $key, $entry, $resolved[$entry->id]);
         }
 
         // Occurrences no longer wanted: drop the unreconciled ones, keep reconciled
@@ -201,16 +201,42 @@ class RecurrenceGenerator
         return $inForce;
     }
 
-    /** Fill and save one generated transaction (and its VAT/withholding lines). */
+    /**
+     * What one period resolves to — through {@see AmountLines::resolve()}, the exact
+     * resolver a hand-entered transaction uses, so a generated row always matches
+     * what the same lines would produce if typed in by hand. Null for a payroll
+     * period (its Net/FMY/EFKA are taken straight from the entry).
+     *
+     * @return array{net: float, vat_amount: float, withheld_amount: float, vat_lines: array<int, array{net: float, vat_rate_id: int|null, vat_amount: float, position: int}>, withheld_lines: array<int, array{net: float, withheld_rate_id: int, withheld_amount: float, position: int}>}|null
+     */
+    private static function resolveEntry(RecurrenceEntry $entry): ?array
+    {
+        if ($entry->lines->isEmpty()) {
+            return null;
+        }
+
+        return AmountLines::resolve(
+            $entry->lines->map(fn (RecurrenceEntryLine $l) => [
+                'amount' => $l->amount,
+                'vat_rate_id' => $l->vat_rate_id,
+                'withheld_rate_id' => $l->withheld_rate_id,
+            ])->all(),
+            $entry->amount_mode,
+        );
+    }
+
+    /**
+     * Fill and save one generated transaction (and its VAT/withholding lines).
+     *
+     * @param  array{net: float, vat_amount: float, withheld_amount: float, vat_lines: array<int, array{net: float, vat_rate_id: int|null, vat_amount: float, position: int}>, withheld_lines: array<int, array{net: float, withheld_rate_id: int, withheld_amount: float, position: int}>}|null  $resolved
+     */
     private static function write(
         Transaction $t,
         Recurrence $r,
         string $key,
         RecurrenceEntry $entry,
-        float $vPct,
-        float $wPct,
+        ?array $resolved,
     ): void {
-        $net = round((float) $entry->net, 2);
         $iso = explode(':', $key)[2];
 
         $base = [
@@ -222,15 +248,15 @@ class RecurrenceGenerator
             'category_id' => $r->category_id,
             'wallet_id' => $r->wallet_id,
             'to_wallet_id' => null,
-            'net' => $net,
             'is_reconciled' => false,
             'source' => 'recurrence',
             'recurrence_id' => $r->id,
             'managed_key' => $key,
         ];
 
-        if ($r->is_payroll) {
+        if ($r->is_payroll || $resolved === null) {
             $t->fill($base + [
+                'net' => round((float) $entry->net, 2),
                 'vat_rate_id' => null,
                 'vat_amount' => 0,
                 'withheld_amount' => 0,
@@ -246,35 +272,24 @@ class RecurrenceGenerator
             return;
         }
 
-        $vat = round($net * $vPct / 100, 2);
-        $withheld = round($net * $wPct / 100, 2);
-
         $t->fill($base + [
-            'vat_rate_id' => $r->vat_rate_id,
-            'vat_amount' => $vat,
-            'withheld_amount' => $withheld,
+            'net' => $resolved['net'],
+            'vat_amount' => $resolved['vat_amount'],
+            'withheld_amount' => $resolved['withheld_amount'],
             'fmy_amount' => null,
             'efka_employee_amount' => null,
             'efka_employer_amount' => null,
+            // A single line keeps the (denormalized) rate; mixed rates = null.
+            'vat_rate_id' => count($resolved['vat_lines']) === 1
+                ? $resolved['vat_lines'][0]['vat_rate_id']
+                : null,
         ]);
         $t->user_id = $r->user_id;
         $t->save();
 
         $t->vatLines()->delete();
-        $t->vatLines()->create([
-            'net' => $net,
-            'vat_rate_id' => $r->vat_rate_id,
-            'vat_amount' => $vat,
-            'position' => 0,
-        ]);
+        $t->vatLines()->createMany($resolved['vat_lines']);
         $t->withheldLines()->delete();
-        if ($r->withheld_rate_id !== null) {
-            $t->withheldLines()->create([
-                'net' => $net,
-                'withheld_rate_id' => $r->withheld_rate_id,
-                'withheld_amount' => $withheld,
-                'position' => 0,
-            ]);
-        }
+        $t->withheldLines()->createMany($resolved['withheld_lines']);
     }
 }

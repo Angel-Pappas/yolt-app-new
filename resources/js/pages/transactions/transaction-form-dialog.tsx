@@ -1,12 +1,27 @@
 import { type Page } from '@inertiajs/core';
 import { useForm } from '@inertiajs/react';
-import { Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import {
     type CrudField,
     CrudFormDialog,
 } from '@/components/crud/crud-form-dialog';
 import InputError from '@/components/input-error';
+import {
+    type AmountLine,
+    type AmountMode,
+    AmountLinesEditor,
+    AmountSummary,
+    emptyAmountLine,
+    linesPayload,
+    normalizeAmount,
+    optionalAmount,
+    parseAmount,
+    PAYROLL_CATEGORY,
+    type PayrollAmounts,
+    PayrollFields,
+    PayrollSummary,
+} from '@/components/transactions/amount-lines';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import {
@@ -34,9 +49,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { formatAmount } from '@/lib/format';
-import { cn } from '@/lib/utils';
 
-type Rate = { id: number; name: string; rate: string };
 type VatLine = { net: string; vat_rate_id: number | null; position: number };
 type WithheldLine = {
     net: string;
@@ -63,9 +76,6 @@ export type EditableTransaction = {
     withheld_lines: WithheldLine[];
 };
 
-/** The exact category name that turns the form into a payroll entry. */
-const PAYROLL_CATEGORY = 'Payroll';
-
 type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -76,85 +86,15 @@ function today(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
-function parseAmount(value: string): number {
-    const n = Number(String(value).replace(',', '.'));
-    return Number.isFinite(n) ? n : 0;
-}
-
-function round2(n: number): number {
-    return Math.round(n * 100) / 100;
-}
-
-/** The percentage of the rate a select id points at, or 0 when unset/unknown. */
-function ratePct(rates: Rate[], id: string): number {
-    const rate = rates.find((r) => String(r.id) === id);
-    return rate ? Number(rate.rate) : 0;
-}
-
-const NONE = 'none';
-
-type Line = {
-    amount: string;
-    vat_rate_id: string;
-    withheld: boolean;
-    withheld_rate_id: string;
-};
-
-/** Net / VAT / withheld for one line, interpreted by the single Net/Total mode.
- *  Total mode reverses the net out of the cash total (net + VAT − withheld) and
- *  anchors VAT so the line reconstructs to the exact typed total. */
-function lineCalc(
-    line: Line,
-    mode: 'net' | 'total',
-    vatRates: Rate[],
-    withheldRates: Rate[],
-): { net: number; vat: number; withheld: number } {
-    const amount = parseAmount(line.amount);
-    const v = ratePct(vatRates, line.vat_rate_id);
-    const w = line.withheld ? ratePct(withheldRates, line.withheld_rate_id) : 0;
-
-    if (mode === 'total') {
-        const denom = 1 + (v - w) / 100;
-        const net = denom > 0 ? round2(amount / denom) : amount;
-        const withheld = round2((net * w) / 100);
-        const vat = round2(amount - net + withheld);
-        return { net, vat, withheld };
-    }
-    const net = amount;
-    return {
-        net,
-        vat: round2((net * v) / 100),
-        withheld: round2((net * w) / 100),
-    };
-}
-
 export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
     // Lookups come from the globally-shared source, so this form works wherever it's
     // opened without each page having to pass them.
-    const { wallets, entities, categories, vatRates, withheldRates } =
-        useFinanceLookups();
-    // The withholding rate a freshly-toggled line gets: the 20% one (the usual
-    // Greek contractor rate) when it exists, else the first available rate.
-    const defaultWithheldRateId = (): string => {
-        const twenty = withheldRates.find((r) => Number(r.rate) === 20);
-        return twenty
-            ? String(twenty.id)
-            : withheldRates[0]
-              ? String(withheldRates[0].id)
-              : '';
-    };
-
-    const emptyLine = (): Line => ({
-        amount: '',
-        vat_rate_id: '',
-        withheld: false,
-        withheld_rate_id: '',
-    });
+    const { wallets, entities, categories } = useFinanceLookups();
 
     // Re-couple each stored VAT line with its withheld line (matched by position),
     // so an edited transaction shows the withholding toggle lit on the right lines.
-    const editingLines = (): Line[] => {
-        if (!editing) return [emptyLine()];
+    const editingLines = (): AmountLine[] => {
+        if (!editing) return [emptyAmountLine()];
         const withheldByPosition = new Map(
             editing.withheld_lines.map((w) => [w.position, w]),
         );
@@ -200,7 +140,7 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                   fmy: editing.fmy_amount ?? '',
                   efka_employee: editing.efka_employee_amount ?? '',
                   efka_employer: editing.efka_employer_amount ?? '',
-                  amount_mode: 'net' as 'net' | 'total',
+                  amount_mode: 'net' as AmountMode,
                   lines: editingLines(),
               }
             : {
@@ -216,8 +156,8 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                   fmy: '',
                   efka_employee: '',
                   efka_employer: '',
-                  amount_mode: 'net' as 'net' | 'total',
-                  lines: [emptyLine()],
+                  amount_mode: 'net' as AmountMode,
+                  lines: [emptyAmountLine()],
               },
     );
 
@@ -292,40 +232,15 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
     const isPayroll =
         !isTransfer && selectedCategory?.name === PAYROLL_CATEGORY;
 
-    // Payroll figures (all manual): To Pay = Net − FMY − EFKA ee is the cash the
-    // employee actually receives (and what the wallet moves by); Total Cost =
-    // Net + EFKA er is informational — employer EFKA is a liability paid later.
-    const payNet = parseAmount(form.data.net);
-    const payFmy = parseAmount(form.data.fmy);
-    const payEfkaEe = parseAmount(form.data.efka_employee);
-    const payEfkaEr = parseAmount(form.data.efka_employer);
-    const payToPay = round2(payNet - payFmy - payEfkaEe);
-    const payTotalCost = round2(payNet + payEfkaEr);
-
     const transferAmount = parseAmount(form.data.net);
 
-    // Net / VAT / withheld summed across the amount lines (each interpreted by the
-    // single Net/Total mode). Withholding is shown only when a line has it on.
-    let net = 0;
-    let vat = 0;
-    let withheld = 0;
-    for (const line of form.data.lines) {
-        const c = lineCalc(
-            line,
-            form.data.amount_mode,
-            vatRates,
-            withheldRates,
-        );
-        net += c.net;
-        vat += c.vat;
-        withheld += c.withheld;
-    }
-    net = round2(net);
-    vat = round2(vat);
-    withheld = round2(withheld);
-
-    const hasWithheld = form.data.lines.some((l) => l.withheld);
-    const total = round2(net + vat - withheld);
+    // The manual payroll figures, as the shared payroll fields/summary expect them.
+    const payroll: PayrollAmounts = {
+        net: form.data.net,
+        fmy: form.data.fmy,
+        efka_employee: form.data.efka_employee,
+        efka_employer: form.data.efka_employer,
+    };
 
     const errors = form.errors as Record<string, string | undefined>;
     const netError = isTransfer ? form.errors.net : errors['lines.0.amount'];
@@ -335,39 +250,8 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
         form.setData('category_id', '');
     }
 
-    function setLine(i: number, patch: Partial<Line>) {
-        form.setData(
-            'lines',
-            form.data.lines.map((l, idx) =>
-                idx === i ? { ...l, ...patch } : l,
-            ),
-        );
-    }
-
-    function addLine() {
-        form.setData('lines', [...form.data.lines, emptyLine()]);
-    }
-
-    function removeLine(i: number) {
-        form.setData(
-            'lines',
-            form.data.lines.filter((_, idx) => idx !== i),
-        );
-    }
-
-    // The per-line W button: turning it on seeds the 20% rate (kept if already set).
-    function toggleWithheld(i: number) {
-        const line = form.data.lines[i];
-        setLine(
-            i,
-            line.withheld
-                ? { withheld: false }
-                : {
-                      withheld: true,
-                      withheld_rate_id:
-                          line.withheld_rate_id || defaultWithheldRateId(),
-                  },
-        );
+    function setPayroll(patch: Partial<PayrollAmounts>) {
+        form.setData((data) => ({ ...data, ...patch }));
     }
 
     function openAddEntity() {
@@ -423,7 +307,7 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                     description: data.description,
                     wallet_id: data.wallet_id,
                     to_wallet_id: data.to_wallet_id,
-                    net: String(data.net).replace(',', '.'),
+                    net: normalizeAmount(data.net),
                 };
             }
 
@@ -431,8 +315,6 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                 (c) => String(c.id) === data.category_id,
             );
             if (cat?.name === PAYROLL_CATEGORY) {
-                const amount = (v: string) =>
-                    v ? String(v).replace(',', '.') : null;
                 return {
                     type: data.type,
                     date: data.date,
@@ -441,10 +323,10 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                     entity_id: data.entity_id || null,
                     category_id: data.category_id || null,
                     wallet_id: data.wallet_id,
-                    net: String(data.net).replace(',', '.'),
-                    fmy_amount: amount(data.fmy),
-                    efka_employee_amount: amount(data.efka_employee),
-                    efka_employer_amount: amount(data.efka_employer),
+                    net: normalizeAmount(data.net),
+                    fmy_amount: optionalAmount(data.fmy),
+                    efka_employee_amount: optionalAmount(data.efka_employee),
+                    efka_employer_amount: optionalAmount(data.efka_employer),
                 };
             }
 
@@ -457,15 +339,7 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                 category_id: data.category_id || null,
                 wallet_id: data.wallet_id,
                 amount_mode: data.amount_mode,
-                lines: data.lines.map((l) => ({
-                    amount: String(l.amount).replace(',', '.'),
-                    vat_rate_id: l.vat_rate_id || null,
-                    // Only send a withheld rate when the line's W toggle is on.
-                    withheld_rate_id:
-                        l.withheld && l.withheld_rate_id
-                            ? l.withheld_rate_id
-                            : null,
-                })),
+                lines: linesPayload(data.lines),
             };
         });
 
@@ -756,296 +630,33 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                                     <InputError message={netError} />
                                 </div>
                             ) : isPayroll ? (
-                                <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="net">Net amount</Label>
-                                        <Input
-                                            id="net"
-                                            inputMode="decimal"
-                                            value={form.data.net}
-                                            onChange={(e) =>
-                                                form.setData(
-                                                    'net',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            required
-                                        />
-                                        <InputError message={form.errors.net} />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="fmy">FMY</Label>
-                                        <Input
-                                            id="fmy"
-                                            inputMode="decimal"
-                                            value={form.data.fmy}
-                                            onChange={(e) =>
-                                                form.setData(
-                                                    'fmy',
-                                                    e.target.value,
-                                                )
-                                            }
-                                        />
-                                        <InputError
-                                            message={errors['fmy_amount']}
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="efka_employee">
-                                            EFKA Employee
-                                        </Label>
-                                        <Input
-                                            id="efka_employee"
-                                            inputMode="decimal"
-                                            value={form.data.efka_employee}
-                                            onChange={(e) =>
-                                                form.setData(
-                                                    'efka_employee',
-                                                    e.target.value,
-                                                )
-                                            }
-                                        />
-                                        <InputError
-                                            message={
-                                                errors['efka_employee_amount']
-                                            }
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="efka_employer">
-                                            EFKA Employer
-                                        </Label>
-                                        <Input
-                                            id="efka_employer"
-                                            inputMode="decimal"
-                                            value={form.data.efka_employer}
-                                            onChange={(e) =>
-                                                form.setData(
-                                                    'efka_employer',
-                                                    e.target.value,
-                                                )
-                                            }
-                                        />
-                                        <InputError
-                                            message={
-                                                errors['efka_employer_amount']
-                                            }
-                                        />
-                                    </div>
+                                <div className="sm:col-span-2">
+                                    <PayrollFields
+                                        value={payroll}
+                                        onChange={setPayroll}
+                                        errors={{
+                                            net: form.errors.net,
+                                            fmy: errors['fmy_amount'],
+                                            efka_employee:
+                                                errors['efka_employee_amount'],
+                                            efka_employer:
+                                                errors['efka_employer_amount'],
+                                        }}
+                                    />
                                 </div>
                             ) : (
-                                <div className="grid gap-2 sm:col-span-2">
-                                    <div className="flex items-center justify-between">
-                                        <Label>Amount</Label>
-                                        <div className="inline-flex rounded-md border p-0.5 text-xs">
-                                            {(['net', 'total'] as const).map(
-                                                (mode) => (
-                                                    <button
-                                                        key={mode}
-                                                        type="button"
-                                                        onClick={() =>
-                                                            form.setData(
-                                                                'amount_mode',
-                                                                mode,
-                                                            )
-                                                        }
-                                                        className={cn(
-                                                            'rounded px-2 py-1 capitalize',
-                                                            form.data
-                                                                .amount_mode ===
-                                                                mode &&
-                                                                'bg-muted font-medium',
-                                                        )}
-                                                    >
-                                                        {mode}
-                                                    </button>
-                                                ),
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {form.data.lines.map((line, i) => {
-                                        const calc = lineCalc(
-                                            line,
-                                            form.data.amount_mode,
-                                            vatRates,
-                                            withheldRates,
-                                        );
-                                        return (
-                                            <div
-                                                key={i}
-                                                className="grid gap-1.5"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <Input
-                                                        inputMode="decimal"
-                                                        value={line.amount}
-                                                        onChange={(e) =>
-                                                            setLine(i, {
-                                                                amount: e.target
-                                                                    .value,
-                                                            })
-                                                        }
-                                                        placeholder={
-                                                            form.data
-                                                                .amount_mode ===
-                                                            'total'
-                                                                ? 'Total'
-                                                                : 'Net'
-                                                        }
-                                                        required
-                                                        className="flex-1"
-                                                    />
-                                                    <Select
-                                                        value={
-                                                            line.vat_rate_id ||
-                                                            NONE
-                                                        }
-                                                        onValueChange={(v) =>
-                                                            setLine(i, {
-                                                                vat_rate_id:
-                                                                    v === NONE
-                                                                        ? ''
-                                                                        : v,
-                                                            })
-                                                        }
-                                                    >
-                                                        <SelectTrigger className="w-28">
-                                                            <SelectValue placeholder="VAT" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem
-                                                                value={NONE}
-                                                            >
-                                                                No VAT
-                                                            </SelectItem>
-                                                            {vatRates.map(
-                                                                (rate) => (
-                                                                    <SelectItem
-                                                                        key={
-                                                                            rate.id
-                                                                        }
-                                                                        value={String(
-                                                                            rate.id,
-                                                                        )}
-                                                                    >
-                                                                        {
-                                                                            rate.name
-                                                                        }
-                                                                    </SelectItem>
-                                                                ),
-                                                            )}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <Button
-                                                        type="button"
-                                                        variant={
-                                                            line.withheld
-                                                                ? 'default'
-                                                                : 'outline'
-                                                        }
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            toggleWithheld(i)
-                                                        }
-                                                        disabled={
-                                                            withheldRates.length ===
-                                                            0
-                                                        }
-                                                        aria-pressed={
-                                                            line.withheld
-                                                        }
-                                                        aria-label="Toggle withholding tax"
-                                                        title="Withholding tax"
-                                                        className="shrink-0 font-semibold"
-                                                    >
-                                                        W
-                                                    </Button>
-                                                    {form.data.lines.length >
-                                                        1 && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() =>
-                                                                removeLine(i)
-                                                            }
-                                                            aria-label="Remove amount line"
-                                                        >
-                                                            <X className="size-4" />
-                                                        </Button>
-                                                    )}
-                                                </div>
-
-                                                {line.withheld && (
-                                                    <div className="flex items-center gap-2 pl-3">
-                                                        <Input
-                                                            readOnly
-                                                            tabIndex={-1}
-                                                            value={formatAmount(
-                                                                calc.net,
-                                                            )}
-                                                            aria-label="Withholding base"
-                                                            className="bg-muted/50 text-muted-foreground flex-1"
-                                                        />
-                                                        <Select
-                                                            value={
-                                                                line.withheld_rate_id ||
-                                                                NONE
-                                                            }
-                                                            onValueChange={(
-                                                                v,
-                                                            ) =>
-                                                                setLine(i, {
-                                                                    withheld_rate_id:
-                                                                        v ===
-                                                                        NONE
-                                                                            ? ''
-                                                                            : v,
-                                                                })
-                                                            }
-                                                        >
-                                                            <SelectTrigger className="w-28">
-                                                                <SelectValue placeholder="Rate" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {withheldRates.map(
-                                                                    (rate) => (
-                                                                        <SelectItem
-                                                                            key={
-                                                                                rate.id
-                                                                            }
-                                                                            value={String(
-                                                                                rate.id,
-                                                                            )}
-                                                                        >
-                                                                            {
-                                                                                rate.name
-                                                                            }
-                                                                        </SelectItem>
-                                                                    ),
-                                                                )}
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <span className="w-[72px] shrink-0 text-right text-sm text-red-600 tabular-nums dark:text-red-500">
-                                                            −
-                                                            {formatAmount(
-                                                                calc.withheld,
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                    <InputError message={netError} />
-                                    <button
-                                        type="button"
-                                        onClick={addLine}
-                                        className="text-primary self-start text-sm"
-                                    >
-                                        + Add VAT line
-                                    </button>
+                                <div className="sm:col-span-2">
+                                    <AmountLinesEditor
+                                        mode={form.data.amount_mode}
+                                        onModeChange={(m) =>
+                                            form.setData('amount_mode', m)
+                                        }
+                                        lines={form.data.lines}
+                                        onLinesChange={(lines) =>
+                                            form.setData('lines', lines)
+                                        }
+                                        error={netError}
+                                    />
                                 </div>
                             )}
 
@@ -1073,91 +684,15 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                                     </div>
                                 </div>
                             ) : isPayroll ? (
-                                <div className="bg-muted/50 grid grid-cols-3 gap-2 rounded-lg p-3 text-sm tabular-nums sm:col-span-2">
-                                    <div>
-                                        <div className="text-muted-foreground text-xs">
-                                            Net
-                                        </div>
-                                        {formatAmount(payNet)}
-                                    </div>
-                                    <div>
-                                        <div className="text-muted-foreground text-xs">
-                                            FMY
-                                        </div>
-                                        <span className="text-red-600 dark:text-red-500">
-                                            −{formatAmount(payFmy)}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <div className="text-muted-foreground text-xs">
-                                            EFKA ee
-                                        </div>
-                                        <span className="text-red-600 dark:text-red-500">
-                                            −{formatAmount(payEfkaEe)}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <div className="text-muted-foreground text-xs">
-                                            To Pay
-                                        </div>
-                                        <span className="font-medium">
-                                            {formatAmount(payToPay)}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <div className="text-muted-foreground text-xs">
-                                            EFKA er
-                                        </div>
-                                        {formatAmount(payEfkaEr)}
-                                    </div>
-                                    <div>
-                                        <div className="text-muted-foreground text-xs">
-                                            Total Cost
-                                        </div>
-                                        <span className="font-medium">
-                                            {formatAmount(payTotalCost)}
-                                        </span>
-                                    </div>
+                                <div className="sm:col-span-2">
+                                    <PayrollSummary value={payroll} />
                                 </div>
                             ) : (
-                                <div
-                                    className={cn(
-                                        'bg-muted/50 grid gap-2 rounded-lg p-3 text-sm tabular-nums sm:col-span-2',
-                                        hasWithheld
-                                            ? 'grid-cols-4'
-                                            : 'grid-cols-3',
-                                    )}
-                                >
-                                    <div>
-                                        <div className="text-muted-foreground text-xs">
-                                            Net
-                                        </div>
-                                        {formatAmount(net)}
-                                    </div>
-                                    <div>
-                                        <div className="text-muted-foreground text-xs">
-                                            VAT
-                                        </div>
-                                        {formatAmount(vat)}
-                                    </div>
-                                    {hasWithheld && (
-                                        <div>
-                                            <div className="text-muted-foreground text-xs">
-                                                Withheld
-                                            </div>
-                                            <span className="text-red-600 dark:text-red-500">
-                                                −{formatAmount(withheld)}
-                                            </span>
-                                        </div>
-                                    )}
-                                    <div>
-                                        <div className="text-muted-foreground text-xs">
-                                            Total
-                                        </div>
-                                        <span className="font-medium">
-                                            {formatAmount(total)}
-                                        </span>
-                                    </div>
+                                <div className="sm:col-span-2">
+                                    <AmountSummary
+                                        lines={form.data.lines}
+                                        mode={form.data.amount_mode}
+                                    />
                                 </div>
                             )}
                         </div>

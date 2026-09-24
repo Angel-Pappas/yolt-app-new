@@ -18,6 +18,7 @@ class RecurrenceEntryFactory extends Factory
             'start_date' => now()->startOfMonth()->toDateString(),
             'end_date' => null,
             'net' => 100,
+            'amount_mode' => 'net',
             'position' => 0,
         ];
     }

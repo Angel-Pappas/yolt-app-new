@@ -13,8 +13,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 /**
- * A recurring income/expense defined on an entity. The fixed template plus a cadence
- * and window; its dated amount timeline is {@see RecurrenceEntry}. The generator
+ * A recurring income/expense defined on an entity. The fixed template (category,
+ * wallet, description) plus a cadence; its dated periods — each with its own amount
+ * lines, VAT and withholding — are {@see RecurrenceEntry}. `start_date`/`end_date`
+ * are derived from the periods on save (first start → last end). `is_payroll` is
+ * derived from the category (the "Payroll" category, as on a transaction). The generator
  * ({@see RecurrenceGenerator}) turns it into real transactions.
  *
  * @property int $id
@@ -24,8 +27,6 @@ use Illuminate\Support\Carbon;
  * @property string $description
  * @property int|null $category_id
  * @property int $wallet_id
- * @property int|null $vat_rate_id
- * @property int|null $withheld_rate_id
  * @property bool $is_payroll
  * @property int $interval_count
  * @property string $interval_unit
@@ -40,8 +41,6 @@ use Illuminate\Support\Carbon;
     'description',
     'category_id',
     'wallet_id',
-    'vat_rate_id',
-    'withheld_rate_id',
     'is_payroll',
     'interval_count',
     'interval_unit',

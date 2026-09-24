@@ -459,6 +459,28 @@ Two codebases will coexist for the whole build.
 
 ## 20. Progress log
 
+- **2026-09-24** — **Recurring-transaction form rebuilt to match the transaction
+  form; periods carry full amount lines.** The add/edit recurrence dialog now uses
+  the transaction form's layout (Type income/expense · Entity — fixed, read-only ·
+  Category with "+" · Wallet · Description) plus the cadence picker (Every / Unit /
+  On day) and a list of **periods**. Each period = start/optional end + the **full
+  transaction amount editor**: several VAT lines, the per-line **W** withholding
+  toggle, and **Net/Total** (stored per period), or the payroll Net/FMY/EFKA set when
+  the category is **Payroll** (payroll now follows the category, like a transaction;
+  the old checkbox is gone). **"+ Add period"** copies the previous period's lines
+  (rates/withholding kept, amounts blank) and starts the day after it ends; setting a
+  period's start sets the previous period's end to the day before. The recurrence's
+  own `start_date`/`end_date` are no longer entered — they're **derived** from the
+  periods (first start → last end). **Schema:** new `recurrence_entry_lines`
+  (`amount`, `vat_rate_id`, `withheld_rate_id`, `position`) + `recurrence_entries.
+amount_mode`; `recurrences.vat_rate_id`/`withheld_rate_id` dropped (the migration
+  folds them into one line per existing period — prod had one recurrence). **Shared
+  code:** the amount resolver moved out of `TransactionController` into
+  `App\Support\AmountLines` (used by the controller and `RecurrenceGenerator`, so a
+  generated row is calculated exactly like a typed one, incl. Total-mode exactness);
+  the frontend amount editor/summary/payroll fields moved into
+  `components/transactions/amount-lines.tsx`, used by both forms. The entity is
+  fixed on update (`entity_id` ignored). **253 tests; all green.**
 - **2026-09-21** — **Entity types + recurring transactions + self-syncing taxes
   (the auto-created-transactions foundation).** Shipped in slices, all green.
   **Phase A:** added a nullable `type` to entities (customer/supplier/contractor/

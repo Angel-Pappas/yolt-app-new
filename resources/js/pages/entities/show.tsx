@@ -156,6 +156,7 @@ export default function EntityShow({
 
                 <RecurrencesPanel
                     entityId={entity.id}
+                    entityName={entity.name}
                     entityType={entity.type}
                     recurrences={recurrences}
                 />

@@ -20,8 +20,6 @@ class RecurrenceFactory extends Factory
             'description' => fake()->sentence(3),
             'category_id' => null,
             'wallet_id' => Wallet::factory(),
-            'vat_rate_id' => null,
-            'withheld_rate_id' => null,
             'is_payroll' => false,
             'interval_count' => 1,
             'interval_unit' => 'month',

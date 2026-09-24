@@ -85,7 +85,7 @@ class EntityController extends Controller
         return Inertia::render('entities/show', [
             'entity' => $entity->only(['id', 'name', 'type', 'vat_number']),
             'transactions' => $transactions,
-            'recurrences' => $entity->recurrences()->with('entries')->orderByDesc('id')->get(),
+            'recurrences' => $entity->recurrences()->with('entries.lines')->orderByDesc('id')->get(),
             'listSlug' => $slug,
             'listTitle' => $entity->type === null ? 'Cheese' : ucfirst($slug),
         ]);

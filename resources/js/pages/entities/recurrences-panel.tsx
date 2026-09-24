@@ -1,17 +1,24 @@
 import { router } from '@inertiajs/react';
 import { Plus, Repeat, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { sumLines } from '@/components/transactions/amount-lines';
+import {
+    type FinanceLookups,
+    useFinanceLookups,
+} from '@/components/transactions/lookups';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatAmount } from '@/lib/format';
 import {
+    type RecurrenceEntryRecord,
     type RecurrenceRecord,
     RecurrenceFormDialog,
 } from './recurrence-form-dialog';
 
 type Props = {
     entityId: number;
+    entityName: string;
     entityType: string | null;
     recurrences: RecurrenceRecord[];
 };
@@ -24,9 +31,32 @@ function cadence(r: RecurrenceRecord): string {
         : `${base} · day ${r.day_of_month}`;
 }
 
-/** The amount currently in force (today) — the latest dated change on/before today,
- *  so an open-ended earlier entry doesn't shadow a later one. */
-function currentNet(r: RecurrenceRecord): string {
+/** What one period moves per occurrence: a payroll period's net, else the cash
+ *  total of its lines (net + VAT − withheld), as the transaction form shows it. */
+function periodAmount(
+    r: RecurrenceRecord,
+    e: RecurrenceEntryRecord,
+    lookups: FinanceLookups,
+): number {
+    if (r.is_payroll || e.lines.length === 0) return Number(e.net);
+    return sumLines(
+        e.lines.map((l) => ({
+            amount: l.amount,
+            vat_rate_id: l.vat_rate_id ? String(l.vat_rate_id) : '',
+            withheld: l.withheld_rate_id != null,
+            withheld_rate_id: l.withheld_rate_id
+                ? String(l.withheld_rate_id)
+                : '',
+        })),
+        e.amount_mode === 'total' ? 'total' : 'net',
+        lookups.vatRates,
+        lookups.withheldRates,
+    ).total;
+}
+
+/** The amount currently in force (today) — the latest dated period on/before today,
+ *  so an open-ended earlier period doesn't shadow a later one. */
+function currentAmount(r: RecurrenceRecord, lookups: FinanceLookups): string {
     const today = new Date().toISOString().slice(0, 10);
     const inForce = r.entries
         .filter(
@@ -37,10 +67,16 @@ function currentNet(r: RecurrenceRecord): string {
         .sort((a, b) => a.start_date.localeCompare(b.start_date))
         .at(-1);
     const entry = inForce ?? r.entries[r.entries.length - 1];
-    return entry ? formatAmount(Number(entry.net)) : '—';
+    return entry ? formatAmount(periodAmount(r, entry, lookups)) : '—';
 }
 
-export function RecurrencesPanel({ entityId, entityType, recurrences }: Props) {
+export function RecurrencesPanel({
+    entityId,
+    entityName,
+    entityType,
+    recurrences,
+}: Props) {
+    const lookups = useFinanceLookups();
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<RecurrenceRecord | null>(null);
     const [formKey, setFormKey] = useState(0);
@@ -111,7 +147,7 @@ export function RecurrencesPanel({ entityId, entityType, recurrences }: Props) {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <span className="font-medium tabular-nums">
-                                        {currentNet(r)}
+                                        {currentAmount(r, lookups)}
                                     </span>
                                     <Button
                                         variant="ghost"
@@ -136,6 +172,7 @@ export function RecurrencesPanel({ entityId, entityType, recurrences }: Props) {
                 open={open}
                 onOpenChange={setOpen}
                 entityId={entityId}
+                entityName={entityName}
                 defaultType={defaultType}
                 defaultPayroll={defaultPayroll}
                 editing={editing}

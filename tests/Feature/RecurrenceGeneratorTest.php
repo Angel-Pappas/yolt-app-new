@@ -2,6 +2,7 @@
 
 use App\Models\Recurrence;
 use App\Models\RecurrenceEntry;
+use App\Models\RecurrenceEntryLine;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\VatRate;
@@ -18,7 +19,36 @@ afterEach(function () {
     Carbon::setTestNow();
 });
 
-/** A monthly recurrence with a single amount entry. */
+/**
+ * Add a dated period to a recurrence with the given amount lines — each line is
+ * [amount, vat_rate_id|null, withheld_rate_id|null].
+ *
+ * @param  list<array<int, float|int|null>>  $lines
+ */
+function addPeriod(Recurrence $recurrence, string $start, ?string $end, array $lines, string $mode = 'net', int $position = 0): RecurrenceEntry
+{
+    $entry = RecurrenceEntry::factory()->create([
+        'recurrence_id' => $recurrence->id,
+        'start_date' => $start,
+        'end_date' => $end,
+        'net' => 0,
+        'amount_mode' => $mode,
+        'position' => $position,
+    ]);
+    foreach ($lines as $i => $line) {
+        RecurrenceEntryLine::factory()->create([
+            'recurrence_entry_id' => $entry->id,
+            'amount' => $line[0],
+            'vat_rate_id' => $line[1] ?? null,
+            'withheld_rate_id' => $line[2] ?? null,
+            'position' => $i,
+        ]);
+    }
+
+    return $entry;
+}
+
+/** A monthly recurrence with a single one-line period. */
 function monthlyRecurrence(array $overrides = [], float $net = 100): Recurrence
 {
     $recurrence = Recurrence::factory()->create(array_merge([
@@ -28,12 +58,7 @@ function monthlyRecurrence(array $overrides = [], float $net = 100): Recurrence
         'start_date' => '2026-01-01',
     ], $overrides));
 
-    RecurrenceEntry::factory()->create([
-        'recurrence_id' => $recurrence->id,
-        'start_date' => '2026-01-01',
-        'end_date' => null,
-        'net' => $net,
-    ]);
+    addPeriod($recurrence, '2026-01-01', null, [[$net]]);
 
     return $recurrence;
 }
@@ -49,26 +74,15 @@ test('a monthly recurrence generates one transaction per month across the horizo
     expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-02-01")->value('net'))->toBe(100.0);
 });
 
-test('the amount in force follows the dated entries', function () {
+test('the amount in force follows the dated periods', function () {
     $recurrence = Recurrence::factory()->create([
         'interval_count' => 1,
         'interval_unit' => 'month',
         'day_of_month' => 1,
         'start_date' => '2026-01-01',
     ]);
-    RecurrenceEntry::factory()->create([
-        'recurrence_id' => $recurrence->id,
-        'start_date' => '2026-01-01',
-        'end_date' => '2026-12-31',
-        'net' => 100,
-    ]);
-    RecurrenceEntry::factory()->create([
-        'recurrence_id' => $recurrence->id,
-        'start_date' => '2027-01-01',
-        'end_date' => null,
-        'net' => 120,
-        'position' => 1,
-    ]);
+    addPeriod($recurrence, '2026-01-01', '2026-12-31', [[100]]);
+    addPeriod($recurrence, '2027-01-01', null, [[120]], position: 1);
 
     RecurrenceGenerator::sync($recurrence);
 
@@ -76,7 +90,7 @@ test('the amount in force follows the dated entries', function () {
     expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2027-06-01")->value('net'))->toBe(120.0);
 });
 
-test('a later dated change supersedes an open-ended earlier entry', function () {
+test('a later dated change supersedes an open-ended earlier period', function () {
     // Exactly the Capcut case: 100 from Jan (no end), then 200 from June (no end).
     $recurrence = Recurrence::factory()->create([
         'interval_count' => 1,
@@ -84,19 +98,8 @@ test('a later dated change supersedes an open-ended earlier entry', function () 
         'day_of_month' => 10,
         'start_date' => '2026-01-01',
     ]);
-    RecurrenceEntry::factory()->create([
-        'recurrence_id' => $recurrence->id,
-        'start_date' => '2026-01-01',
-        'end_date' => null,
-        'net' => 100,
-    ]);
-    RecurrenceEntry::factory()->create([
-        'recurrence_id' => $recurrence->id,
-        'start_date' => '2026-06-01',
-        'end_date' => null,
-        'net' => 200,
-        'position' => 1,
-    ]);
+    addPeriod($recurrence, '2026-01-01', null, [[100]]);
+    addPeriod($recurrence, '2026-06-01', null, [[200]], position: 1);
 
     RecurrenceGenerator::sync($recurrence);
 
@@ -108,18 +111,72 @@ test('a later dated change supersedes an open-ended earlier entry', function () 
 test('VAT and withholding are computed from the current rates', function () {
     $vat = VatRate::factory()->create(['rate' => 24]);
     $withheld = WithheldTaxRate::factory()->create(['rate' => 20]);
-    $recurrence = monthlyRecurrence([
-        'vat_rate_id' => $vat->id,
-        'withheld_rate_id' => $withheld->id,
-    ], net: 100);
+    $recurrence = Recurrence::factory()->create(['start_date' => '2026-01-01', 'day_of_month' => 1]);
+    addPeriod($recurrence, '2026-01-01', null, [[100, $vat->id, $withheld->id]]);
 
     RecurrenceGenerator::sync($recurrence);
 
     $row = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-03-01")->first();
     expect((float) $row->vat_amount)->toBe(24.0);
     expect((float) $row->withheld_amount)->toBe(20.0);
+    expect($row->vat_rate_id)->toBe($vat->id);
     expect($row->vatLines()->count())->toBe(1);
     expect($row->withheldLines()->count())->toBe(1);
+});
+
+test('a period with several lines generates the full VAT and withholding breakdown', function () {
+    // The contractor case: one line with withholding, one without.
+    $vat24 = VatRate::factory()->create(['rate' => 24]);
+    $vat6 = VatRate::factory()->create(['rate' => 6]);
+    $withheld = WithheldTaxRate::factory()->create(['rate' => 20]);
+    $recurrence = Recurrence::factory()->create(['start_date' => '2026-01-01', 'day_of_month' => 1]);
+    addPeriod($recurrence, '2026-01-01', null, [
+        [1000, $vat24->id, $withheld->id],
+        [300, $vat6->id],
+    ]);
+
+    RecurrenceGenerator::sync($recurrence);
+
+    $row = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-02-01")->first();
+    expect((float) $row->net)->toBe(1300.0);
+    expect((float) $row->vat_amount)->toBe(258.0); // 240 + 18
+    expect((float) $row->withheld_amount)->toBe(200.0);
+    expect($row->vat_rate_id)->toBeNull(); // mixed rates
+    expect($row->vatLines()->orderBy('position')->pluck('vat_amount')->map(fn ($v) => (float) $v)->all())->toBe([240.0, 18.0]);
+    $w = $row->withheldLines()->get();
+    expect($w)->toHaveCount(1);
+    expect($w[0]->position)->toBe(0);
+    expect((float) $w[0]->net)->toBe(1000.0);
+});
+
+test('each period carries its own lines and amounts over time', function () {
+    $vat = VatRate::factory()->create(['rate' => 24]);
+    $withheld = WithheldTaxRate::factory()->create(['rate' => 20]);
+    $recurrence = Recurrence::factory()->create(['start_date' => '2026-01-01', 'day_of_month' => 1]);
+    addPeriod($recurrence, '2026-01-01', '2026-12-31', [[1000, $vat->id, $withheld->id], [300, $vat->id]]);
+    addPeriod($recurrence, '2027-01-01', null, [[1100, $vat->id, $withheld->id], [350, $vat->id]], position: 1);
+
+    RecurrenceGenerator::sync($recurrence);
+
+    $y1 = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-12-01")->first();
+    $y2 = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2027-01-01")->first();
+    expect((float) $y1->net)->toBe(1300.0);
+    expect((float) $y1->withheld_amount)->toBe(200.0);
+    expect((float) $y2->net)->toBe(1450.0);
+    expect((float) $y2->withheld_amount)->toBe(220.0);
+});
+
+test('a Total-mode period reconstructs the exact typed total, like the transaction form', function () {
+    $vat = VatRate::factory()->create(['rate' => 24]);
+    $withheld = WithheldTaxRate::factory()->create(['rate' => 20]);
+    $recurrence = Recurrence::factory()->create(['start_date' => '2026-01-01', 'day_of_month' => 1]);
+    addPeriod($recurrence, '2026-01-01', null, [[29.99, $vat->id], [123.45, $vat->id, $withheld->id]], mode: 'total');
+
+    RecurrenceGenerator::sync($recurrence);
+
+    $row = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-01-01")->first();
+    $cash = round((float) $row->net + (float) $row->vat_amount - (float) $row->withheld_amount, 2);
+    expect($cash)->toBe(153.44);
 });
 
 test('a payroll recurrence stores the FMY and EFKA amounts', function () {
@@ -158,7 +215,7 @@ test('re-syncing after an amount change updates unreconciled rows but freezes re
     $frozen->update(['is_reconciled' => true, 'net' => 111]);
 
     // Raise the amount and re-sync.
-    $recurrence->entries()->update(['net' => 200]);
+    RecurrenceEntryLine::query()->update(['amount' => 200]);
     RecurrenceGenerator::sync($recurrence->fresh());
 
     expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-04-01")->value('net'))->toBe(200.0);
@@ -197,11 +254,7 @@ test('the day-of-month clamps on short months without drifting', function () {
         'start_date' => '2026-01-31',
         'end_date' => '2026-04-30',
     ]);
-    RecurrenceEntry::factory()->create([
-        'recurrence_id' => $recurrence->id,
-        'start_date' => '2026-01-01',
-        'net' => 50,
-    ]);
+    addPeriod($recurrence, '2026-01-01', null, [[50]]);
 
     RecurrenceGenerator::sync($recurrence);
 
@@ -250,11 +303,7 @@ test('a weekly recurrence steps by whole weeks from the start date', function ()
         'start_date' => '2026-01-05',
         'end_date' => '2026-02-05',
     ]);
-    RecurrenceEntry::factory()->create([
-        'recurrence_id' => $recurrence->id,
-        'start_date' => '2026-01-01',
-        'net' => 30,
-    ]);
+    addPeriod($recurrence, '2026-01-01', null, [[30]]);
 
     RecurrenceGenerator::sync($recurrence);
 
