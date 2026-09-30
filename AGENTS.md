@@ -41,8 +41,13 @@ behavioural record — there is nothing left to run or fall back to.)
   `https://yolt-app.pappas.yoltobots.click`, php8.5-fpm + local MySQL). Deploy there
   with `./deploy.sh` (pull, composer/pnpm install, build, `migrate --force`,
   `optimize`, reload php-fpm). The VM's `origin` is **HTTPS**, authenticated through the
-  logged-in `gh` CLI (`gh auth setup-git`) — the VM's SSH key is not on GitHub, so
-  don't switch the remote back to `git@github.com:`. The Laravel scheduler (daily `managed:sync`) runs from
+  `gh` CLI (`gh auth setup-git`) using a **fine-grained token (`yolt-vm`) whose resource
+  owner is the personal account `Angel-Pappas` only** — it has **no access to the
+  `yoltlabs` organisation** (by design; never log the VM's `gh` in with a broader
+  token or OAuth login). The repo has a ruleset **"Protect all branches"** blocking
+  force-pushes and branch deletion on every branch (no bypass) — push normal commits
+  only. The VM's SSH key is not on GitHub, so don't switch the remote back to
+  `git@github.com:`. The Laravel scheduler (daily `managed:sync`) runs from
   the `ploi` user's crontab: `* * * * * cd <app> && php artisan schedule:run`.
 - _Historical:_ the app was on Laravel Cloud (push-to-`main` auto-deploy,
   `yolt-app-new-production-ximjo9.laravel.cloud`) until 2026-09-30; the Laravel Cloud
