@@ -26,6 +26,30 @@ behavioural record — there is nothing left to run or fall back to.)
   identical). **SQLite locally** for tests/dev.
 - Package manager: **pnpm**.
 
+## Workflow on the VM (dev folder → `main` → live)
+
+Two checkouts of this repo live side by side on the VM — **never mix them up**:
+
+- **`/home/ploi/yolt-app-dev`** — the **dev checkout**. All editing, building and
+  testing happens here. It has the dev tools (Pest, Pint, PHPStan) and a local
+  SQLite database (`database/database.sqlite`); its `.env` has no access to the live
+  MySQL.
+- **`/home/ploi/yolt-app.pappas.yoltobots.click`** — the **live app** that serves the
+  site. Never edit files, build, or run tests here: PHP edits are live the instant
+  they're saved. It is changed **only** by `./deploy.sh`.
+
+A task goes: edit in the dev checkout → full local verify (below) → commit + push to
+`main` → watch CI → run `./deploy.sh` in the live folder. `deploy.sh` first runs
+`./backup-db.sh` (gzipped `mysqldump` to `~/backups/yolt-app/`, kept 60 days, verified
+complete) and **aborts if the backup fails**, then pulls, installs (`--no-dev`),
+builds, migrates, caches and reloads php-fpm. `backup-db.sh` also runs daily from the
+`ploi` crontab.
+
+**Test-database guard:** `tests/TestCase.php` refuses to boot a test unless the
+connection is in-memory SQLite, and `phpunit.xml` points `APP_CONFIG_CACHE` at a
+test-only path so a cached production config can never leak into a test run. Tests
+use `RefreshDatabase` (which wipes the schema) — keep both guards.
+
 ## Running it
 
 - Install: `composer install`, `pnpm install`.
@@ -39,8 +63,10 @@ behavioural record — there is nothing left to run or fall back to.)
 
 - **The app now runs on our own VM** (`/home/ploi/yolt-app.pappas.yoltobots.click`,
   `https://yolt-app.pappas.yoltobots.click`, php8.5-fpm + local MySQL). Deploy there
-  with `./deploy.sh` (pull, composer/pnpm install, build, `migrate --force`,
-  `optimize`, reload php-fpm). The VM's `origin` is **HTTPS**, authenticated through the
+  with `./deploy.sh` (DB backup, pull, composer/pnpm install, build,
+  `migrate --force`, `optimize`, reload php-fpm) — see **Workflow on the VM** above.
+  Live `.env` has `APP_ENV=production`, which makes `DB::prohibitDestructiveCommands`
+  block `migrate:fresh`/`db:wipe` etc. and enforces strong password rules. The VM's `origin` is **HTTPS**, authenticated through the
   `gh` CLI (`gh auth setup-git`) using a **fine-grained token (`yolt-vm`) whose resource
   owner is the personal account `Angel-Pappas` only** — it has **no access to the
   `yoltlabs` organisation** (by design; never log the VM's `gh` in with a broader

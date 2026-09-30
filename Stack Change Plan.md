@@ -459,6 +459,15 @@ Two codebases will coexist for the whole build.
 
 ## 20. Progress log
 
+- **2026-09-30** — **Safe dev → live workflow on the VM.** Added a separate dev
+  checkout (`/home/ploi/yolt-app-dev`, dev tools + SQLite) so work never happens in
+  the live folder. `deploy.sh` is now versioned in the repo and starts with the new
+  `backup-db.sh` (verified gzipped `mysqldump` to `~/backups/yolt-app/`, 60-day
+  retention; the deploy aborts if it fails); the backup also runs daily from cron.
+  Tests now refuse to boot on anything but in-memory SQLite (`TestCase`) and ignore a
+  cached production config (`APP_CONFIG_CACHE` in `phpunit.xml`), since
+  `RefreshDatabase` would otherwise wipe the live DB. Live `APP_ENV` →
+  `production`. Directions/AGENTS updated (Direction 9: live data is never at risk).
 - **2026-09-30** — **Database moved from Laravel Cloud to our own VM.** The live data
   was dumped from the Laravel Cloud MySQL (`production` db, `mysqldump
 --single-transaction --set-gtid-purged=OFF`) and imported into the VM's local MySQL

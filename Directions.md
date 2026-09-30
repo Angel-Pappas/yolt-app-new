@@ -8,7 +8,8 @@ of these.
 
 Direction 2: Always commit and push to `main` when you are done with your work.
 "Done" means the change is actually live for the user: written → committed → **on
-`main`** → deployed (Laravel Cloud auto-deploys on push to `main`). This holds even
+`main`** → deployed to the live VM with `./deploy.sh` (see the **Workflow** in
+`AGENTS.md` — nothing deploys automatically on push). This holds even
 when a session is started on a feature branch: carry the work through to `main`
 yourself (merge the feature branch into `main` and push it) rather than stopping at
 the branch and asking the user to merge. The user does not know how to
@@ -56,14 +57,22 @@ practices — especially money/tax math and authorization.
 Direction 8: **The stack change is complete — this is the live app.** Yolt-App was
 rebuilt from the old Next.js/Supabase app onto Laravel, and the data cutover ran and
 was verified clean on 2026-09-09. The Laravel app in this repo (`yolt-app-new`, on
-Laravel Cloud) is now the live app on the real data. The full history, every
+our own VM) is now the live app on the real data. The full history, every
 decision, and the progress log are in **`Stack Change Plan.md`**; the app's feature
 behavior is documented in **`Summary.md`**; the established code patterns and the
 exact local verify workflow are in **`AGENTS.md`** — read those to get up to speed.
-Build new work in small, tested slices, each pushed to `main` (auto-deploys to
-Laravel Cloud) with CI kept green. The **old app** (`Angel-Pappas/yolt-app`, on
+Build new work in small, tested slices, each pushed to `main` and deployed with
+`./deploy.sh`, with CI kept green. The **old app** (`Angel-Pappas/yolt-app`, on
 Vercel + Supabase) has been **retired and its GitHub repo deleted (2026-09)** — it no
 longer exists, so there is nothing to fall back to or "not work in"; this Laravel app
 is the only app.
+
+Direction 9: **The data in the live app is real company data and must never be lost.**
+Never run tests, `migrate:fresh`/`db:wipe`/`migrate:rollback`, seeders, or ad-hoc
+writes against the live database. Work and test only in the dev checkout
+(`/home/ploi/yolt-app-dev`, SQLite); the live folder
+(`/home/ploi/yolt-app.pappas.yoltobots.click`) is touched only by `./deploy.sh`,
+which backs the database up first. Any migration that drops or rewrites data must be
+raised with the user before it ships.
 
 We will add more to these as we move on with the app.
