@@ -459,6 +459,15 @@ Two codebases will coexist for the whole build.
 
 ## 20. Progress log
 
+- **2026-09-30** — **Database moved from Laravel Cloud to our own VM.** The live data
+  was dumped from the Laravel Cloud MySQL (`production` db, `mysqldump
+--single-transaction --set-gtid-purged=OFF`) and imported into the VM's local MySQL
+  8.4 (`yolt_app`), replacing its empty migrated schema (a backup of the empty local
+  db was taken first). Verified: every table's row count plus Σnet / ΣVAT / Σwithheld /
+  Σstarting balances / max ids identical on both sides (985 transactions, 920 VAT lines,
+  15 withheld lines, 87 entities, 16 categories, 4 wallets, 1 user); no pending
+  migrations; `managed:sync` runs clean. APP_KEY didn't need copying (no 2FA secrets,
+  no sessions). Added the missing scheduler cron on the VM. No code change.
 - **2026-09-24** — **Recurring-transaction form rebuilt to match the transaction
   form; periods carry full amount lines.** The add/edit recurrence dialog now uses
   the transaction form's layout (Type income/expense · Entity — fixed, read-only ·

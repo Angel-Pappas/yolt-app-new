@@ -20,8 +20,10 @@ behavioural record — there is nothing left to run or fall back to.)
   official **React starter kit**: React 19, TypeScript, **Inertia 3**,
   **Tailwind 4**, **shadcn/ui** (new-york, neutral, **Instrument Sans**, **lucide**
   icons, light + dark), Vite (vite-plus), **Fortify** auth, **Pest** tests.
-- **Database:** MySQL 8.4 in production (Laravel Cloud); **SQLite locally** for now
-  (align local to MySQL once we build data-heavy features).
+- **Database:** MySQL 8.4 **on our own VM** (`127.0.0.1`, database `yolt_app`,
+  credentials in the VM's `.env`). Migrated off the Laravel Cloud MySQL on
+  2026-09-30 (full dump → import, every table's row count + money totals verified
+  identical). **SQLite locally** for tests/dev.
 - Package manager: **pnpm**.
 
 ## Running it
@@ -35,8 +37,14 @@ behavioural record — there is nothing left to run or fall back to.)
 
 ## Deploy
 
-- **Push to `main` → Laravel Cloud auto-deploys** (push-to-deploy). Live at
-  `yolt-app-new-production-ximjo9.laravel.cloud`.
+- **The app now runs on our own VM** (`/home/ploi/yolt-app.pappas.yoltobots.click`,
+  `https://yolt-app.pappas.yoltobots.click`, php8.5-fpm + local MySQL). Deploy there
+  with `./deploy.sh` (pull, composer/pnpm install, build, `migrate --force`,
+  `optimize`, reload php-fpm). The Laravel scheduler (daily `managed:sync`) runs from
+  the `ploi` user's crontab: `* * * * * cd <app> && php artisan schedule:run`.
+- _Historical:_ the app was on Laravel Cloud (push-to-`main` auto-deploy,
+  `yolt-app-new-production-ximjo9.laravel.cloud`) until 2026-09-30; the Laravel Cloud
+  sections below describe that setup.
 - GitHub Actions CI runs tests + formatting on every push — **keep it green**.
 - On this Windows dev machine `php`/`composer`/`pnpm` may be missing from a fresh
   shell's PATH; refresh PATH (machine + user) or prepend the winget PHP dir.
