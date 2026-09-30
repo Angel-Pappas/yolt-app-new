@@ -40,7 +40,9 @@ behavioural record — there is nothing left to run or fall back to.)
 - **The app now runs on our own VM** (`/home/ploi/yolt-app.pappas.yoltobots.click`,
   `https://yolt-app.pappas.yoltobots.click`, php8.5-fpm + local MySQL). Deploy there
   with `./deploy.sh` (pull, composer/pnpm install, build, `migrate --force`,
-  `optimize`, reload php-fpm). The Laravel scheduler (daily `managed:sync`) runs from
+  `optimize`, reload php-fpm). The VM's `origin` is **HTTPS**, authenticated through the
+  logged-in `gh` CLI (`gh auth setup-git`) — the VM's SSH key is not on GitHub, so
+  don't switch the remote back to `git@github.com:`. The Laravel scheduler (daily `managed:sync`) runs from
   the `ploi` user's crontab: `* * * * * cd <app> && php artisan schedule:run`.
 - _Historical:_ the app was on Laravel Cloud (push-to-`main` auto-deploy,
   `yolt-app-new-production-ximjo9.laravel.cloud`) until 2026-09-30; the Laravel Cloud
