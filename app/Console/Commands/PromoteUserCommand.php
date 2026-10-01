@@ -8,7 +8,7 @@ use Illuminate\Console\Command;
 /**
  * Bootstrap command: promote a user to super admin with full access. Needed to
  * create the first admin before the in-app user-management screen exists (and as
- * a break-glass afterwards). Run it from Laravel Cloud's command runner, e.g.
+ * a break-glass afterwards). Run it on the VM from the live app folder, e.g.
  * `php artisan user:promote a.pappas@yoltlabs.com`.
  */
 class PromoteUserCommand extends Command

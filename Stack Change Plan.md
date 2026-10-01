@@ -9,6 +9,11 @@ sources before relying on it** — this document is NOT exempt from that rule
 (Direction 6). Each fact below is tagged **[verified 2026-08-28]**,
 **[unverified — confirm at build]**, or **[DECISION NEEDED]**.
 
+> **Hosting update (2026-10-01):** the app now runs only on our own VM (moved
+> 2026-09-30), and the Laravel Cloud app was **deleted on 2026-10-01**. Laravel
+> Cloud steps and settings below are a historical record, not instructions —
+> see `AGENTS.md` → Workflow on the VM for how the app is run and deployed now.
+
 _Started: 2026-08-28. Revised: 2026-08-28 after a critical review that found ~20
 gaps in the first draft (broken FKs on user migration, an infeasible
 "parallel-run", schema-vs-Laravel-convention conflicts, missing views, an
@@ -444,11 +449,12 @@ Two codebases will coexist for the whole build.
    so reversible). Implies a Postgres→MySQL data conversion at cutover. (§5, §7)
 10. **Interim host** — ✅ **Laravel Cloud**: app deployed and **live**, MySQL 8.4 DB
     attached, **registration/login verified end-to-end**. Push-to-deploy active. (§20)
+    _Superseded: moved to our own VM 2026-09-30; Laravel Cloud app deleted 2026-10-01._
 
 **Still open:**
 
 - **Confirm the company's DB standard** (the ~10%) — settles the MySQL choice. (§5)
-- **Repo visibility** — `yolt-app-new` is public; Laravel Cloud supports private, so
+- **Repo visibility** — `yolt-app-new` is public; no host constrains this any more, so
   it can be made private if desired (owner's choice — not required). (§9)
 - **RLS defense-in-depth** — moot on MySQL (no RLS); authz is app-layer + tests. (§6)
 - **Confirm at build:** `updated_at` columns per table (§5); Excel library +
@@ -512,7 +518,7 @@ amount_mode`; `recurrences.vat_rate_id`/`withheld_rate_id` dropped (the migratio
   dated amount timeline; `App\Support\RecurrenceGenerator` materialises it into
   real transactions over a rolling **24-month horizon** (immutable-date-safe,
   reconciled rows frozen); `RecurrenceController` + an on-entity editor; a daily
-  `managed:sync` command (**needs the scheduler enabled on Laravel Cloud**).
+  `managed:sync` command (run daily by the scheduler — now from the `ploi` crontab on the VM).
   **Phase C:** `App\Support\TaxSync` turns each positive tax obligation into a
   managed **State/Taxes expense**, kept **live** (recomputed after every
   transaction/recurrence write and daily; updated/created/deleted to match; no
