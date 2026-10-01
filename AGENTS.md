@@ -16,7 +16,7 @@ behavioural record — there is nothing left to run or fall back to.)
 
 ## Stack (verified 2026-08-28)
 
-- **Laravel 13** (PHP **8.4** locally / **8.5** in production on Laravel Cloud),
+- **Laravel 13** (PHP **8.4** locally / **8.5** in production on our VM),
   official **React starter kit**: React 19, TypeScript, **Inertia 3**,
   **Tailwind 4**, **shadcn/ui** (new-york, neutral, **Instrument Sans**, **lucide**
   icons, light + dark), Vite (vite-plus), **Fortify** auth, **Pest** tests.
@@ -75,36 +75,11 @@ use `RefreshDatabase` (which wipes the schema) — keep both guards.
   only. The VM's SSH key is not on GitHub, so don't switch the remote back to
   `git@github.com:`. The Laravel scheduler (daily `managed:sync`) runs from
   the `ploi` user's crontab: `* * * * * cd <app> && php artisan schedule:run`.
-- _Historical:_ the app was on Laravel Cloud (push-to-`main` auto-deploy,
-  `yolt-app-new-production-ximjo9.laravel.cloud`) until 2026-09-30; the Laravel Cloud
-  sections below describe that setup.
+- _Historical:_ the app was on Laravel Cloud until 2026-09-30. Angel **deleted the
+  Laravel Cloud app on 2026-10-01** — there is no Laravel Cloud fallback any more.
 - GitHub Actions CI runs tests + formatting on every push — **keep it green**.
 - On this Windows dev machine `php`/`composer`/`pnpm` may be missing from a fresh
   shell's PATH; refresh PATH (machine + user) or prepend the winget PHP dir.
-
-## Laravel Cloud MCP (managing hosting from Claude Code)
-
-Claude Code can manage this app's hosting directly through the **`laravel-cloud`
-MCP server** (list apps/environments/deployments, trigger deploys, read/set env
-vars, run artisan commands) — the same way the Supabase MCP works for the old app.
-
-- **How it's wired:** the server is defined in the user's `~/.claude.json` and
-  reads its bearer token from a **`LARAVEL_CLOUD_API_TOKEN`** environment variable.
-  The token is set **persistently in the Windows User environment** (via `setx`), so
-  it survives reboots.
-- **401 Unauthorized fix:** a 401 from the MCP almost always means the env var is
-  empty in the running process — either it was never set, or the desktop app was
-  launched **before** the variable existed (the MCP server is spawned at app start
-  and captures the environment then). Fix: ensure the var is set
-  (`setx LARAVEL_CLOUD_API_TOKEN "<token>"`), then **fully quit and reopen** the
-  Claude Code desktop app so it re-reads the environment and re-spawns the server.
-  A new shell/tab is **not** enough — it must be a full app restart.
-- **Rotating the token:** create a new token in Laravel Cloud → Organization
-  Settings → API Tokens, delete the old one, then `setx LARAVEL_CLOUD_API_TOKEN
-"<new>"` and restart the app once.
-- App: `yolt-app-new` (`eu-central-1` / Frankfurt); production env vanity domain
-  `yolt-app-new-production-ximjo9.laravel.cloud`.
-- Source: <https://mcp.laravel.cloud/>.
 
 ## Working rules (from the plan)
 

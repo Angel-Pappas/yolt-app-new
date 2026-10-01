@@ -4,6 +4,18 @@ use App\Models\User;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Support\WalletBalances;
+use Illuminate\Support\Carbon;
+
+// Pinned "today": WalletBalances only counts rows dated up to today, and the tax
+// payments auto-generated for these August entries fall due in September. A real
+// clock past then folds them into the balance and breaks the expected figures.
+beforeEach(function () {
+    Carbon::setTestNow('2026-08-15');
+});
+
+afterEach(function () {
+    Carbon::setTestNow();
+});
 
 test('a wallet balance is its starting balance plus transaction effects', function () {
     $user = User::factory()->create();
