@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\PublicHoliday;
+use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -12,7 +14,8 @@ use Inertia\Response;
 /**
  * Public holidays CRUD — a Configuration setup list. Available to any active user;
  * shared company data with a created-by `user_id`. The dates feed
- * `App\Support\WorkingDays` when computing tax payment (last working day) dates.
+ * `App\Support\WorkingDays` when computing tax payment (last working day) dates,
+ * so every write re-syncs the generated tax payments (`TaxSync`) to move them.
  */
 class PublicHolidayController extends Controller
 {
@@ -29,7 +32,11 @@ class PublicHolidayController extends Controller
     {
         $holiday = new PublicHoliday($this->validateHoliday($request));
         $holiday->user_id = $request->user()->id;
-        $holiday->save();
+
+        DB::transaction(function () use ($holiday) {
+            $holiday->save();
+            TaxSync::run();
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Public holiday created.')]);
 
@@ -38,7 +45,12 @@ class PublicHolidayController extends Controller
 
     public function update(Request $request, PublicHoliday $publicHoliday): RedirectResponse
     {
-        $publicHoliday->update($this->validateHoliday($request, $publicHoliday));
+        $data = $this->validateHoliday($request, $publicHoliday);
+
+        DB::transaction(function () use ($publicHoliday, $data) {
+            $publicHoliday->update($data);
+            TaxSync::run();
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Public holiday updated.')]);
 
@@ -47,7 +59,10 @@ class PublicHolidayController extends Controller
 
     public function destroy(PublicHoliday $publicHoliday): RedirectResponse
     {
-        $publicHoliday->delete();
+        DB::transaction(function () use ($publicHoliday) {
+            $publicHoliday->delete();
+            TaxSync::run();
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Public holiday deleted.')]);
 

@@ -37,6 +37,20 @@ test('a withheld tax rate must be numeric', function () {
     ])->assertSessionHasErrors('rate');
 });
 
+test('a finance user can update a withheld tax rate', function () {
+    $user = User::factory()->create();
+    $rate = WithheldTaxRate::factory()->create(['name' => 'Old']);
+
+    $this->actingAs($user)->patch("/configuration/withheld-tax-rates/{$rate->id}", [
+        'name' => 'New',
+        'rate' => '15',
+    ])->assertRedirect();
+
+    $rate->refresh();
+    expect($rate->name)->toBe('New');
+    expect((float) $rate->rate)->toBe(15.0);
+});
+
 test('a finance user can soft-delete a withheld tax rate', function () {
     $user = User::factory()->create();
     $rate = WithheldTaxRate::factory()->create();

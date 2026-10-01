@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\IncomeTaxYear;
 use App\Support\IncomeTaxLedger;
+use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -14,7 +16,8 @@ use Inertia\Response;
 /**
  * Income tax — the one stored, manually-entered tax. Each fiscal year records its
  * revenue, total tax and installment window; the generated schedule (one installment
- * per month, due that month's last working day) feeds the Taxes views. Available to
+ * per month, due that month's last working day) feeds the Taxes views and the
+ * generated tax payments, which are re-synced (`TaxSync`) on every write. Available to
  * any active user; shared company data with a created-by `user_id`.
  */
 class IncomeTaxYearController extends Controller
@@ -41,7 +44,11 @@ class IncomeTaxYearController extends Controller
     {
         $record = new IncomeTaxYear($this->validated($request));
         $record->user_id = $request->user()->id;
-        $record->save();
+
+        DB::transaction(function () use ($record) {
+            $record->save();
+            TaxSync::run();
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Income tax year created.')]);
 
@@ -50,7 +57,12 @@ class IncomeTaxYearController extends Controller
 
     public function update(Request $request, IncomeTaxYear $incomeTaxYear): RedirectResponse
     {
-        $incomeTaxYear->update($this->validated($request, $incomeTaxYear));
+        $data = $this->validated($request, $incomeTaxYear);
+
+        DB::transaction(function () use ($incomeTaxYear, $data) {
+            $incomeTaxYear->update($data);
+            TaxSync::run();
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Income tax year updated.')]);
 
@@ -59,7 +71,10 @@ class IncomeTaxYearController extends Controller
 
     public function destroy(IncomeTaxYear $incomeTaxYear): RedirectResponse
     {
-        $incomeTaxYear->delete();
+        DB::transaction(function () use ($incomeTaxYear) {
+            $incomeTaxYear->delete();
+            TaxSync::run();
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Income tax year deleted.')]);
 
