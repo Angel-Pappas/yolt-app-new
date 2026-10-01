@@ -7,9 +7,7 @@ use App\Models\Wallet;
 use App\Support\WalletBalances;
 use Illuminate\Support\Carbon;
 
-// Pinned "today": WalletBalances only counts rows dated up to today, and the tax
-// payments auto-generated for these August entries fall due in September. A real
-// clock past then folds them into the balance and breaks the expected figures.
+// Pinned "today", so "dated up to today" means the same thing on every run.
 beforeEach(function () {
     Carbon::setTestNow('2026-08-15');
 });
@@ -70,6 +68,9 @@ test('a payroll transaction moves the wallet by To Pay (net − FMY − EFKA emp
         'efka_employer_amount' => '250',
     ])->assertRedirect();
 
+    // The wallet balance only counts reconciled rows.
+    Transaction::query()->where('category_id', $payroll->id)->update(['is_reconciled' => true]);
+
     // To Pay = 1000 − 80 − 150 = 770 leaves the wallet; employer EFKA (250) never does.
     expect(WalletBalances::all()[$wallet->id])->toBe(-770.0);
 });
@@ -91,6 +92,8 @@ test('a normal expense is unaffected by the payroll fields', function () {
     expect($t->fmy_amount)->toBeNull();
     expect($t->efka_employee_amount)->toBeNull();
     expect($t->efka_employer_amount)->toBeNull();
+
+    $t->update(['is_reconciled' => true]);
     expect(WalletBalances::all()[$wallet->id])->toBe(-100.0);
 });
 

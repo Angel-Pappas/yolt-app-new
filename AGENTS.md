@@ -168,8 +168,13 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
   `1.234,56`) + `formatDate` (`dd/mm/yyyy`). `numeric`/`decimal` columns arrive as
   **strings** → `Number(...)` before math; money is `decimal(12,2)`. Amount inputs
   accept comma or dot; normalize `,`→`.` before submit.
-- **Wallet balances:** `App\Support\WalletBalances::all()` derives balances live
-  (never stored). Reuse it (e.g. the transactions balance-view slice).
+- **Wallet balances (Angel, 2026-10-01):** derived live, never stored, in
+  `App\Support\WalletBalances`. Two deliberately different rules:
+    - `all()` — the **Wallets page**: only what really happened and was checked —
+      rows that are **reconciled AND dated up to today**. Unreconciled rows (typed in or
+      auto-generated) never count there; nor does a reconciled future-dated row.
+    - `runningFor()` — the **Transactions balance view**: **every** row of the wallet,
+      in date order, whatever its date or reconciled state, so each row's effect shows.
 - **Schema:** bigint PKs, `foreignId(...)->constrained()`, `softDeletes()`,
   `timestamps()`, a nullable `user_id` audit FK on shared tables. Models use the
   Laravel-13 `#[Fillable([...])]` attribute + a `casts()` method. Existing UUIDs are
