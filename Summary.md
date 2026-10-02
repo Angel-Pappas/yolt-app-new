@@ -4,6 +4,8 @@ This file exists so a fresh session can get up to speed on this app quickly. Kee
 
 > **Hosting moved to our own VM (2026-09-30).** The app and its MySQL database now run on our own VM (`yolt-app.pappas.yoltobots.click`); the live data was migrated off the Laravel Cloud MySQL and verified identical. Code changes are made in a separate dev checkout and reach the live app only through `./deploy.sh`, which backs up the database first (also backed up daily) — see `AGENTS.md` → Workflow on the VM. The Laravel Cloud app was **deleted on 2026-10-01**; any remaining mention of it is history only.
 
+> **App icon (2026-10-02).** The app's icon (favicon, home-screen icon, sidebar/auth logo — `AppLogoIcon` + `public/favicon.*`/`apple-touch-icon.png`) is the company's green tree-and-network logo with its branch nodes forming a rising chart line + arrow, i.e. company mark + finance. Change the artwork in `favicon.svg` and `AppLogoIcon` together.
+
 > **Old app retired & deleted (2026-09).** This app was rebuilt from a legacy **Next.js/Supabase app hosted on Vercel** (repo `Angel-Pappas/yolt-app`); the data cutover ran and was verified clean on 2026-09-09. That old app has now been **retired and its GitHub repo deleted** — it is gone, not a read-only fallback. The current live app is the **Laravel app** in this repo (`Angel-Pappas/yolt-app-new`, on **our own VM**, MySQL) — see `AGENTS.md` for its real stack. **Every mention of Next.js, Supabase, Vercel, RLS, Server Actions, `src/…` paths, etc. below is historical** — it documents how the old app behaved (the authoritative _feature behavior_), not the current implementation.
 
 ## General description

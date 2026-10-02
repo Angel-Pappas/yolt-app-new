@@ -1,13 +1,73 @@
+import { useId } from 'react';
 import type { SVGAttributes } from 'react';
 
+/**
+ * The app icon: the company's tree-and-network mark whose branch nodes trace a
+ * rising chart line. Full colour (its own green tile), so it ignores
+ * `fill`/`text-*` classes. Same artwork as `public/favicon.svg`.
+ */
 export default function AppLogoIcon(props: SVGAttributes<SVGElement>) {
+    const gradientId = useId();
+
     return (
-        <svg {...props} viewBox="0 0 40 42" xmlns="http://www.w3.org/2000/svg">
-            <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M17.2 5.63325L8.6 0.855469L0 5.63325V32.1434L16.2 41.1434L32.4 32.1434V23.699L40 19.4767V9.85547L31.4 5.07769L22.8 9.85547V18.2999L17.2 21.411V5.63325ZM38 18.2999L32.4 21.411V15.2545L38 12.1434V18.2999ZM36.9409 10.4439L31.4 13.5221L25.8591 10.4439L31.4 7.36561L36.9409 10.4439ZM24.8 18.2999V12.1434L30.4 15.2545V21.411L24.8 18.2999ZM23.8 20.0323L29.3409 23.1105L16.2 30.411L10.6591 27.3328L23.8 20.0323ZM7.6 27.9212L15.2 32.1434V38.2999L2 30.9666V7.92116L7.6 11.0323V27.9212ZM8.6 9.29991L3.05913 6.22165L8.6 3.14339L14.1409 6.22165L8.6 9.29991ZM30.4 24.8101L17.2 32.1434V38.2999L30.4 30.9666V24.8101ZM9.6 11.0323L15.2 7.92117V22.5221L9.6 25.6333V11.0323Z"
+        <svg
+            {...props}
+            viewBox="0 0 512 512"
+            xmlns="http://www.w3.org/2000/svg"
+        >
+            <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stopColor="#8DC63F" />
+                    <stop offset="1" stopColor="#006837" />
+                </linearGradient>
+            </defs>
+            <rect
+                width="512"
+                height="512"
+                rx="112"
+                fill={`url(#${gradientId})`}
             />
+            <g transform="translate(-10 0)">
+                <g
+                    fill="none"
+                    stroke="#fff"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                >
+                    <path
+                        d="M256 334 C222 306 160 304 118 278"
+                        strokeWidth="16"
+                    />
+                    <path
+                        d="M256 334 C238 292 214 250 196 208"
+                        strokeWidth="16"
+                    />
+                    <path
+                        d="M256 334 C266 300 276 266 284 236"
+                        strokeWidth="16"
+                    />
+                    <path
+                        d="M256 334 C330 316 382 240 384 140"
+                        strokeWidth="16"
+                    />
+                    <path
+                        d="M118 278 L196 208 L284 236 L384 140"
+                        strokeWidth="14"
+                    />
+                    <path d="M384 140 L426 102" strokeWidth="14" />
+                    <path d="M388 98 L430 98 L430 140" strokeWidth="16" />
+                </g>
+                <path
+                    fill="#fff"
+                    d="M238 334 Q256 318 274 334 L282 404 Q286 428 322 434 L190 434 Q226 428 230 404 Z"
+                />
+                <g fill="#fff">
+                    <circle cx="118" cy="278" r="23" />
+                    <circle cx="196" cy="208" r="23" />
+                    <circle cx="284" cy="236" r="23" />
+                    <circle cx="384" cy="140" r="26" />
+                </g>
+            </g>
         </svg>
     );
 }

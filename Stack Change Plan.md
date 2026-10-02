@@ -465,6 +465,12 @@ Two codebases will coexist for the whole build.
 
 ## 20. Progress log
 
+- **2026-10-02** — **App icon.** Replaced the Laravel starter-kit logo with a Yolt
+  icon: the company's green-gradient tree-and-network mark, whose branch nodes trace a
+  rising chart line with an arrow (company + finance). One artwork in three places:
+  `public/favicon.svg`, `public/favicon.ico` (16/32/48) and `public/apple-touch-icon.png`
+  (180, full-bleed square), plus `AppLogoIcon` (full colour, its own tile; the sidebar's
+  `AppLogo` no longer wraps it in a `bg-sidebar-primary` square).
 - **2026-09-30** — **Safe dev → live workflow on the VM.** Added a separate dev
   checkout (`/home/ploi/yolt-app-dev`, dev tools + SQLite) so work never happens in
   the live folder. `deploy.sh` is now versioned in the repo and starts with the new
