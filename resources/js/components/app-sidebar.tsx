@@ -4,6 +4,7 @@ import {
     ArrowLeftRight,
     Boxes,
     Handshake,
+    House,
     Landmark,
     PanelLeftClose,
     PanelLeftOpen,
@@ -71,6 +72,9 @@ function CollapseControl() {
     );
 }
 
+// The landing page, above the Finance section.
+const homeNavItems: NavItem[] = [{ title: 'Home', href: '/', icon: House }];
+
 /** A single full-width sidebar link (used for the Configuration entry and the
  *  back-to-app link), styled like a nav item but standing on its own. */
 function SidebarLink({
@@ -118,7 +122,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href="/transactions" prefetch>
+                            <Link href="/" prefetch>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
@@ -138,6 +142,7 @@ export function AppSidebar() {
                     </>
                 ) : (
                     <>
+                        <NavMain items={homeNavItems} />
                         <NavMain items={financeNavItems} label="Finance" />
                         <NavMain items={entitiesNavItems} label="Entities" />
                         <SidebarLink

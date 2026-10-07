@@ -465,6 +465,13 @@ Two codebases will coexist for the whole build.
 
 ## 20. Progress log
 
+- **2026-10-07** — **"Yolt Finance" name + Home page.** The app displays as **Yolt Finance**
+  (`APP_NAME`; config/app.tsx/blade fallbacks updated too). New **Home** page at `/`
+  (auth-only, logo + welcome, content later) is the post-login landing (Fortify `home`)
+  and the first sidebar item; the sidebar logo links there. Removed the starter-kit
+  `welcome` page. Favicon `<link>`s got a `?v=2` cache-buster so browsers drop the
+  cached Laravel icon. Tests: guest → login, signed-in user sees `home`; auth redirect
+  tests now expect `/`.
 - **2026-10-02** — **App icon.** Replaced the Laravel starter-kit logo with a Yolt
   icon: the company's green-gradient tree-and-network mark, whose branch nodes trace a
   rising chart line with an arrow (company + finance). One artwork in three places:

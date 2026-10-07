@@ -13,11 +13,12 @@ use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WithheldTaxRateController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
-
 // Every active user can use the whole app; a deactivated user is logged out by the
 // EnsureAccountIsActive middleware. Admin-only areas add `can:admin`.
 Route::middleware(['auth', 'verified'])->group(function () {
+    // Home — the landing page after login (a welcome for now).
+    Route::inertia('/', 'home')->name('home');
+
     // Finance — the day-to-day pages.
     Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
     Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
