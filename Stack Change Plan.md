@@ -1002,3 +1002,13 @@ MySQL and can reach Supabase over the internet).
   count — Transactions and every `TransactionsTable`), and the table box's height cap
   reclaims that space (reserve 2.5rem instead of 4.75rem). Tables without totals keep
   the line. Deployed.
+- **2026-10-14 (process: design principles + fast screenshots).** After the duplicate
+  row count, agreed with the owner: **Direction 10** writes down the design principles
+  (no duplicated info, every element earns its space, review a shared component's
+  whole output, fewer controls, consistency, keep user-chosen state, self-review
+  before shipping) and grows each time something "weirdly made" is caught;
+  **Direction 3** now has the agent look at affected pages via a fast screenshot tool
+  instead of not looking at all; **Direction 11** covers loop efficiency. Tooling:
+  `DemoSeeder` (fake dev data, `demo@example.com`) + `pnpm run shots <paths>`
+  (`scripts/screenshot.mjs`, `playwright-core@1.63.0` on the cached Chromium 1243;
+  ~12s for two pages including server start + login). Documented in `AGENTS.md`.

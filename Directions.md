@@ -20,11 +20,15 @@ verify from `AGENTS.md` (starting with `pnpm run check:fix`) before every push. 
 push is genuinely blocked, e.g. missing GitHub write access, say so plainly and what
 unblocks it — that's the only acceptable reason to stop short of `main`.)
 
-Direction 3: Don't visually check — make sure the code has no errors (build, lint,
-typecheck, tests all pass), but leave the visual/functional check to the user. Do NOT
-keep restating this in replies — the user knows the visual check is his and will do
-it regardless. Just make the change and report that the code checks pass; never tack
-on "I can't eyeball this / this lands on you to verify" caveats.
+Direction 3: Verify the code (build, lint, typecheck, tests all pass), then LOOK at
+what you changed with the fast screenshot tool — never by driving a browser by hand
+(that was slow and is why manual visual checks were stopped early on). In the dev
+checkout run `pnpm run shots <path> [<path>…]` (add `--mobile` / `--dark` when
+relevant); it screenshots pages of the dev app on fake `DemoSeeder` data in seconds,
+and you read the PNGs and review them against Direction 10 before shipping. It never
+touches the live site or live data. The user still does their own functional check —
+don't keep restating that, and don't tack "please verify visually" caveats onto
+replies.
 
 Direction 4: Keep `Summary.md` and the progress log in `Stack Change Plan.md` current
 — update the relevant section whenever a feature is added, removed, or changed.
@@ -74,5 +78,32 @@ writes against the live database. Work and test only in the dev checkout
 (`/home/ploi/yolt-app.pappas.yoltobots.click`) is touched only by `./deploy.sh`,
 which backs the database up first. Any migration that drops or rewrites data must be
 raised with the user before it ships.
+
+Direction 10: **Design principles — the user's taste, written down.** Things that
+feel obviously "logical" to the user must never need pointing out. Apply all of these
+to every change, and whenever the user catches something "weirdly made", add the
+underlying principle here (not just the fix) so it never recurs:
+
+- **Never show the same information twice on one screen** (e.g. a row count both in a
+  table's totals row and under the table).
+- **Every element must earn its space.** Screen height is precious, especially on
+  lists — no redundant lines, labels, gaps or chrome.
+- **Changing a shared component means reviewing everything it renders**, not just the
+  part being changed: look at the whole composed result on each page that uses it.
+- **Fewer controls, fewer clicks.** Don't add a second control that does what an
+  existing one already does; the common action should be the shortest path.
+- **Consistency:** the same thing looks and behaves the same everywhere (e.g. every
+  table column has a filter, every list uses `DataTable`). A deviation must be
+  deliberate and called out to the user.
+- **Keep state the user chose.** A view/selection the user picked (a balance view, a
+  filter, a date range) must survive other actions on the page unless they clear it.
+- **Self-review before shipping:** for each page the change affects, take screenshots
+  (Direction 3) and write down for yourself "what the user now sees here", then remove
+  anything redundant, confusing, wasteful or inconsistent before pushing.
+
+Direction 11: **Efficiency.** Keep the edit → verify → ship loop fast: batch
+independent commands, run the full verify once (not piecemeal), screenshot only the
+affected pages, and suggest to the user any tooling or process change that would
+save time.
 
 We will add more to these as we move on with the app.

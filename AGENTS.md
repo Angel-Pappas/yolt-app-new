@@ -208,6 +208,19 @@ php artisan test                # Pest
   `php.ini` exists with `memory_limit = 512M` (PHPStan needs it).
 - After pushing: `gh run watch --repo Angel-Pappas/yolt-app-new <id> --exit-status`.
 
+## Looking at pages (screenshots — dev checkout only)
+
+- **Demo data:** `php artisan migrate:fresh --seed --seeder=DemoSeeder` fills the dev
+  SQLite with realistic FAKE data (3 wallets, ~3 months of transactions, categories,
+  entities, rates) and a login `demo@example.com` / `password`. Dev only — never live.
+- **Screenshots:** `pnpm run shots /transactions "/transactions?balance=1"`
+  (`--mobile` = 390×844, `--dark`) → PNGs in `storage/screenshots/` (gitignored), then
+  read them. It boots `php artisan serve` on port 8123 if needed and caches the login.
+  Needs `pnpm run build` first (it serves the built assets). Uses `playwright-core`
+  pinned to **1.63.0** because that version's Chromium (revision 1243) is already in
+  `~/.cache/ms-playwright` — bumping it means a new browser download
+  (`npx playwright-core install chromium`).
+
 ## How to continue (fresh session)
 
 1. Read **`Stack Change Plan.md`** (in this repo) — its **§20 progress log** lists
