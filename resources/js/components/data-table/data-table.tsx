@@ -274,6 +274,10 @@ export function DataTable<TData, TValue>({
         return () => observer.disconnect();
     }, [hasMore, pageSize, visibleCount]);
 
+    // The row count under the table — skipped when a totals footer is shown, since
+    // that footer already carries the count (no need to see it twice).
+    const showCountLine = rows.length > 0 && !enableTotals;
+
     const showRightCluster = Boolean(searchPlaceholder || toolbar || action);
     const showHeader = Boolean(title || showRightCluster);
 
@@ -334,7 +338,14 @@ export function DataTable<TData, TValue>({
 
             <div
                 ref={scrollRef}
-                className="max-h-[max(16rem,calc(100svh-var(--dt-head,0px)-4.75rem))] overflow-auto rounded-lg border"
+                className={cn(
+                    'overflow-auto rounded-lg border',
+                    // Cap to the viewport height left under the sticky header,
+                    // less the page padding (and the row-count line, if shown).
+                    showCountLine
+                        ? 'max-h-[max(16rem,calc(100svh-var(--dt-head,0px)-4.75rem))]'
+                        : 'max-h-[max(16rem,calc(100svh-var(--dt-head,0px)-2.5rem))]',
+                )}
             >
                 <Table containerClassName="overflow-visible">
                     {/* Sticky column headers. A collapsed table border doesn't move
@@ -496,7 +507,7 @@ export function DataTable<TData, TValue>({
                 {hasMore && <div ref={sentinelRef} aria-hidden="true" />}
             </div>
 
-            {rows.length > 0 && (
+            {showCountLine && (
                 <>
                     <div className="text-muted-foreground mt-4 text-sm">
                         {hasMore

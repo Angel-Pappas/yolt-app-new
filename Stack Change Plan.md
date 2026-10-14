@@ -997,3 +997,8 @@ MySQL and can reach Supabase over the internet).
   filter/search/sort (`label` spans the columns before the first keyed cell).
   `TransactionsTable` uses it in balance view: "Starting balance" with the first
   shown row's `balance_before` under the Balance column. Pest test added. Deployed.
+- **2026-10-14 (no duplicate row count).** The "N rows" line under a `DataTable` is now
+  dropped whenever a totals footer is shown (the footer already carries the filtered
+  count — Transactions and every `TransactionsTable`), and the table box's height cap
+  reclaims that space (reserve 2.5rem instead of 4.75rem). Tables without totals keep
+  the line. Deployed.
