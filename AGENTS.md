@@ -135,7 +135,10 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
   (`IntersectionObserver`) scrolls into view, resetting to the top when the
   filter/search/sort selection changes. Because the reveal slices TanStack's
   already-filtered/sorted row model, infinite scroll works identically under any active
-  filter. A NEW list page MUST use this — never hand-roll a `<table>`, a bespoke filter
+  filter. **Sticky top:** the header block + controls + bulk bar are `sticky top-0`, and the
+  table box is its own viewport-capped scroll area with a sticky column-header row and
+  totals footer — don't wrap a `DataTable` in an `overflow-*` container (it would
+  break the stickiness). A NEW list page MUST use this — never hand-roll a `<table>`, a bespoke filter
   bar, or page buttons. **Opt-in row selection**: pass `enableSelection` + `getRowId` +
   `renderBulkActions(selected, clear)` to get a leading checkbox column (header selects
   all _filtered_ rows) and a bulk-actions bar (see the category page,

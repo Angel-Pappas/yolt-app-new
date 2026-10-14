@@ -973,3 +973,14 @@ MySQL and can reach Supabase over the internet).
       contract. **225 tests; all CI green; deployed.** Any new list page must be built
       from `DataTable` + `ColumnHeader` (declare `meta.filter` per column) — never a
       hand-rolled table.
+- **2026-10-14 (sticky table tops).** Owner asked for the top part of the Transactions
+  list (title, search/Add, date controls, column headers) to stay put while scrolling,
+  everywhere the same view is used. Done once in the shared `DataTable`: the header
+  block is `sticky top-0`; the table box is its own scroll area
+  (`max-h: 100svh − header height − reserve`, the header height published live as
+  `--dt-head` via a `ResizeObserver`) with a sticky `<thead>` and sticky totals
+  `<tfoot>` (dividers drawn as 1–2px background lines, since collapsed table borders
+  don't travel with sticky rows). `Table` gained a `containerClassName` so its own
+  `overflow-x-auto` wrapper can be neutralised — that wrapper would otherwise be the
+  sticky ancestor. The infinite-scroll sentinel moved inside the scroll box and its
+  `IntersectionObserver` uses that box as root. Full verify green; deployed.

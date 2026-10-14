@@ -84,6 +84,14 @@ type Props<TData, TValue> = {
  * into view, so the whole list is one continuous scroll. Because the reveal slices
  * TanStack's already-filtered/sorted row model, it works identically under any
  * active filter/search/sort, and resets to the top whenever those change.
+ *
+ * Sticky top: the header block (title · search · actions, the `controls` row and the
+ * bulk-actions bar) is `sticky` to the top of the page, and the table box is its own
+ * scroll area, capped to the viewport height left under that block, with a sticky
+ * column-header row (and a sticky totals footer). So while scrolling a long list the
+ * title, filters and column headers stay in view. The table box has to be the
+ * scroller (not the page): its horizontal overflow-scrolling would otherwise trap a
+ * sticky `<thead>` against itself instead of the page.
  */
 export function DataTable<TData, TValue>({
     columns,
@@ -215,6 +223,22 @@ export function DataTable<TData, TValue>({
     const visibleRows = rows.slice(0, visibleCount);
     const hasMore = visibleCount < rows.length;
     const sentinelRef = useRef<HTMLDivElement | null>(null);
+    const scrollRef = useRef<HTMLDivElement | null>(null);
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    const headRef = useRef<HTMLDivElement | null>(null);
+
+    // Publish the sticky header block's live height as `--dt-head`, so the table
+    // box can cap itself to the viewport height left beneath it.
+    useEffect(() => {
+        const root = rootRef.current;
+        const head = headRef.current;
+        if (!root || !head) return;
+        const observer = new ResizeObserver(() =>
+            root.style.setProperty('--dt-head', `${head.offsetHeight}px`),
+        );
+        observer.observe(head);
+        return () => observer.disconnect();
+    }, []);
 
     useEffect(() => {
         const el = sentinelRef.current;
@@ -225,7 +249,8 @@ export function DataTable<TData, TValue>({
                     setVisibleCount((c) => c + pageSize);
                 }
             },
-            { rootMargin: '300px' },
+            // The rows scroll inside the table box, so watch the sentinel there.
+            { root: scrollRef.current, rootMargin: '300px' },
         );
         observer.observe(el);
         return () => observer.disconnect();
@@ -235,55 +260,69 @@ export function DataTable<TData, TValue>({
     const showHeader = Boolean(title || showRightCluster);
 
     return (
-        <div className="flex flex-col gap-4">
-            {showHeader && (
-                <div className="flex flex-wrap items-center gap-2">
-                    {title && (
-                        <h1 className="text-2xl font-semibold">{title}</h1>
-                    )}
-                    {showRightCluster && (
-                        <div className="ml-auto flex flex-wrap items-center gap-2">
-                            {searchPlaceholder && (
-                                <Input
-                                    placeholder={searchPlaceholder}
-                                    value={globalFilter}
-                                    onChange={(e) =>
-                                        setGlobalFilter(e.target.value)
-                                    }
-                                    className="w-56"
-                                    aria-label="Search"
-                                />
-                            )}
-                            {toolbar}
-                            {action}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {controls}
-
-            {enableSelection && selectedRows.length > 0 && (
-                <div className="bg-muted/50 flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2">
-                    <span className="text-sm font-medium">
-                        {selectedRows.length} selected
-                    </span>
-                    <div className="ml-auto flex flex-wrap items-center gap-2">
-                        {renderBulkActions?.(selectedRows, clearSelection)}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={clearSelection}
-                        >
-                            Clear
-                        </Button>
+        <div ref={rootRef} className="flex flex-col">
+            {/* Sticky header block; `empty:hidden` drops its padding when a table
+                has no header/controls/selection at all. The -mt-2/pt-2 pair keeps a
+                little breathing room above the title once it's pinned. */}
+            <div
+                ref={headRef}
+                className="bg-background sticky top-0 z-30 -mt-2 flex flex-col gap-4 pt-2 pb-4 empty:hidden"
+            >
+                {showHeader && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        {title && (
+                            <h1 className="text-2xl font-semibold">{title}</h1>
+                        )}
+                        {showRightCluster && (
+                            <div className="ml-auto flex flex-wrap items-center gap-2">
+                                {searchPlaceholder && (
+                                    <Input
+                                        placeholder={searchPlaceholder}
+                                        value={globalFilter}
+                                        onChange={(e) =>
+                                            setGlobalFilter(e.target.value)
+                                        }
+                                        className="w-56"
+                                        aria-label="Search"
+                                    />
+                                )}
+                                {toolbar}
+                                {action}
+                            </div>
+                        )}
                     </div>
-                </div>
-            )}
+                )}
 
-            <div className="rounded-lg border">
-                <Table>
-                    <TableHeader>
+                {controls}
+
+                {enableSelection && selectedRows.length > 0 && (
+                    <div className="bg-muted/50 flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2">
+                        <span className="text-sm font-medium">
+                            {selectedRows.length} selected
+                        </span>
+                        <div className="ml-auto flex flex-wrap items-center gap-2">
+                            {renderBulkActions?.(selectedRows, clearSelection)}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={clearSelection}
+                            >
+                                Clear
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div
+                ref={scrollRef}
+                className="max-h-[max(16rem,calc(100svh-var(--dt-head,0px)-4.75rem))] overflow-auto rounded-lg border"
+            >
+                <Table containerClassName="overflow-visible">
+                    {/* Sticky column headers. A collapsed table border doesn't move
+                        with a sticky row, so the divider is drawn as a 1px
+                        background line on each cell instead. */}
+                    <TableHeader className="bg-background sticky top-0 z-20 [&_th]:bg-[linear-gradient(var(--border),var(--border))] [&_th]:bg-[length:100%_1px] [&_th]:bg-bottom [&_th]:bg-no-repeat [&_tr]:border-b-0">
                         {table.getHeaderGroups().map((headerGroup) => (
                             <TableRow
                                 key={headerGroup.id}
@@ -382,11 +421,11 @@ export function DataTable<TData, TValue>({
                         )}
                     </TableBody>
                     {enableTotals && rows.length > 0 && (
-                        <TableFooter>
+                        <TableFooter className="bg-background sticky bottom-0 z-20 border-t-0 [&_td]:bg-[linear-gradient(var(--border),var(--border))] [&_td]:bg-[length:100%_2px] [&_td]:bg-top [&_td]:bg-no-repeat">
                             {table.getFooterGroups().map((footerGroup) => (
                                 <TableRow
                                     key={footerGroup.id}
-                                    className="border-t-2"
+                                    className="bg-muted/50"
                                 >
                                     {footerGroup.headers.map((header) => (
                                         <TableCell
@@ -414,13 +453,13 @@ export function DataTable<TData, TValue>({
                         </TableFooter>
                     )}
                 </Table>
+                {/* Sentinel: when scrolled into view, reveal the next chunk. */}
+                {hasMore && <div ref={sentinelRef} aria-hidden="true" />}
             </div>
 
             {rows.length > 0 && (
                 <>
-                    {/* Sentinel: when scrolled into view, reveal the next chunk. */}
-                    {hasMore && <div ref={sentinelRef} aria-hidden="true" />}
-                    <div className="text-muted-foreground text-sm">
+                    <div className="text-muted-foreground mt-4 text-sm">
                         {hasMore
                             ? `Showing ${visibleRows.length} of ${rows.length} rows`
                             : `${rows.length} row${rows.length === 1 ? '' : 's'}`}
