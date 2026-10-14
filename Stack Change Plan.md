@@ -989,3 +989,11 @@ MySQL and can reach Supabase over the internet).
   `?balance=` (the filters bar rebuilt the URL without it), exiting the view.
   `TransactionsFilters` now takes the active `balanceWalletId` and keeps it in every
   filter navigation; only the balance pill's × exits the view. Deployed.
+- **2026-10-14 (balance view "Starting balance" line).** Owner wants the opening
+  balance when checking a wallet month by month. `WalletBalances::runningFor()` now
+  also sets `balance_before` on each row (the running balance just before it), and
+  `DataTable` gained an optional `leadingRow(first)` prop — a distinct summary row
+  above the first data row, built from whatever row is first after the client-side
+  filter/search/sort (`label` spans the columns before the first keyed cell).
+  `TransactionsTable` uses it in balance view: "Starting balance" with the first
+  shown row's `balance_before` under the Balance column. Pest test added. Deployed.

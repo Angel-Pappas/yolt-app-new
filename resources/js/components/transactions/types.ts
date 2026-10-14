@@ -41,6 +41,8 @@ export type Transaction = {
     withheld_lines: WithheldLine[];
     /** Present only in balance view: the running balance after this row. */
     balance?: string | number;
+    /** Present only in balance view: the running balance just before this row. */
+    balance_before?: string | number;
 };
 
 /**

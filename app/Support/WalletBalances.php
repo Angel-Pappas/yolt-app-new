@@ -38,6 +38,9 @@ class WalletBalances
             ->get()
             ->each(function (Transaction $t) use (&$running, $walletId): void {
                 $total = self::cashTotal($t);
+                // The balance just before this row — the balance view's
+                // "Starting balance" line reads it off the first row it shows.
+                $t->setAttribute('balance_before', round($running, 2));
 
                 if ($t->type === 'income' && $t->wallet_id === $walletId) {
                     $running += $total;

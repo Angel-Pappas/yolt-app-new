@@ -100,3 +100,28 @@ test('the normal list carries no balance context', function () {
         ->get('/transactions?all=1')
         ->assertInertia(fn (Assert $page) => $page->where('balance', null));
 });
+
+test('balance view rows carry the balance just before them, for the starting-balance line', function () {
+    $user = User::factory()->create();
+    $wallet = Wallet::factory()->create(['starting_balance' => 100]);
+    foreach ([['income', 50, '2026-08-20'], ['expense', 30, '2026-09-05'], ['income', 10, '2026-09-10']] as [$type, $net, $date]) {
+        Transaction::factory()->create([
+            'wallet_id' => $wallet->id,
+            'type' => $type,
+            'net' => $net,
+            'vat_amount' => 0,
+            'withheld_amount' => 0,
+            'date' => $date,
+        ]);
+    }
+
+    // September only: the first shown row starts from August's closing balance.
+    $this->actingAs($user)
+        ->get("/transactions?balance={$wallet->id}&from=2026-09-01&to=2026-09-30")
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('transactions', 2)
+            ->where('transactions.0.balance_before', fn ($v) => (float) $v === 150.0)
+            ->where('transactions.0.balance', fn ($v) => (float) $v === 120.0)
+            ->where('transactions.1.balance_before', fn ($v) => (float) $v === 120.0)
+            ->where('transactions.1.balance', fn ($v) => (float) $v === 130.0));
+});

@@ -70,6 +70,15 @@ type Props<TData, TValue> = {
     enableSelection?: boolean;
     getRowId?: (row: TData) => string;
     renderBulkActions?: (selected: TData[], clear: () => void) => ReactNode;
+    /**
+     * An optional, visually distinct summary row above the first data row, built
+     * from whichever row currently shows first (after filter/search/sort). `cells`
+     * is keyed by column id; `label` fills one cell spanning every column before the
+     * first keyed one. Return null to skip it.
+     */
+    leadingRow?: (
+        first: TData,
+    ) => { label: ReactNode; cells: Partial<Record<string, ReactNode>> } | null;
 };
 
 /**
@@ -110,6 +119,7 @@ export function DataTable<TData, TValue>({
     enableSelection = false,
     getRowId,
     renderBulkActions,
+    leadingRow,
 }: Props<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
@@ -221,6 +231,14 @@ export function DataTable<TData, TValue>({
     }
 
     const visibleRows = rows.slice(0, visibleCount);
+    const leading = leadingRow && rows[0] ? leadingRow(rows[0].original) : null;
+    const leadingColumns = table.getVisibleLeafColumns();
+    const leadingSpan = leading
+        ? Math.max(
+              leadingColumns.findIndex((c) => c.id in leading.cells),
+              1,
+          )
+        : 0;
     const hasMore = visibleCount < rows.length;
     const sentinelRef = useRef<HTMLDivElement | null>(null);
     const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -343,6 +361,27 @@ export function DataTable<TData, TValue>({
                         ))}
                     </TableHeader>
                     <TableBody>
+                        {leading && (
+                            <TableRow className="bg-muted/40 hover:bg-muted/40 font-semibold">
+                                <TableCell colSpan={leadingSpan}>
+                                    {leading.label}
+                                </TableCell>
+                                {leadingColumns
+                                    .slice(leadingSpan)
+                                    .map((column) => (
+                                        <TableCell
+                                            key={column.id}
+                                            className={cn(
+                                                cellAlign(
+                                                    column.columnDef.meta,
+                                                ),
+                                            )}
+                                        >
+                                            {leading.cells[column.id] ?? null}
+                                        </TableCell>
+                                    ))}
+                            </TableRow>
+                        )}
                         {visibleRows.length ? (
                             visibleRows.map((row) => {
                                 const href = rowHref?.(row.original);

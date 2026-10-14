@@ -416,6 +416,21 @@ export function TransactionsTable({
                 enableSelection={enableSelection}
                 getRowId={(t) => String(t.id)}
                 renderBulkActions={renderBulkActions}
+                leadingRow={
+                    balanceMode
+                        ? (first) =>
+                              first.balance_before != null
+                                  ? {
+                                        label: 'Starting balance',
+                                        cells: {
+                                            balance: formatAmount(
+                                                first.balance_before,
+                                            ),
+                                        },
+                                    }
+                                  : null
+                        : undefined
+                }
             />
 
             <TransactionFormDialog
