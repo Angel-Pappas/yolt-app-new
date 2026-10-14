@@ -1,10 +1,8 @@
 @AGENTS.md
 @Directions.md
 
-Summary.md documents the app's feature behavior (the domain: VAT/withholding rules,
-the invoice-month convention, wallet/transaction model, CRM, etc.). Some
-implementation detail in it references the legacy Next.js/Supabase app; the Laravel
-implementation follows the patterns in AGENTS.md, but the feature behavior it
-describes is authoritative.
+Summary.md is the current state of the app (feature behaviour + the key decisions).
+History.md (not auto-loaded) is the dated change log — read it when you need to know
+how or why something came to be. Retired docs are kept verbatim in docs/archive/.
 
 @Summary.md

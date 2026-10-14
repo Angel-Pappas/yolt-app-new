@@ -30,8 +30,11 @@ touches the live site or live data. The user still does their own functional che
 don't keep restating that, and don't tack "please verify visually" caveats onto
 replies.
 
-Direction 4: Keep `Summary.md` and the progress log in `Stack Change Plan.md` current
-— update the relevant section whenever a feature is added, removed, or changed.
+Direction 4: Keep the docs current with every change, without saying anything twice:
+rewrite the relevant section of **`Summary.md`** in place so it always describes the
+app **as it is now** (never append history there), and add **one dated entry to
+`History.md`** (newest first) with what changed and **why** — owner decisions,
+trade-offs, gotchas. Retired documents go to `docs/archive/`, kept verbatim.
 
 Direction 5: Never let a modal (or any other fixed-width container) scroll
 horizontally as a side effect of something you add to it. Keep new fields/controls
@@ -61,12 +64,12 @@ practices — especially money/tax math and authorization.
 Direction 8: **The stack change is complete — this is the live app.** Yolt-App was
 rebuilt from the old Next.js/Supabase app onto Laravel, and the data cutover ran and
 was verified clean on 2026-09-09. The Laravel app in this repo (`yolt-app-new`, on
-our own VM) is now the live app on the real data. The full history, every
-decision, and the progress log are in **`Stack Change Plan.md`**; the app's feature
-behavior is documented in **`Summary.md`**; the established code patterns and the
+our own VM) is now the live app on the real data. Every change and decision is
+recorded in **`History.md`** (the original rebuild plan is in
+`docs/archive/`); the app's current behavior is in **`Summary.md`**; the established code patterns and the
 exact local verify workflow are in **`AGENTS.md`** — read those to get up to speed.
-Build new work in small, tested slices, each pushed to `main` and deployed with
-`./deploy.sh`, with CI kept green. The **old app** (`Angel-Pappas/yolt-app`, on
+Build new work in small, tested slices, each shipped to `main` and deployed with
+`./ship.sh` (see `AGENTS.md`), with CI kept green. The **old app** (`Angel-Pappas/yolt-app`, on
 Vercel + Supabase) has been **retired and its GitHub repo deleted (2026-09)** — it no
 longer exists, so there is nothing to fall back to or "not work in"; this Laravel app
 is the only app.

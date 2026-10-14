@@ -3,15 +3,15 @@
 The company app. It was **rebuilt from scratch** on Laravel — a clean
 re-implementation of the old Next.js/Supabase app — and the **data cutover ran and
 was verified clean on 2026-09-09**, so this Laravel app is now the **live app on the
-real data**. **The authoritative plan, decisions, and progress log live in
-`Stack Change Plan.md` in this repo**; the app's feature behavior is in `Summary.md`
-— read both for the full context and roadmap.
+real data**. The app's **current behaviour** is in `Summary.md`; the dated **change
+log** (what changed and why, newest first) is `History.md`; the completed rebuild plan
+and other retired docs are kept in `docs/archive/`.
 
 This is a fresh, idiomatic Laravel build. **Do not port** code from the old app —
 build clean. The old app (`Angel-Pappas/yolt-app`, on Vercel + Supabase) has been
 **retired and its GitHub repo deleted (2026-09)** — it is gone, not a fallback. This
 Laravel app is the only app now. (Historical references to the old app below and in
-`Summary.md`/`Stack Change Plan.md` describe how it behaved, kept only as a
+`History.md` and `docs/archive/` describe how it behaved, kept only as a
 behavioural record — there is nothing left to run or fall back to.)
 
 ## Stack (verified 2026-08-28)
@@ -221,10 +221,19 @@ php artisan test                # Pest
   `~/.cache/ms-playwright` — bumping it means a new browser download
   (`npx playwright-core install chromium`).
 
+## Ship a change (one command)
+
+From the dev checkout: `./ship.sh "Commit subject" ["optional body"]` — runs the full
+local verify above, commits everything, pushes to `main`, waits for the CI run of that
+commit, then runs the live `deploy.sh` (DB backup first). It stops at the first
+failure: nothing is pushed if verify fails, nothing deployed if CI fails. Before
+running it: update `Summary.md` (current state) + add the `History.md` entry, and look
+at the affected pages with `pnpm run shots` (Direction 3).
+
 ## How to continue (fresh session)
 
-1. Read **`Stack Change Plan.md`** (in this repo) — its **§20 progress log** lists
-   exactly what's built and the next slices.
-2. Pick the next slice, build it idiomatically (match the patterns above), write
-   tests, run the full local verify, commit + push to `main`, watch CI green.
-3. Keep each slice small and green; log the increment in the plan's §20.
+1. Read **`Summary.md`** (current state) and the top of **`History.md`** (recent
+   changes and decisions).
+2. Build the change idiomatically (match the patterns above), write tests, look at it
+   (screenshots), and review it against the design principles (Direction 10).
+3. Update `Summary.md` in place, add one `History.md` entry, then `./ship.sh`.

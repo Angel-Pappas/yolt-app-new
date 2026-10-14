@@ -307,7 +307,10 @@ export function TransactionsTable({
                       id: 'balance',
                       accessorFn: (row: Transaction) =>
                           row.balance != null ? Number(row.balance) : 0,
-                      meta: { align: 'right' as const },
+                      meta: {
+                          align: 'right' as const,
+                          filter: { type: 'number' as const },
+                      },
                       header: ({ column }) => (
                           <ColumnHeader
                               column={column}

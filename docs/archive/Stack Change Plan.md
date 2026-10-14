@@ -1,4 +1,7 @@
-# Stack Change Plan
+# Stack Change Plan (archived 2026-10-14)
+
+> **Archived — the rebuild is complete.** Kept verbatim as the record of how the app
+> was rebuilt and cut over. Its §20 progress log continues in `/History.md`.
 
 Authoritative planning document for migrating **Yolt-App** from its current stack
 (Next.js + Supabase, hosted on Vercel) to the company's stack (**Laravel 13 + the
