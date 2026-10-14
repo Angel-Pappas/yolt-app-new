@@ -984,3 +984,8 @@ MySQL and can reach Supabase over the internet).
   `overflow-x-auto` wrapper can be neutralised — that wrapper would otherwise be the
   sticky ancestor. The infinite-scroll sentinel moved inside the scroll box and its
   `IntersectionObserver` uses that box as root. Full verify green; deployed.
+- **2026-10-14 (balance view survives date changes).** Changing the date range,
+  presets or quick toggles while in a wallet's balance view used to drop
+  `?balance=` (the filters bar rebuilt the URL without it), exiting the view.
+  `TransactionsFilters` now takes the active `balanceWalletId` and keeps it in every
+  filter navigation; only the balance pill's × exits the view. Deployed.

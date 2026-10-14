@@ -51,7 +51,12 @@ export default function TransactionsIndex({
                     editing={editing}
                     title="Transactions"
                     searchPlaceholder="Search transactions…"
-                    controls={<TransactionsFilters filters={filters} />}
+                    controls={
+                        <TransactionsFilters
+                            filters={filters}
+                            balanceWalletId={balance?.wallet_id ?? null}
+                        />
+                    }
                     toolbar={
                         <BalanceViewControl
                             wallets={wallets}

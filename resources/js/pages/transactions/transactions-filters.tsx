@@ -26,11 +26,13 @@ export type TransactionFilters = {
 
 type Props = {
     filters: TransactionFilters;
+    /** The wallet id of the active balance view, kept across filter changes. */
+    balanceWalletId?: number | null;
 };
 
 const iso = (date: Date) => format(date, 'yyyy-MM-dd');
 
-export function TransactionsFilters({ filters }: Props) {
+export function TransactionsFilters({ filters, balanceWalletId }: Props) {
     const now = new Date();
     const thisFrom = iso(startOfMonth(now));
     const thisTo = iso(endOfMonth(now));
@@ -69,6 +71,8 @@ export function TransactionsFilters({ filters }: Props) {
         if (merged.unreconciled) params.unreconciled = '1';
         if (merged.no_invoice) params.no_invoice = '1';
         if (merged.all) params.all = '1';
+        // Stay in the balance view while changing dates / quick filters.
+        if (balanceWalletId) params.balance = String(balanceWalletId);
 
         router.get('/transactions', params, {
             preserveState: true,
