@@ -18,7 +18,7 @@ body=${2:-}
 
 step() { printf '\n==> %s  (+%ss)\n' "$1" "$SECONDS"; }
 
-step "Auto-format"; pnpm run check:fix; vendor/bin/pint --parallel
+step "Auto-format"; pnpm exec vp fmt; vendor/bin/pint --parallel
 step "Build"; pnpm run build
 step "Full check (composer ci:check)"; composer ci:check
 

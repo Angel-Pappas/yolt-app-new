@@ -11,7 +11,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { AmountInput } from '@/components/amount-input';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -20,6 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { normalizeAmount } from '@/lib/amounts';
 
 type Option = { id: number; name: string };
 
@@ -68,7 +69,7 @@ export function ReconcileModal({
         e.preventDefault();
         form.transform((data) => ({
             ...data,
-            net: String(data.net).replace(',', '.'),
+            net: normalizeAmount(String(data.net)),
         }));
         form.post(`/transactions/${transaction.id}/reconcile`, {
             preserveScroll: true,
@@ -102,13 +103,10 @@ export function ReconcileModal({
 
                         <div className="grid gap-2">
                             <Label htmlFor="net">Amount</Label>
-                            <Input
+                            <AmountInput
                                 id="net"
-                                inputMode="decimal"
                                 value={form.data.net}
-                                onChange={(e) =>
-                                    form.setData('net', e.target.value)
-                                }
+                                onChange={(v) => form.setData('net', v)}
                                 required
                             />
                         </div>

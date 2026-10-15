@@ -12,6 +12,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { AmountInput } from '@/components/amount-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -22,6 +23,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { normalizeAmount } from '@/lib/amounts';
 
 export type CrudItem = { id: number } & Record<
     string,
@@ -31,7 +33,9 @@ export type CrudItem = { id: number } & Record<
 export type CrudField = {
     key: string;
     label: string;
-    type?: 'text' | 'decimal' | 'select' | 'textarea' | 'date';
+    /** `money` = an amount in euros (shown with thousands dots, see AmountInput);
+     *  `decimal` = any other number, e.g. a rate in %. */
+    type?: 'text' | 'decimal' | 'money' | 'select' | 'textarea' | 'date';
     options?: { value: string; label: string }[];
     placeholder?: string;
     required?: boolean;
@@ -110,8 +114,8 @@ export function CrudFormDialog({
         form.transform((data) => {
             const out = { ...data };
             for (const field of fields) {
-                if (field.type === 'decimal') {
-                    out[field.key] = String(out[field.key]).replace(',', '.');
+                if (field.type === 'decimal' || field.type === 'money') {
+                    out[field.key] = normalizeAmount(String(out[field.key]));
                 }
             }
             return out;
@@ -198,6 +202,16 @@ export function CrudFormDialog({
                                         placeholder={field.placeholder}
                                         required={field.required}
                                         rows={3}
+                                    />
+                                ) : field.type === 'money' ? (
+                                    <AmountInput
+                                        id={field.key}
+                                        value={form.data[field.key]}
+                                        onChange={(v) =>
+                                            form.setData(field.key, v)
+                                        }
+                                        placeholder={field.placeholder}
+                                        required={field.required}
                                     />
                                 ) : (
                                     <Input

@@ -1,4 +1,5 @@
 import type { RateOption } from '@/components/transactions/lookups';
+import { formatAmount } from '@/lib/format';
 
 /*
  * The pure maths of a transaction's amount area — no React, so it is unit-tested
@@ -41,8 +42,29 @@ export function emptyPayroll(): PayrollAmounts {
     return { net: '', fmy: '', efka_employee: '', efka_employer: '' };
 }
 
+/**
+ * Read a typed amount as a number, or NaN when it isn't one. Accepts a comma or a
+ * dot as the decimal, and Greek thousands dots when a decimal comma is present
+ * (`1.234,56`) or there are several dot groups (`1.234.567`). A lone dot is the
+ * decimal (`1.5`), so plain typing never changes meaning.
+ */
+export function readAmount(value: string): number {
+    const s = String(value).replace(/\s/g, '');
+    if (s === '') return NaN;
+    let plain: string;
+    if (s.includes(',')) {
+        plain = s.replace(/\./g, '').replace(',', '.');
+    } else if (/^-?\d{1,3}(\.\d{3}){2,}$/.test(s)) {
+        plain = s.replace(/\./g, '');
+    } else {
+        plain = s;
+    }
+    return /^-?(\d+\.?\d*|\.\d+)$/.test(plain) ? Number(plain) : NaN;
+}
+
+/** A typed amount as a number for live maths (0 when blank or not a number). */
 export function parseAmount(value: string): number {
-    const n = Number(String(value).replace(',', '.'));
+    const n = readAmount(value);
     return Number.isFinite(n) ? n : 0;
 }
 
@@ -50,9 +72,24 @@ export function round2(n: number): number {
     return Math.round(n * 100) / 100;
 }
 
-/** A typed amount normalised for submit (a "," becomes "."). */
+/** A typed amount normalised for submit (`1.234,56` → `1234.56`); anything that
+ *  isn't a number is sent as typed so the server's validation reports it. */
 export function normalizeAmount(value: string): string {
-    return String(value).replace(',', '.');
+    const n = readAmount(value);
+    return Number.isFinite(n) ? String(n) : String(value).trim();
+}
+
+/** How an amount field shows its value while not being edited: `1.234,56`. */
+export function displayAmount(value: string): string {
+    const n = readAmount(value);
+    return Number.isFinite(n) ? formatAmount(n) : value;
+}
+
+/** How an amount field shows its value while being edited: plain, no grouping,
+ *  decimal comma (`1234,56`), so typing never fights the thousands dots. */
+export function editableAmount(value: string): string {
+    const n = readAmount(value);
+    return Number.isFinite(n) ? String(n).replace('.', ',') : value;
 }
 
 /** A payroll amount for submit: normalised, or null when blank. */

@@ -154,13 +154,13 @@ export default function TaxesIncome({ years, schedule }: Props) {
                         {
                             key: 'revenue_before_tax',
                             label: 'Revenue before tax (€)',
-                            type: 'decimal',
+                            type: 'money',
                             required: true,
                         },
                         {
                             key: 'total_tax',
                             label: 'Total tax (€)',
-                            type: 'decimal',
+                            type: 'money',
                             required: true,
                         },
                         {
@@ -178,7 +178,7 @@ export default function TaxesIncome({ years, schedule }: Props) {
                         {
                             key: 'monthly_installment_amount',
                             label: 'Monthly installment (€)',
-                            type: 'decimal',
+                            type: 'money',
                             required: true,
                         },
                     ]}

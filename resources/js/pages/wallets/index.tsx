@@ -14,9 +14,11 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { AmountInput } from '@/components/amount-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatAmount } from '@/lib/format';
+import { normalizeAmount } from '@/lib/amounts';
 
 type Wallet = {
     id: number;
@@ -54,7 +56,7 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
         // Accept a comma or a dot as the decimal separator; the server wants a dot.
         form.transform((data) => ({
             ...data,
-            starting_balance: String(data.starting_balance).replace(',', '.'),
+            starting_balance: normalizeAmount(String(data.starting_balance)),
         }));
 
         const options = {
@@ -199,15 +201,11 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
                                 <Label htmlFor="starting_balance">
                                     Starting balance (€)
                                 </Label>
-                                <Input
+                                <AmountInput
                                     id="starting_balance"
-                                    inputMode="decimal"
                                     value={form.data.starting_balance}
-                                    onChange={(e) =>
-                                        form.setData(
-                                            'starting_balance',
-                                            e.target.value,
-                                        )
+                                    onChange={(v) =>
+                                        form.setData('starting_balance', v)
                                     }
                                     required
                                 />

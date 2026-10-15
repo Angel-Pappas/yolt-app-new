@@ -156,8 +156,11 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
 ## Conventions
 
 - **Money** is `decimal(12,2)`; amounts arrive as strings → `Number()` before maths.
-  Displays: `1.234,56` and `dd/mm/yyyy` (`resources/js/lib/format.ts`). Amount inputs
-  accept `,` or `.`; date inputs are a segmented dd/mm/yyyy field.
+  Displays: `1.234,56` and `dd/mm/yyyy` (`resources/js/lib/format.ts`). **Money inputs**
+  (`AmountInput`) show thousands dots when not being edited (`1.234,56`) and plain text
+  while typing (`1234,56`) — the dots are visual only; `,` or `.` both work as the
+  decimal, and `normalizeAmount` sends a plain number to the server. Date inputs are a
+  segmented dd/mm/yyyy field.
 - **Soft delete** everywhere except a category removed when unused.
 - **Derived values are never stored** (balances, tax figures, totals) — always
   computed live from transactions.

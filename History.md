@@ -12,6 +12,19 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-10-15** — **Money inputs show thousands dots; faster ship.** Angel never types
+  the thousands separator but wants to see it. A shared `AmountInput` now shows the
+  amount Greek-style (`1.234,56`) whenever the field isn't being edited and plain
+  (`1234,56`) while typing, so the dots are visual only and typing never changes
+  meaning. Used for every money field: transaction lines, transfer amount, payroll,
+  reconcile, wallet starting balance and the income-tax amounts (a new `money` field
+  type in `CrudFormDialog`; `decimal` stays for rates in %). `lib/amounts.ts` reads
+  grouped numbers too (`readAmount`; a lone dot is still the decimal) and
+  `normalizeAmount` sends a plain number to the server — so the bug the unit tests had
+  found (`1.234,56` read as 0) is gone. Ship got faster without changing what's
+  checked: the auto-format step only formats (the full check still lints), and
+  `types:check` keeps an incremental cache (`node_modules/.cache/tsc`; ~29 s → ~12 s
+  locally, CI always starts fresh).
 - **2026-10-15** — **One way of working across all projects; Yolt adopts the best of
   the others.** Angel asked for every project on the VM to share the same principles
   and workflow. The universal rules (quality directive, design principles, screenshots,

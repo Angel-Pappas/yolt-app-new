@@ -3,9 +3,13 @@ import type { RateOption } from '@/components/transactions/lookups';
 import {
     type AmountLine,
     defaultWithheldRateId,
+    displayAmount,
+    editableAmount,
     lineCalc,
     linesPayload,
+    normalizeAmount,
     parseAmount,
+    readAmount,
     round2,
     sumLines,
 } from './amounts';
@@ -37,8 +41,49 @@ describe('parseAmount', () => {
         expect(parseAmount('abc')).toBe(0);
     });
 
-    it('does not accept thousands separators (type 1234,56, not 1.234,56)', () => {
-        expect(parseAmount('1.234,56')).toBe(0);
+    it('reads Greek thousands dots, as shown in an amount field', () => {
+        expect(parseAmount('1.234,56')).toBe(1234.56);
+        expect(parseAmount('1.234.567')).toBe(1234567);
+        expect(parseAmount('1.234.567,8')).toBe(1234567.8);
+    });
+
+    it('keeps a lone dot as the decimal, so typing never changes meaning', () => {
+        expect(parseAmount('1.5')).toBe(1.5);
+        expect(parseAmount('1.234')).toBe(1.234);
+    });
+
+    it('treats malformed input as not a number', () => {
+        expect(readAmount('1,2,3')).toBeNaN();
+        expect(readAmount('12a')).toBeNaN();
+        expect(readAmount('')).toBeNaN();
+    });
+});
+
+describe('amount field display', () => {
+    it('shows thousands dots when not editing, plain while editing', () => {
+        expect(displayAmount('1234,56')).toBe('1.234,56');
+        expect(displayAmount('1234.5')).toBe('1.234,50');
+        expect(displayAmount('')).toBe('');
+        expect(editableAmount('1.234,56')).toBe('1234,56');
+        expect(editableAmount('1234.50')).toBe('1234,5');
+    });
+
+    it('leaves text that is not a number untouched', () => {
+        expect(displayAmount('abc')).toBe('abc');
+        expect(editableAmount('abc')).toBe('abc');
+    });
+});
+
+describe('normalizeAmount', () => {
+    it('sends a plain dot-decimal number to the server', () => {
+        expect(normalizeAmount('1.234,56')).toBe('1234.56');
+        expect(normalizeAmount('1234,5')).toBe('1234.5');
+        expect(normalizeAmount('  12 ')).toBe('12');
+    });
+
+    it('passes anything else through for the server to reject', () => {
+        expect(normalizeAmount('abc')).toBe('abc');
+        expect(normalizeAmount('')).toBe('');
     });
 });
 

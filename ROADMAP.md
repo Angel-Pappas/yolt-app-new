@@ -19,6 +19,7 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
       withheld rates, public holidays, users (admin, invite link).
 - [x] Shared list view: sticky header, per-column filters, tri-state sort,
       load-as-you-scroll, totals row.
+- [x] Money inputs show thousands dots (`1.234,56`) when not being edited (2026-10-15).
 - [x] Way of working: design principles, fast screenshots on demo data, one-command
       ship, frontend unit tests, deploy safety check.
 
@@ -26,9 +27,6 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 
 - [ ] **Users page onto the shared list view** — it's the last hand-rolled table
       (`pages/users/index.tsx`), so it lacks search, column filters and sorting.
-- [ ] **Amounts with thousands separators** — typing `1.234,56` into an amount field is
-      read as 0 (only `1234,56` works); accept the Greek thousands dot too, client and
-      server. (Found by the new frontend unit tests, 2026-10-15.)
 - [ ] **Projections / cash-flow view** — the future-balance view the recurring and tax
       transactions were built for (deferred since 2026-09-21).
 - [ ] **Home page content** — currently just the logo and a welcome.

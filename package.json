@@ -8,7 +8,7 @@
         "dev": "vp dev",
         "check": "vp check",
         "check:fix": "vp check --fix",
-        "types:check": "tsc --noEmit",
+        "types:check": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/tsbuildinfo",
         "shots": "node scripts/screenshot.mjs",
         "test": "TZ=Europe/Athens vp test run"
     },

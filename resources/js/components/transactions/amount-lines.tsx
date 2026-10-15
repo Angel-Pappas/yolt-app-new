@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { useFinanceLookups } from '@/components/transactions/lookups';
 import { Button } from '@/components/ui/button';
+import { AmountInput } from '@/components/amount-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -121,12 +122,9 @@ export function AmountLinesEditor({
                 return (
                     <div key={i} className="grid gap-1.5">
                         <div className="flex items-center gap-2">
-                            <Input
-                                inputMode="decimal"
+                            <AmountInput
                                 value={line.amount}
-                                onChange={(e) =>
-                                    setLine(i, { amount: e.target.value })
-                                }
+                                onChange={(v) => setLine(i, { amount: v })}
                                 placeholder={mode === 'total' ? 'Total' : 'Net'}
                                 required
                                 className="flex-1"
@@ -313,11 +311,10 @@ export function PayrollFields({
             {fields.map(({ key, label }) => (
                 <div key={key} className="grid gap-2">
                     <Label htmlFor={`${idPrefix}${key}`}>{label}</Label>
-                    <Input
+                    <AmountInput
                         id={`${idPrefix}${key}`}
-                        inputMode="decimal"
                         value={value[key]}
-                        onChange={(e) => onChange({ [key]: e.target.value })}
+                        onChange={(v) => onChange({ [key]: v })}
                         required={key === 'net'}
                     />
                     <InputError message={errors[key]} />

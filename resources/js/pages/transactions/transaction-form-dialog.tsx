@@ -39,6 +39,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { AmountInput } from '@/components/amount-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -618,13 +619,10 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                             {isTransfer ? (
                                 <div className="grid gap-2">
                                     <Label htmlFor="net">Amount</Label>
-                                    <Input
+                                    <AmountInput
                                         id="net"
-                                        inputMode="decimal"
                                         value={form.data.net}
-                                        onChange={(e) =>
-                                            form.setData('net', e.target.value)
-                                        }
+                                        onChange={(v) => form.setData('net', v)}
                                         required
                                     />
                                     <InputError message={netError} />
