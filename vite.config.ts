@@ -5,29 +5,47 @@ import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
 import { bunny } from 'laravel-vite-plugin/fonts';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, lazyPlugins } from 'vite-plus';
 
 export default defineConfig({
-    plugins: lazyPlugins(() => [
-        laravel({
-            input: ['resources/css/app.css', 'resources/js/app.tsx'],
-            refresh: true,
-            fonts: [
-                bunny('Instrument Sans', {
-                    weights: [400, 500, 600],
-                }),
-            ],
-        }),
-        inertia(),
-        react(),
-        babel({
-            presets: [reactCompilerPreset()],
-        }),
-        tailwindcss(),
-        wayfinder({
-            formVariants: true,
-        }),
-    ]),
+    // Unit tests (`vp test`) only exercise plain TypeScript helpers: they need the
+    // `@/` alias but none of the app plugins — and laravel-vite-plugin refuses to
+    // start a Vite server when CI=true, which is how the test runner boots.
+    resolve: {
+        alias: {
+            '@': fileURLToPath(new URL('./resources/js', import.meta.url)),
+        },
+    },
+    plugins: lazyPlugins(() =>
+        process.env.VITEST
+            ? []
+            : [
+                  laravel({
+                      input: ['resources/css/app.css', 'resources/js/app.tsx'],
+                      refresh: true,
+                      fonts: [
+                          bunny('Instrument Sans', {
+                              weights: [400, 500, 600],
+                          }),
+                      ],
+                  }),
+                  inertia(),
+                  react(),
+                  babel({
+                      presets: [reactCompilerPreset()],
+                  }),
+                  tailwindcss(),
+                  wayfinder({
+                      formVariants: true,
+                  }),
+              ],
+    ),
+    // Only the app's own tests: Composer packages (vendor/) can ship JavaScript
+    // test files of their own, with dependencies this project does not install.
+    test: {
+        include: ['resources/js/**/*.test.ts'],
+    },
     server: {
         watch: {
             ignored: [

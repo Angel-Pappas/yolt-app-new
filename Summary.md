@@ -4,13 +4,15 @@
 current state: rewrite the relevant section in place when something changes, and put
 the dated what/why in `History.md`. Docs map:
 
-| File            | What it's for                                                            |
-| --------------- | ------------------------------------------------------------------------ |
-| `Summary.md`    | Current behaviour of every area + the key decisions behind it (this).    |
-| `History.md`    | One entry per shipped change, newest first: what changed and why.        |
-| `AGENTS.md`     | How to build: stack, workflow, code patterns, verify/ship, screenshots.  |
-| `Directions.md` | Standing rules for every session (incl. the design principles).          |
-| `docs/archive/` | Retired docs kept verbatim (old app, rebuild plan, cutover, taxes plan). |
+| File                  | What it's for                                                            |
+| --------------------- | ------------------------------------------------------------------------ |
+| `~/.claude/CLAUDE.md` | Shared ways of working for every project on the VM (outside the repo).   |
+| `Directions.md`       | Yolt-specific standing rules.                                            |
+| `Summary.md`          | Current behaviour of every area + the key decisions behind it (this).    |
+| `History.md`          | One entry per shipped change, newest first: what changed and why.        |
+| `ROADMAP.md`          | What's built, what's next, ideas.                                        |
+| `AGENTS.md`           | How to build: stack, workflow, code patterns, checks, ship, screenshots. |
+| `docs/archive/`       | Retired docs kept verbatim (old app, rebuild plan, cutover, taxes plan). |
 
 ## The app
 
@@ -159,5 +161,7 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
 - **Soft delete** everywhere except a category removed when unused.
 - **Derived values are never stored** (balances, tax figures, totals) — always
   computed live from transactions.
-- **Operations:** dev checkout → `./ship.sh` (verify, commit, push, CI, deploy with a
-  DB backup first); daily DB backups; never test against live data — see `AGENTS.md`.
+- **Operations:** dev checkout → `./ship.sh` (verify incl. frontend unit tests, commit,
+  push, CI, deploy); `deploy.sh` only runs on the production config, backs up the DB
+  first and migrates before building; daily DB backups; never test against live data
+  — see `AGENTS.md`.

@@ -12,6 +12,22 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-10-15** — **One way of working across all projects; Yolt adopts the best of
+  the others.** Angel asked for every project on the VM to share the same principles
+  and workflow. The universal rules (quality directive, design principles, screenshots,
+  Summary/History/Roadmap docs, one-command ship, live-data safety, VM etiquette,
+  efficiency) now live once in `~/.claude/CLAUDE.md`, loaded by every session on the
+  VM; a safety copy goes to the private repo `Angel-Pappas/ways-of-working` via
+  `~/ways-of-working/sync.sh`. `Directions.md` was slimmed to Yolt-only rules. From the
+  other projects Yolt took: the written **quality directive**; **`deploy.sh` refuses to
+  run unless `.env` is production**, and now **migrates before building** and clears
+  cached routes first (from esyksereis); a **`ROADMAP.md`**; and **frontend unit
+  tests** (`pnpm run test`, vp test — in `ship.sh` and CI). Following "tests before
+  refactors", the pure amount maths moved unchanged from `amount-lines.tsx` to
+  `lib/amounts.ts` and got tests (plus `lib/format.ts`, `lib/search.ts`); they surfaced
+  that amounts typed with a thousands dot (`1.234,56`) read as 0 — logged in the
+  roadmap rather than changed silently. `ship.sh` now prints step and total timings.
+  Windows-PC notes removed from `AGENTS.md`: projects are worked on through the VM only.
 - **2026-10-14** — **Docs restructured; one-command ship; Balance column filter.**
   Owner's aim for the docs: continuity across sessions and a way for anyone to read
   up on the app. `Summary.md` was ~240 dense lines mostly describing the retired

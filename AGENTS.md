@@ -4,8 +4,9 @@ The company app. It was **rebuilt from scratch** on Laravel — a clean
 re-implementation of the old Next.js/Supabase app — and the **data cutover ran and
 was verified clean on 2026-09-09**, so this Laravel app is now the **live app on the
 real data**. The app's **current behaviour** is in `Summary.md`; the dated **change
-log** (what changed and why, newest first) is `History.md`; the completed rebuild plan
-and other retired docs are kept in `docs/archive/`.
+log** (what changed and why, newest first) is `History.md`; what's next is `ROADMAP.md`;
+the completed rebuild plan and other retired docs are kept in `docs/archive/`. The
+shared ways of working for all projects on the VM are in `~/.claude/CLAUDE.md`.
 
 This is a fresh, idiomatic Laravel build. **Do not port** code from the old app —
 build clean. The old app (`Angel-Pappas/yolt-app`, on Vercel + Supabase) has been
@@ -38,11 +39,12 @@ Two checkouts of this repo live side by side on the VM — **never mix them up**
   site. Never edit files, build, or run tests here: PHP edits are live the instant
   they're saved. It is changed **only** by `./deploy.sh`.
 
-A task goes: edit in the dev checkout → full local verify (below) → commit + push to
-`main` → watch CI → run `./deploy.sh` in the live folder. `deploy.sh` first runs
-`./backup-db.sh` (gzipped `mysqldump` to `~/backups/yolt-app/`, kept 60 days, verified
+A task goes: edit in the dev checkout → `./ship.sh` (full local verify → commit + push
+to `main` → wait for CI → `./deploy.sh` in the live folder). `deploy.sh` refuses to run
+unless `.env` has `APP_ENV=production`, then runs `./backup-db.sh` (gzipped `mysqldump` to `~/backups/yolt-app/`, kept 60 days, verified
 complete) and **aborts if the backup fails**, then pulls, installs (`--no-dev`),
-builds, migrates, caches and reloads php-fpm. `backup-db.sh` also runs daily from the
+migrates (before the build, so new code never runs on old tables), clears cached
+routes, builds, caches and reloads php-fpm. `backup-db.sh` also runs daily from the
 `ploi` crontab.
 
 **Test-database guard:** `tests/TestCase.php` refuses to boot a test unless the
@@ -78,8 +80,6 @@ use `RefreshDatabase` (which wipes the schema) — keep both guards.
 - _Historical:_ the app was on Laravel Cloud until 2026-09-30. Angel **deleted the
   Laravel Cloud app on 2026-10-01** — there is no Laravel Cloud fallback any more.
 - GitHub Actions CI runs tests + formatting on every push — **keep it green**.
-- On this Windows dev machine `php`/`composer`/`pnpm` may be missing from a fresh
-  shell's PATH; refresh PATH (machine + user) or prepend the winget PHP dir.
 
 ## Working rules (from the plan)
 
@@ -187,11 +187,12 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
 
 ## Local verify — ALL must pass before every push (this is what CI runs)
 
-From the app dir, with php/composer/pnpm on PATH:
+From the dev checkout (`./ship.sh` runs all of these for you):
 
 ```
 pnpm run check:fix              # format + lint (auto-fixes); CI's `pnpm run check` FAILS on any warning
 pnpm run types:check            # tsc --noEmit
+pnpm run test                   # frontend unit tests (vp test): resources/js/**/*.test.ts
 php vendor/bin/pint --parallel  # PHP formatting (CI runs pint --test)
 php vendor/bin/phpstan analyse  # PHP static analysis
 pnpm run build                  # so NEW Inertia pages enter the Vite manifest
@@ -201,11 +202,12 @@ php artisan test                # Pest
 - **Gotcha:** a full-page GET test (`assertOk`) that renders a **new** Inertia page
   fails with a Vite-manifest error until you `pnpm run build`. Build before running
   those tests locally (CI builds via `composer setup` first).
-- **CI = `composer ci:check`** (npm check + tsc + pint --test + phpstan + pest).
-- **Windows PATH:** php is the winget package under
-  `C:\Users\Sofoklis\AppData\Local\Microsoft\WinGet\Packages\PHP.PHP.8.4_*`; a fresh
-  shell may not see it — refresh PATH (Machine+User) and prepend that dir. Its
-  `php.ini` exists with `memory_limit = 512M` (PHPStan needs it).
+- **CI = `composer ci:check`** (npm check + tsc + frontend unit tests + pint --test +
+  phpstan + pest).
+- **Frontend unit tests** cover pure logic only (no React): the amount maths
+  (`lib/amounts.ts`, the client twin of `App\Support\AmountLines`), formatting
+  (`lib/format.ts`) and search (`lib/search.ts`). Put new pure logic in `lib/` with a
+  `*.test.ts` beside it. `vite.config.ts` drops the app plugins under `VITEST`.
 - After pushing: `gh run watch --repo Angel-Pappas/yolt-app-new <id> --exit-status`.
 
 ## Looking at pages (screenshots — dev checkout only)
@@ -227,13 +229,15 @@ From the dev checkout: `./ship.sh "Commit subject" ["optional body"]` — runs t
 local verify above, commits everything, pushes to `main`, waits for the CI run of that
 commit, then runs the live `deploy.sh` (DB backup first). It stops at the first
 failure: nothing is pushed if verify fails, nothing deployed if CI fails. Before
-running it: update `Summary.md` (current state) + add the `History.md` entry, and look
-at the affected pages with `pnpm run shots` (Direction 3).
+running it: update `Summary.md` (current state), add the `History.md` entry, update
+`ROADMAP.md`, and look at the affected pages with `pnpm run shots`. It prints the time
+taken per step and in total.
 
 ## How to continue (fresh session)
 
-1. Read **`Summary.md`** (current state) and the top of **`History.md`** (recent
-   changes and decisions).
+1. Read **`Summary.md`** (current state), **`ROADMAP.md`** (what's next) and the top
+   of **`History.md`** (recent changes and decisions).
 2. Build the change idiomatically (match the patterns above), write tests, look at it
-   (screenshots), and review it against the design principles (Direction 10).
-3. Update `Summary.md` in place, add one `History.md` entry, then `./ship.sh`.
+   (screenshots), and review it against the design principles (`~/.claude/CLAUDE.md`).
+3. Update `Summary.md` in place, add one `History.md` entry, update `ROADMAP.md`, then
+   `./ship.sh`.

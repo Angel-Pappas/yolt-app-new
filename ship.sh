@@ -22,12 +22,13 @@ if [ "$(git rev-parse --abbrev-ref HEAD)" != main ]; then
     exit 1
 fi
 
-step() { printf '\n==> %s\n' "$1"; }
+step() { printf '\n==> %s  (+%ss)\n' "$1" "$SECONDS"; }
 
 step "Format + lint"; pnpm run check:fix
 step "Typecheck"; pnpm run types:check
 step "Pint"; php vendor/bin/pint --parallel
 step "PHPStan"; php vendor/bin/phpstan analyse --no-progress
+step "Frontend unit tests"; pnpm run test
 step "Build"; pnpm run build
 step "Tests"; php artisan test
 
@@ -62,3 +63,4 @@ echo "CI green."
 
 step "Deploy"
 "$LIVE/deploy.sh"
+echo "Shipped in ${SECONDS}s."
