@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Ship a change from the DEV checkout to the live app in one go:
-#   full local verify → commit everything → push to main → wait for CI → deploy.
-# Stops at the first failure (nothing is pushed if verify fails; nothing is deployed
-# if CI fails). Usage, from /home/ploi/yolt-app-dev:
+#   auto-format → full check (exactly what CI runs) → commit everything → push to
+#   main → wait for that commit's CI → deploy. Stops at the first failure (nothing is
+#   pushed if a check fails; nothing is deployed if CI fails). From the dev folder:
 #
 #   ./ship.sh "Commit subject" ["Optional commit body"]
 set -euo pipefail
@@ -13,46 +13,32 @@ REPO=Angel-Pappas/yolt-app-new
 subject=${1:?usage: ./ship.sh "Commit subject" ["body"]}
 body=${2:-}
 
-if [ "$(pwd)" = "$LIVE" ]; then
-    echo "ship.sh must run from the dev checkout, not the live folder." >&2
-    exit 1
-fi
-if [ "$(git rev-parse --abbrev-ref HEAD)" != main ]; then
-    echo "Not on main." >&2
-    exit 1
-fi
+[ "$(pwd)" != "$LIVE" ] || { echo "Run ship.sh from the dev checkout, not the live folder." >&2; exit 1; }
+[ "$(git rev-parse --abbrev-ref HEAD)" = main ] || { echo "Not on main." >&2; exit 1; }
 
 step() { printf '\n==> %s  (+%ss)\n' "$1" "$SECONDS"; }
 
-step "Format + lint"; pnpm run check:fix
-step "Typecheck"; pnpm run types:check
-step "Pint"; php vendor/bin/pint --parallel
-step "PHPStan"; php vendor/bin/phpstan analyse --no-progress
-step "Frontend unit tests"; pnpm run test
+step "Auto-format"; pnpm run check:fix; vendor/bin/pint --parallel
 step "Build"; pnpm run build
-step "Tests"; php artisan test
+step "Full check (composer ci:check)"; composer ci:check
 
 step "Commit + push"
 git add -A
-if git diff --cached --quiet; then
-    echo "Nothing to commit." >&2
-    exit 1
-fi
+git diff --cached --quiet && { echo "Nothing to commit." >&2; exit 1; }
 msg="$subject"
 [ -n "$body" ] && msg="$msg
 
 $body"
-msg="$msg
+git commit -q -m "$msg
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-git commit -q -m "$msg"
 sha=$(git rev-parse HEAD)
 git push -q origin main
 
 step "Waiting for CI"
 run=""
 for _ in $(seq 1 30); do
-    run=$(gh run list --repo "$REPO" --commit "$sha" --workflow tests --json databaseId -q '.[0].databaseId' 2>/dev/null || true)
+    run=$(gh run list --repo "$REPO" --commit "$sha" --json databaseId -q '.[0].databaseId' 2>/dev/null || true)
     [ -n "$run" ] && break
     sleep 3
 done

@@ -28,6 +28,8 @@ something came to be; read `Summary.md` for how the app works **now**.
   that amounts typed with a thousands dot (`1.234,56`) read as 0 — logged in the
   roadmap rather than changed silently. `ship.sh` now prints step and total timings.
   Windows-PC notes removed from `AGENTS.md`: projects are worked on through the VM only.
+  Later the same day `ship.sh` was switched to the template all four web projects now
+  share (auto-format → build → `composer ci:check`, i.e. exactly what CI runs).
 - **2026-10-14** — **Docs restructured; one-command ship; Balance column filter.**
   Owner's aim for the docs: continuity across sessions and a way for anyone to read
   up on the app. `Summary.md` was ~240 dense lines mostly describing the retired
