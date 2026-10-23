@@ -17,6 +17,8 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 - [x] Finance ▸ Recurring: every recurrence in one list, grouped Payroll / Contractors
       / Expenses / Income, with entity, amounts and date range; add, edit and delete
       recurrences right there (2026-10-23).
+- [x] Finance ▸ One-offs (tagged one-off expenses) and "Show all" on One-offs and
+      Recurring: open items by default, done ones in green (2026-10-23).
 - [x] Recurring payment days avoid weekends/holidays: contractors and employees on
       the last working day of the month, the rest on the next working day (2026-10-23).
 - [x] Taxes: VAT, withholding, FMY, EFKA, income tax; monthly payment schedule; tax

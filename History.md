@@ -12,6 +12,21 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-10-23** — **One-offs page; open vs done on One-offs and Recurring.** Angel
+  wanted one-off expenses visible on their own when reviewing the finances. A one-off
+  is an ordinary transaction with a background tag (`transactions.is_one_off`, new
+  column, default false — nothing existing changes); the One-offs page's **+** opens
+  the usual transaction form, which sends the tag only when adding there, so edits
+  from any page keep it. The page reuses the Transactions table and row actions.
+  Both pages now show only what's still open: a one-off until it's reconciled; a
+  recurrence while it's open-ended or its last generated transaction is unreconciled
+  (`RecurringOverview::isDone`; one that ended without ever generating a row counts
+  as done). **Show all** brings back the done ones in green. The toggle and the green
+  row style are shared pieces (`ShowAllToggle`, `DONE_ROW_CLASS` via a new
+  `rowClassName` on `DataTable`/`TransactionsTable`) so both pages match; the green
+  leaves icons alone so an expense arrow never looks like income. The Recurring
+  page's "Ended" badge is gone (done rows are green; the To column shows the end).
+  The screenshot tool's `--click` is now repeatable.
 - **2026-10-23** — **Recurring payments move off weekends and holidays.** Angel asked
   what happens when a recurrence's day is an off day: nothing did — rows landed on
   Saturdays, Sundays and holidays. His rule: contractors and payroll are paid, as is

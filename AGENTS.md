@@ -144,7 +144,10 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
   all _filtered_ rows) and a bulk-actions bar (see the category page,
   `categories/show.tsx`). `CrudResource` also has `onRowClick` (open a row's own page)
   and `disableEdit` (drop the in-list pencil when editing happens on that page) — used by
-  Categories.
+  Categories. **Open vs done lists** (One-offs, Recurring): hide finished items by
+  default, put `ShowAllToggle` (`data-table/show-all-toggle.tsx`) in the controls row,
+  and mark finished rows with `rowClassName` → `DONE_ROW_CLASS` (green text; icons
+  and the action cell keep their colours).
 - **Simple lookup CRUD** (Entities, Categories, VAT/Withheld rates): a controller
   with `index/store/update/destroy`, available to any active user (`auth`+`verified`;
   no per-area gate — see Access control), sets a created-by
