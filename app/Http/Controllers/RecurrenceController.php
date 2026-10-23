@@ -15,7 +15,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Recurring transactions defined on an entity. A recurrence carries a fixed template
+ * Recurring transactions, each belonging to an entity — added from the entity's page
+ * or from Finance ▸ Recurring (where the entity is picked). A recurrence carries a fixed template
  * (type, category, wallet, description) plus a cadence, and a list of dated periods
  * — each with the same amount shape as a hand-entered transaction (amount lines with
  * their own VAT and optional withholding, under a Net/Total mode; or the payroll
@@ -26,11 +27,16 @@ use Inertia\Response;
  */
 class RecurrenceController extends Controller
 {
-    /** Finance ▸ Recurring: every recurrence, grouped (see RecurringOverview). */
-    public function index(): Response
+    /**
+     * Finance ▸ Recurring: every recurrence, grouped (see RecurringOverview). A row
+     * opens the shared edit form; `?edit=<id>` deep-links straight to it (a row's
+     * middle-click), as on Transactions.
+     */
+    public function index(Request $request): Response
     {
         return Inertia::render('recurring/index', [
             'recurrences' => RecurringOverview::rows(),
+            'editId' => $request->integer('edit') ?: null,
         ]);
     }
 
@@ -55,8 +61,8 @@ class RecurrenceController extends Controller
     }
 
     /**
-     * The entity is fixed once created — a recurrence lives on its entity's page — so
-     * an `entity_id` in the request is ignored here.
+     * The entity is fixed once created, so an `entity_id` in the request is ignored
+     * here.
      */
     public function update(Request $request, Recurrence $recurrence): RedirectResponse
     {

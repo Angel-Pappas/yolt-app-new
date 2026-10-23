@@ -1,8 +1,14 @@
-import { router } from '@inertiajs/react';
 import { Plus, Repeat, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { deleteRecurrence } from '@/components/recurrences/delete-recurrence';
+import {
+    type RecurrenceEntryRecord,
+    type RecurrenceRecord,
+    RecurrenceFormDialog,
+} from '@/components/recurrences/recurrence-form-dialog';
 import { sumLines } from '@/components/transactions/amount-lines';
 import {
+    type EntityOption,
     type FinanceLookups,
     useFinanceLookups,
 } from '@/components/transactions/lookups';
@@ -10,16 +16,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatAmount } from '@/lib/format';
-import {
-    type RecurrenceEntryRecord,
-    type RecurrenceRecord,
-    RecurrenceFormDialog,
-} from './recurrence-form-dialog';
 
 type Props = {
-    entityId: number;
-    entityName: string;
-    entityType: string;
+    entity: EntityOption;
     recurrences: RecurrenceRecord[];
 };
 
@@ -70,19 +69,11 @@ function currentAmount(r: RecurrenceRecord, lookups: FinanceLookups): string {
     return entry ? formatAmount(periodAmount(r, entry, lookups)) : '—';
 }
 
-export function RecurrencesPanel({
-    entityId,
-    entityName,
-    entityType,
-    recurrences,
-}: Props) {
+export function RecurrencesPanel({ entity, recurrences }: Props) {
     const lookups = useFinanceLookups();
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<RecurrenceRecord | null>(null);
     const [formKey, setFormKey] = useState(0);
-
-    const defaultType = entityType === 'customer' ? 'income' : 'expense';
-    const defaultPayroll = entityType === 'employee';
 
     function openCreate() {
         setEditing(null);
@@ -94,16 +85,6 @@ export function RecurrencesPanel({
         setEditing(r);
         setFormKey((k) => k + 1);
         setOpen(true);
-    }
-
-    function destroy(r: RecurrenceRecord) {
-        if (
-            confirm(
-                'Delete this recurring transaction? Its unreconciled generated transactions will be removed.',
-            )
-        ) {
-            router.delete(`/recurrences/${r.id}`, { preserveScroll: true });
-        }
     }
 
     return (
@@ -155,7 +136,7 @@ export function RecurrencesPanel({
                                         aria-label="Delete recurring transaction"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            destroy(r);
+                                            deleteRecurrence(r.id);
                                         }}
                                     >
                                         <Trash2 className="size-4" />
@@ -171,10 +152,7 @@ export function RecurrencesPanel({
                 key={formKey}
                 open={open}
                 onOpenChange={setOpen}
-                entityId={entityId}
-                entityName={entityName}
-                defaultType={defaultType}
-                defaultPayroll={defaultPayroll}
+                entity={entity}
                 editing={editing}
             />
         </Card>

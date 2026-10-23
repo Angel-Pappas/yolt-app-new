@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Recurrence;
 use App\Models\RecurrenceEntry;
 use App\Models\RecurrenceEntryLine;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 
 /**
@@ -20,7 +21,7 @@ class RecurringOverview
     public const GROUPS = ['payroll', 'contractors', 'expenses', 'income'];
 
     /**
-     * @return list<array{id: int, group: string, entity_id: int, entity_name: string, description: string, active: bool, ended: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}>
+     * @return list<array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, ended: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}>
      */
     public static function rows(): array
     {
@@ -64,7 +65,7 @@ class RecurringOverview
     }
 
     /**
-     * @return array{id: int, group: string, entity_id: int, entity_name: string, description: string, active: bool, ended: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}
+     * @return array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, ended: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}
      */
     private static function row(Recurrence $recurrence): array
     {
@@ -73,8 +74,13 @@ class RecurringOverview
         return [
             'id' => $recurrence->id,
             'group' => self::group($recurrence),
-            'entity_id' => $recurrence->entity_id,
-            'entity_name' => $recurrence->entity->name ?? '—',
+            'entity' => [
+                'id' => $recurrence->entity_id,
+                'name' => $recurrence->entity->name ?? '—',
+                'type' => $recurrence->entity->type ?? '',
+            ],
+            // The full record (periods and lines), for the shared edit form.
+            'recurrence' => Arr::except($recurrence->toArray(), ['entity']),
             'description' => $recurrence->description,
             'active' => $recurrence->active,
             'ended' => $recurrence->end_date?->lessThan(Carbon::today()) ?? false,

@@ -27,3 +27,19 @@ export function defaultGroup(rows: { group: string }[]): RecurringGroup {
         RECURRING_GROUPS[0].key
     );
 }
+
+/**
+ * What a new recurrence for an entity of this type starts as: a customer pays us
+ * (income); everyone else is paid (expense), and an employee is paid through the
+ * Payroll category. Used wherever a recurrence is created, so it lands in the same
+ * Recurring group whichever page it was added from.
+ */
+export function recurrenceDefaults(entityType: string | undefined): {
+    type: 'income' | 'expense';
+    payroll: boolean;
+} {
+    return {
+        type: entityType === 'customer' ? 'income' : 'expense',
+        payroll: entityType === 'employee',
+    };
+}

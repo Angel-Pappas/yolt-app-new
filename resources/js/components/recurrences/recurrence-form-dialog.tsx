@@ -19,6 +19,7 @@ import {
     PayrollSummary,
 } from '@/components/transactions/amount-lines';
 import {
+    type EntityOption,
     type FinanceLookups,
     useFinanceLookups,
 } from '@/components/transactions/lookups';
@@ -42,6 +43,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { recurrenceDefaults } from '@/lib/recurring';
 import { CategoryFormDialog } from '@/pages/categories/category-form-dialog';
 
 /** One dated period: its span plus the same amount shape as a transaction. */
@@ -88,13 +90,14 @@ export type RecurrenceRecord = {
 type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    entityId: number;
-    entityName: string;
-    /** income for a customer, expense otherwise. */
-    defaultType: 'income' | 'expense';
-    /** Pre-select the Payroll category (an employee's recurrence). */
-    defaultPayroll: boolean;
+    /**
+     * The entity it belongs to — fixed when opened from an entity's page or when
+     * editing (a recurrence never changes entity). Null shows an entity picker.
+     */
+    entity: EntityOption | null;
     editing: RecurrenceRecord | null;
+    /** After a successful save, with the reloaded page (e.g. to find the new row). */
+    onSaved?: (page: Page) => void;
 };
 
 function today(): string {
@@ -145,9 +148,10 @@ function periodFromRecord(e: RecurrenceEntryRecord): Period {
 }
 
 /**
- * Add/edit a recurring transaction. Laid out like the transaction form (Type,
- * Entity — fixed to the entity this is opened from — Category, Wallet,
- * Description), plus the recurrence: the cadence picker and a list of dated
+ * Add/edit a recurring transaction — from an entity's page (entity fixed) or from
+ * Finance ▸ Recurring (entity picked here; picking one sets the type and, for an
+ * employee, the Payroll category — see `recurrenceDefaults`). Laid out like the
+ * transaction form (Type, Entity, Category, Wallet, Description), plus the recurrence: the cadence picker and a list of dated
  * periods, each with the full transaction amount editor (several VAT lines,
  * per-line withholding, Net/Total — or the payroll Net/FMY/EFKA set when the
  * category is "Payroll").
@@ -155,21 +159,23 @@ function periodFromRecord(e: RecurrenceEntryRecord): Period {
 export function RecurrenceFormDialog({
     open,
     onOpenChange,
-    entityId,
-    entityName,
-    defaultType,
-    defaultPayroll,
+    entity,
     editing,
+    onSaved,
 }: Props) {
-    const { wallets, categories } = useFinanceLookups();
+    const { wallets, categories, entities } = useFinanceLookups();
 
     const payrollCategory = categories.find(
         (c) => c.name === PAYROLL_CATEGORY && c.type === 'expense',
     );
+    const defaults = recurrenceDefaults(entity?.type);
+    // The State's payments are generated from the taxes, never set up by hand.
+    const pickableEntities = entities.filter((e) => e.type !== 'state');
 
     const form = useForm(
         editing
             ? {
+                  entity_id: entity ? String(entity.id) : '',
                   type: editing.type,
                   description: editing.description,
                   category_id: editing.category_id
@@ -188,10 +194,11 @@ export function RecurrenceFormDialog({
                           : [emptyPeriod(today())],
               }
             : {
-                  type: defaultType as string,
+                  entity_id: entity ? String(entity.id) : '',
+                  type: defaults.type as string,
                   description: '',
                   category_id:
-                      defaultPayroll && payrollCategory
+                      defaults.payroll && payrollCategory
                           ? String(payrollCategory.id)
                           : '',
                   wallet_id: wallets[0] ? String(wallets[0].id) : '',
@@ -221,6 +228,29 @@ export function RecurrenceFormDialog({
 
     function changeType(value: string) {
         form.setData((data) => ({ ...data, type: value, category_id: '' }));
+    }
+
+    // Picking the entity sets what the recurrence is: its type, and the Payroll
+    // category for an employee. A category that still fits is kept.
+    function chooseEntity(value: string) {
+        const picked = entities.find((e) => String(e.id) === value);
+        const next = recurrenceDefaults(picked?.type);
+        form.setData((data) => {
+            const keepCategory =
+                data.type === next.type &&
+                data.category_id !== String(payrollCategory?.id);
+            return {
+                ...data,
+                entity_id: value,
+                type: next.type,
+                category_id:
+                    next.payroll && payrollCategory
+                        ? String(payrollCategory.id)
+                        : keepCategory
+                          ? data.category_id
+                          : '',
+            };
+        });
     }
 
     function setPeriod(i: number, patch: Partial<Period>) {
@@ -293,7 +323,7 @@ export function RecurrenceFormDialog({
     function submit(e: FormEvent) {
         e.preventDefault();
         form.transform((data) => ({
-            entity_id: entityId,
+            entity_id: data.entity_id || null,
             type: data.type,
             description: data.description,
             category_id: data.category_id || null,
@@ -328,7 +358,10 @@ export function RecurrenceFormDialog({
         const opts = {
             preserveState: true,
             preserveScroll: true,
-            onSuccess: () => onOpenChange(false),
+            onSuccess: (page: Page) => {
+                onOpenChange(false);
+                onSaved?.(page);
+            },
         };
         if (editing) {
             form.patch(`/recurrences/${editing.id}`, opts);
@@ -377,11 +410,27 @@ export function RecurrenceFormDialog({
 
                             <div className="grid gap-2">
                                 <Label htmlFor="rec_entity">Entity</Label>
-                                <Input
-                                    id="rec_entity"
-                                    value={entityName}
-                                    disabled
-                                />
+                                {entity ? (
+                                    <Input
+                                        id="rec_entity"
+                                        value={entity.name}
+                                        disabled
+                                    />
+                                ) : (
+                                    <Combobox
+                                        id="rec_entity"
+                                        value={form.data.entity_id}
+                                        onChange={chooseEntity}
+                                        options={pickableEntities.map((e) => ({
+                                            value: String(e.id),
+                                            label: e.name,
+                                        }))}
+                                        placeholder="Choose an entity"
+                                        searchPlaceholder="Search entities…"
+                                        emptyText="No entities found."
+                                    />
+                                )}
+                                <InputError message={errors.entity_id} />
                             </div>
 
                             <div className="grid gap-2">

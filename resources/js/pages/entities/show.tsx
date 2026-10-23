@@ -15,7 +15,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { type RecurrenceRecord } from './recurrence-form-dialog';
+import { type RecurrenceRecord } from '@/components/recurrences/recurrence-form-dialog';
 import { RecurrencesPanel } from './recurrences-panel';
 
 type Entity = {
@@ -146,12 +146,7 @@ export default function EntityShow({
                     </CardContent>
                 </Card>
 
-                <RecurrencesPanel
-                    entityId={entity.id}
-                    entityName={entity.name}
-                    entityType={entity.type}
-                    recurrences={recurrences}
-                />
+                <RecurrencesPanel entity={entity} recurrences={recurrences} />
 
                 <TransactionsTable
                     transactions={transactions}

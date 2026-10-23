@@ -117,7 +117,7 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
 
 ## Recurring & managed transactions
 
-- A **recurrence** (on an entity's page) is a transaction template (type
+- A **recurrence** (added on an entity's page or on Finance ▸ Recurring) is a transaction template (type
   income/expense, category, wallet, description) + cadence (every N weeks/months/years
   on a day of month) + **periods**, each with its own full amount lines (or payroll
   amounts). Its start/end come from the periods.
@@ -135,7 +135,12 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   To pay · Total cost; Contractors Net · VAT · Withheld · Total; Expenses/Income
   Net · VAT · Total (Total = cash moved, as on Transactions). Amounts are one
   occurrence of the period in force today (else the next to start, else the last),
-  resolved like the generator does. A row opens its entity's page (where it's edited).
+  resolved like the generator does. **+** adds one: the shared recurrence form opens
+  with no entity; picking one sets the type (customer → income, else expense) and,
+  for an employee, the Payroll category (`recurrenceDefaults`, the same rule as on an
+  entity's page), and after saving the page shows the group it landed in. Clicking a
+  row opens that form to edit it (middle-click: `?edit=<id>` in a new tab); the row's
+  bin deletes it. Either way it is the entity's own recurrence, shown on its page too.
 
 ## Taxes — "State" (`/taxes`)
 

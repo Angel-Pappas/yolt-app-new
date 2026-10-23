@@ -6,6 +6,7 @@ use App\Models\RecurrenceEntry;
 use App\Models\RecurrenceEntryLine;
 use App\Models\User;
 use App\Models\VatRate;
+use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
 use App\Support\RecurringOverview;
 use Illuminate\Support\Carbon;
@@ -142,10 +143,28 @@ test('a row carries the entity and the date range', function () {
 
     $row = overviewRow($recurrence);
 
-    expect($row['entity_id'])->toBe($recurrence->entity_id);
-    expect($row['entity_name'])->toBe($recurrence->entity->name);
+    expect($row['entity'])->toBe([
+        'id' => $recurrence->entity_id,
+        'name' => $recurrence->entity->name,
+        'type' => 'supplier',
+    ]);
     expect($row['start_date'])->toBe('2026-02-01');
     expect($row['end_date'])->toBe('2027-01-31');
+});
+
+test('a row carries the full recurrence for the edit form', function () {
+    $recurrence = overviewRecurrence('supplier', [
+        ['2026-01-01', '2026-05-31', [[100]]],
+        ['2026-06-01', null, [[120]]],
+    ]);
+
+    $record = overviewRow($recurrence)['recurrence'];
+
+    expect($record['id'])->toBe($recurrence->id);
+    expect($record['wallet_id'])->toBe($recurrence->wallet_id);
+    expect($record['entries'])->toHaveCount(2);
+    expect($record['entries'][1]['lines'][0]['amount'])->toBe('120.00');
+    expect($record)->not->toHaveKey('entity');
 });
 
 test('an open-ended recurrence has no end date', function () {
@@ -182,6 +201,57 @@ test('an active user sees the Recurring page', function () {
                 ->has('recurrences', 1)
                 ->where('recurrences.0.group', 'expenses'),
         );
+});
+
+test('the Recurring page deep-links a recurrence into its edit form', function () {
+    $recurrence = overviewRecurrence('supplier', [['2026-02-01', null, [[100]]]]);
+
+    $this->actingAs(User::factory()->create())
+        ->get("/recurring?edit={$recurrence->id}")
+        ->assertInertia(fn ($page) => $page->where('editId', $recurrence->id));
+});
+
+test('a recurrence can be added from the Recurring page by picking its entity', function () {
+    $wallet = Wallet::factory()->create();
+    $contractor = Entity::factory()->contractor()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->from('/recurring')
+        ->post('/recurrences', [
+            'entity_id' => $contractor->id,
+            'type' => 'expense',
+            'wallet_id' => $wallet->id,
+            'interval_count' => 1,
+            'interval_unit' => 'month',
+            'day_of_month' => 1,
+            'entries' => [[
+                'start_date' => '2026-07-01',
+                'amount_mode' => 'net',
+                'lines' => [['amount' => 500]],
+            ]],
+        ])
+        ->assertRedirect('/recurring');
+
+    $recurrence = Recurrence::where('entity_id', $contractor->id)->sole();
+    expect(overviewRow($recurrence)['group'])->toBe('contractors');
+    // It is the entity's own recurrence, so its page lists it too.
+    expect($contractor->recurrences()->pluck('id')->all())->toBe([$recurrence->id]);
+});
+
+test('adding a recurrence without an entity is refused', function () {
+    $wallet = Wallet::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->post('/recurrences', [
+            'type' => 'expense',
+            'wallet_id' => $wallet->id,
+            'interval_count' => 1,
+            'interval_unit' => 'month',
+            'entries' => [['start_date' => '2026-07-01', 'amount_mode' => 'net', 'lines' => [['amount' => 5]]]],
+        ])
+        ->assertSessionHasErrors('entity_id');
+
+    expect(Recurrence::count())->toBe(0);
 });
 
 test('a guest cannot see the Recurring page', function () {

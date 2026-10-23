@@ -12,6 +12,19 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-10-23** — **Add and edit recurrences from Finance ▸ Recurring.** Angel wanted
+  to manage recurrences from the Recurring page instead of going to each entity. The
+  recurrence form moved to `components/recurrences/` and is now shared: opened from
+  an entity's page the entity is fixed as before; opened with **+** on the Recurring
+  page it starts with an entity picker (the State is left out — its payments are
+  generated from the taxes). Picking the entity decides what the recurrence is
+  (customer → income; employee → expense with the Payroll category; else expense)
+  through one rule, `recurrenceDefaults`, now also used by the entity page, so both
+  places create the same thing; after saving, the page switches to the group it
+  landed in. A row click opens the same form to edit (it used to go to the entity's
+  page); middle-click opens `/recurring?edit=<id>` in a new tab, like Transactions;
+  each row has the same delete as the entity page (`deleteRecurrence`). Rows now carry
+  the entity (id, name, type) and the full recurrence for the form.
 - **2026-10-23** — **Cheese removed; new Finance ▸ Recurring page.** Angel asked to
   remove Cheese if nothing was left in it: a read-only check of the live data found no
   untyped entity (live or deleted), so the bucket is gone — its list, sidebar link,
