@@ -45,3 +45,20 @@ test('holidaySet returns every stored date keyed by Y-m-d', function () {
 
     expect($set)->toHaveKeys(['2026-03-25', '2026-05-01']);
 });
+
+test('next working day of a weekday is that day', function () {
+    // 2026-03-24 is a Tuesday.
+    expect(WorkingDays::nextWorkingDay(Carbon\Carbon::parse('2026-03-24'), [])->format('Y-m-d'))->toBe('2026-03-24');
+});
+
+test('a weekend rolls forward to Monday', function () {
+    // 2026-01-10 is a Saturday, 2026-01-11 a Sunday.
+    expect(WorkingDays::nextWorkingDay(Carbon\Carbon::parse('2026-01-10'), [])->format('Y-m-d'))->toBe('2026-01-12');
+    expect(WorkingDays::nextWorkingDay(Carbon\Carbon::parse('2026-01-11'), [])->format('Y-m-d'))->toBe('2026-01-12');
+});
+
+test('a public holiday rolls forward, past a weekend too', function () {
+    // Fri 2026-04-10 a holiday -> skips the weekend to Mon 13; Mon 13 also a holiday -> Tue 14.
+    expect(WorkingDays::nextWorkingDay(Carbon\Carbon::parse('2026-04-10'), ['2026-04-10' => true])->format('Y-m-d'))->toBe('2026-04-13');
+    expect(WorkingDays::nextWorkingDay(Carbon\Carbon::parse('2026-04-10'), ['2026-04-10' => true, '2026-04-13' => true])->format('Y-m-d'))->toBe('2026-04-14');
+});

@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Entity;
+use App\Models\Recurrence;
 use App\Models\Transaction;
+use App\Support\RecurrenceGenerator;
+use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -87,9 +91,22 @@ class EntityController extends Controller
         return back();
     }
 
+    /**
+     * A type change can change when its recurrences are paid (contractors and
+     * employees on the last working day of the month), so their transactions — and
+     * the taxes they feed — are re-synced.
+     */
     public function update(Request $request, Entity $entity): RedirectResponse
     {
-        $entity->update($this->validateEntity($request));
+        DB::transaction(function () use ($request, $entity) {
+            $entity->update($this->validateEntity($request));
+
+            if ($entity->wasChanged('type')) {
+                $entity->recurrences()->with('entries.lines')->get()
+                    ->each(fn (Recurrence $r) => RecurrenceGenerator::sync($r));
+                TaxSync::run();
+            }
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Entity updated.')]);
 

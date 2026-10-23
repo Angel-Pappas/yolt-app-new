@@ -171,8 +171,10 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
   by the entity page's panel (entity fixed) and Finance ▸ Recurring (`entity={null}`
   shows an entity picker). What a new recurrence starts as comes from
   `lib/recurring.ts`'s `recurrenceDefaults`; the Recurring page's grouping and amounts
-  come from `App\Support\RecurringOverview`. Delete via `deleteRecurrence`. Change
-  them there, not per page.
+  come from `App\Support\RecurringOverview`; payment days from
+  `RecurrenceGenerator::paymentDate()` (rule `Recurrence::paysOnLastWorkingDay()`,
+  client twin in `lib/recurring.ts` — keep in lockstep). Delete via
+  `deleteRecurrence`. Change them there, not per page.
 - **Money & dates:** `resources/js/lib/format.ts` — `formatAmount` (Greek
   `1.234,56`) + `formatDate` (`dd/mm/yyyy`). `numeric`/`decimal` columns arrive as
   **strings** → `Number(...)` before math; money is `decimal(12,2)`. Amount inputs

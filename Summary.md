@@ -121,6 +121,15 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   income/expense, category, wallet, description) + cadence (every N weeks/months/years
   on a day of month) + **periods**, each with its own full amount lines (or payroll
   amounts). Its start/end come from the periods.
+- **Payment day** (Angel, 2026-10-23): **contractors and employees** (expenses) are
+  paid on the **last working day of each month**, whatever day is set (the form shows
+  "Last working day"); **anything else** on its day, or the **next working day** if
+  that is a weekend or public holiday (Configuration ▸ Public holidays). A weekly
+  cadence always uses its own day. Each generated row stays keyed by its scheduled
+  slot (`managed_key`) and is only _dated_ on the payment day, so a moved date updates
+  the same row; reconciled rows stay frozen. Adding/changing a holiday or an entity's
+  type re-syncs straight away. Rule: `Recurrence::paysOnLastWorkingDay()` (client twin
+  `paysOnLastWorkingDay` in `lib/recurring.ts`), dates via `App\Support\WorkingDays`.
 - `App\Support\RecurrenceGenerator` turns recurrences into real transactions over a
   rolling **24-month horizon**; generated ("managed") rows are ordinary transactions
   marked with `source`/`managed_key`, kept in sync until **reconciled** (then frozen).

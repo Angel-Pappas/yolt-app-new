@@ -1,10 +1,13 @@
 <?php
 
+use App\Models\Entity;
+use App\Models\PublicHoliday;
 use App\Models\Recurrence;
 use App\Models\RecurrenceEntry;
 use App\Models\RecurrenceEntryLine;
 use App\Models\Setting;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Models\VatRate;
 use App\Models\WithheldTaxRate;
 use App\Support\RecurrenceGenerator;
@@ -315,4 +318,112 @@ test('a weekly recurrence steps by whole weeks from the start date', function ()
         "recurrence:{$recurrence->id}:2026-01-19",
         "recurrence:{$recurrence->id}:2026-02-02",
     ]);
+});
+
+/** The generated row for one slot of a recurrence. */
+function slotRow(Recurrence $recurrence, string $slot): ?Transaction
+{
+    return Transaction::where('managed_key', "recurrence:{$recurrence->id}:{$slot}")->first();
+}
+
+test('an expense due on a weekend is paid the next working day', function () {
+    // 2026-01-10 is a Saturday.
+    $recurrence = monthlyRecurrence(['day_of_month' => 10]);
+
+    RecurrenceGenerator::sync($recurrence);
+
+    $row = slotRow($recurrence, '2026-01-10');
+    expect($row->date->toDateString())->toBe('2026-01-12');
+    expect($row->invoice_date->toDateString())->toBe('2026-01-12');
+    // A weekday slot stays put: 2026-02-10 is a Tuesday.
+    expect(slotRow($recurrence, '2026-02-10')->date->toDateString())->toBe('2026-02-10');
+});
+
+test('an expense due on a public holiday is paid the next working day', function () {
+    PublicHoliday::factory()->create(['date' => '2026-03-25']); // a Wednesday
+    $recurrence = monthlyRecurrence(['day_of_month' => 25]);
+
+    RecurrenceGenerator::sync($recurrence);
+
+    expect(slotRow($recurrence, '2026-03-25')->date->toDateString())->toBe('2026-03-26');
+});
+
+test('contractors and employees are paid on the last working day of the month', function (string $entityType) {
+    $recurrence = monthlyRecurrence([
+        'entity_id' => Entity::factory()->create(['type' => $entityType])->id,
+        'day_of_month' => 5,
+    ]);
+
+    RecurrenceGenerator::sync($recurrence);
+
+    // Jan 2026 ends Sat 31 -> Fri 30; Mar 2026 ends Tue 31. Still one row per month,
+    // keyed by its scheduled slot.
+    expect(slotRow($recurrence, '2026-01-05')->date->toDateString())->toBe('2026-01-30');
+    expect(slotRow($recurrence, '2026-03-05')->date->toDateString())->toBe('2026-03-31');
+    expect(Transaction::where('recurrence_id', $recurrence->id)->count())->toBe(25);
+})->with(['contractor', 'employee']);
+
+test('the last-working-day rule skips public holidays', function () {
+    PublicHoliday::factory()->create(['date' => '2026-03-31']);
+    $recurrence = monthlyRecurrence(['entity_id' => Entity::factory()->contractor()->create()->id]);
+
+    RecurrenceGenerator::sync($recurrence);
+
+    expect(slotRow($recurrence, '2026-03-01')->date->toDateString())->toBe('2026-03-30');
+});
+
+test('income from a contractor is not moved to the month end', function () {
+    $recurrence = monthlyRecurrence([
+        'entity_id' => Entity::factory()->contractor()->create()->id,
+        'type' => 'income',
+        'day_of_month' => 10,
+    ]);
+
+    RecurrenceGenerator::sync($recurrence);
+
+    expect(slotRow($recurrence, '2026-01-10')->date->toDateString())->toBe('2026-01-12');
+});
+
+test('a weekly contractor recurrence moves only off weekends and holidays', function () {
+    // Starts Sat 2026-01-03, every week.
+    $recurrence = Recurrence::factory()->create([
+        'entity_id' => Entity::factory()->contractor()->create()->id,
+        'interval_unit' => 'week',
+        'interval_count' => 1,
+        'day_of_month' => null,
+        'start_date' => '2026-01-03',
+    ]);
+    addPeriod($recurrence, '2026-01-03', null, [[50]]);
+
+    RecurrenceGenerator::sync($recurrence);
+
+    expect(slotRow($recurrence, '2026-01-03')->date->toDateString())->toBe('2026-01-05');
+});
+
+test('adding a public holiday moves the recurring payments on it', function () {
+    $recurrence = monthlyRecurrence(['day_of_month' => 25]);
+    RecurrenceGenerator::sync($recurrence);
+    expect(slotRow($recurrence, '2026-03-25')->date->toDateString())->toBe('2026-03-25');
+
+    $this->actingAs(User::factory()->create())
+        ->post('/configuration/public-holidays', ['date' => '2026-03-25', 'name' => 'Independence Day']);
+
+    expect(slotRow($recurrence, '2026-03-25')->date->toDateString())->toBe('2026-03-26');
+});
+
+test('reclassifying the entity as a contractor moves its payments but not reconciled ones', function () {
+    $supplier = Entity::factory()->supplier()->create();
+    $recurrence = monthlyRecurrence(['entity_id' => $supplier->id, 'day_of_month' => 2]);
+    RecurrenceGenerator::sync($recurrence);
+    slotRow($recurrence, '2026-02-02')->update(['is_reconciled' => true]);
+
+    $this->actingAs(User::factory()->create())
+        ->patch("/entities/{$supplier->id}", ['name' => $supplier->name, 'type' => 'contractor']);
+
+    // Reconciled: frozen on its old date, and not duplicated.
+    expect(slotRow($recurrence, '2026-02-02')->date->toDateString())->toBe('2026-02-02');
+    expect(Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-02-02")->count())->toBe(1);
+    // Unreconciled: now on the month's last working day.
+    expect(slotRow($recurrence, '2026-03-02')->date->toDateString())->toBe('2026-03-31');
+    expect(Transaction::where('recurrence_id', $recurrence->id)->count())->toBe(25);
 });

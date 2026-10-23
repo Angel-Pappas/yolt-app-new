@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PublicHoliday;
+use App\Support\RecurrenceGenerator;
 use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,8 +15,9 @@ use Inertia\Response;
 /**
  * Public holidays CRUD — a Configuration setup list. Available to any active user;
  * shared company data with a created-by `user_id`. The dates feed
- * `App\Support\WorkingDays` when computing tax payment (last working day) dates,
- * so every write re-syncs the generated tax payments (`TaxSync`) to move them.
+ * `App\Support\WorkingDays` when computing payment dates,
+ * so every write re-syncs the generated recurring and tax payments
+ * (`RecurrenceGenerator`, `TaxSync`) to move them.
  */
 class PublicHolidayController extends Controller
 {
@@ -35,6 +37,7 @@ class PublicHolidayController extends Controller
 
         DB::transaction(function () use ($holiday) {
             $holiday->save();
+            RecurrenceGenerator::syncAll();
             TaxSync::run();
         });
 
@@ -49,6 +52,7 @@ class PublicHolidayController extends Controller
 
         DB::transaction(function () use ($publicHoliday, $data) {
             $publicHoliday->update($data);
+            RecurrenceGenerator::syncAll();
             TaxSync::run();
         });
 
@@ -61,6 +65,7 @@ class PublicHolidayController extends Controller
     {
         DB::transaction(function () use ($publicHoliday) {
             $publicHoliday->delete();
+            RecurrenceGenerator::syncAll();
             TaxSync::run();
         });
 

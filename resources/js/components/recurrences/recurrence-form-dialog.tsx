@@ -43,7 +43,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { recurrenceDefaults } from '@/lib/recurring';
+import { paysOnLastWorkingDay, recurrenceDefaults } from '@/lib/recurring';
 import { CategoryFormDialog } from '@/pages/categories/category-form-dialog';
 
 /** One dated period: its span plus the same amount shape as a transaction. */
@@ -216,6 +216,13 @@ export function RecurrenceFormDialog({
     const [addCategoryKey, setAddCategoryKey] = useState(0);
 
     const isWeek = form.data.interval_unit === 'week';
+    // When it's paid: contractors/employees at the month end; anything else on its
+    // day, moved past weekends and public holidays (the generator's rule).
+    const entityType =
+        entity?.type ??
+        entities.find((e) => String(e.id) === form.data.entity_id)?.type;
+    const monthEnd =
+        !isWeek && paysOnLastWorkingDay(form.data.type, entityType);
     const availableCategories = categories.filter(
         (c) => c.type === form.data.type,
     );
@@ -567,27 +574,47 @@ export function RecurrenceFormDialog({
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                {!isWeek && (
+                                {monthEnd ? (
                                     <div className="grid gap-2">
                                         <Label htmlFor="day_of_month">
                                             On day
                                         </Label>
                                         <Input
                                             id="day_of_month"
-                                            inputMode="numeric"
-                                            value={form.data.day_of_month}
-                                            onChange={(e) =>
-                                                form.setData(
-                                                    'day_of_month',
-                                                    e.target.value,
-                                                )
-                                            }
-                                        />
-                                        <InputError
-                                            message={form.errors.day_of_month}
+                                            value="Last working day"
+                                            disabled
                                         />
                                     </div>
+                                ) : (
+                                    !isWeek && (
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="day_of_month">
+                                                On day
+                                            </Label>
+                                            <Input
+                                                id="day_of_month"
+                                                inputMode="numeric"
+                                                value={form.data.day_of_month}
+                                                onChange={(e) =>
+                                                    form.setData(
+                                                        'day_of_month',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                            />
+                                            <InputError
+                                                message={
+                                                    form.errors.day_of_month
+                                                }
+                                            />
+                                        </div>
+                                    )
                                 )}
+                                <p className="text-muted-foreground text-xs sm:col-span-3">
+                                    {monthEnd
+                                        ? 'Contractors and employees are paid on the last working day of each month.'
+                                        : 'A payment due on a weekend or public holiday moves to the next working day.'}
+                                </p>
                             </div>
 
                             <div className="grid gap-3 sm:col-span-2">

@@ -19,7 +19,12 @@ use Illuminate\Support\Collection;
  * or by editing the recurrence, per the agreed model).
  *
  * Occurrences run from the recurrence's `start_date` (history included) through the
- * earlier of its `end_date` and a rolling 24-month horizon. For each occurrence the
+ * earlier of its `end_date` and a rolling 24-month horizon. Each occurrence is a
+ * **slot** (its scheduled day — the row's `managed_key`) paid on a **payment day**:
+ * the last working day of the slot's month for contractors and employees, else the
+ * slot itself or the next working day after a weekend/holiday
+ * ({@see Recurrence::paysOnLastWorkingDay()}). Keying by slot means a moved payment
+ * day updates the same row rather than creating another. For each occurrence the
  * amount in force comes from the matching {@see RecurrenceEntry}; a date no entry
  * covers is skipped. Each period's amount lines (VAT and optional withholding per
  * line, Net/Total mode per period) are resolved server-side from the rates' current
@@ -33,16 +38,22 @@ class RecurrenceGenerator
     /** Sync every recurrence — the daily job, and a safety net after any change. */
     public static function syncAll(): void
     {
-        Recurrence::query()->withTrashed()->with('entries.lines')->get()
-            ->each(fn (Recurrence $r) => self::sync($r));
+        $holidays = WorkingDays::holidaySet();
+
+        Recurrence::query()->withTrashed()->with(['entries.lines', 'entity'])->get()
+            ->each(fn (Recurrence $r) => self::sync($r, $holidays));
     }
 
     /**
      * Make one recurrence's generated transactions match its current definition.
      */
-    public static function sync(Recurrence $recurrence): void
+    /**
+     * @param  array<string, true>|null  $holidays  the public-holiday set (loaded when null)
+     */
+    public static function sync(Recurrence $recurrence, ?array $holidays = null): void
     {
-        $recurrence->loadMissing('entries.lines');
+        $recurrence->loadMissing(['entries.lines', 'entity']);
+        $holidays ??= WorkingDays::holidaySet();
 
         // Each period's lines resolve to the same money on every occurrence, so
         // resolve once per period rather than once per generated row.
@@ -51,8 +62,7 @@ class RecurrenceGenerator
             $resolved[$entry->id] = self::resolveEntry($entry);
         }
 
-        /** @var array<string, RecurrenceEntry> $desired */
-        $desired = self::desiredOccurrences($recurrence);
+        $desired = self::desiredOccurrences($recurrence, $holidays);
 
         /** @var Collection<string, Transaction> $existing */
         $existing = Transaction::query()
@@ -60,18 +70,18 @@ class RecurrenceGenerator
             ->get()
             ->keyBy('managed_key');
 
-        foreach ($desired as $key => $entry) {
+        foreach ($desired as $key => [$entry, $payDate]) {
             $row = $existing->get($key);
             if ($row !== null) {
                 // A reconciled occurrence is frozen; leave it exactly as it was.
                 if (! $row->is_reconciled) {
-                    self::write($row, $recurrence, $key, $entry, $resolved[$entry->id]);
+                    self::write($row, $recurrence, $key, $payDate, $entry, $resolved[$entry->id]);
                 }
                 $existing->forget($key);
 
                 continue;
             }
-            self::write(new Transaction, $recurrence, $key, $entry, $resolved[$entry->id]);
+            self::write(new Transaction, $recurrence, $key, $payDate, $entry, $resolved[$entry->id]);
         }
 
         // Occurrences no longer wanted: drop the unreconciled ones, keep reconciled
@@ -93,12 +103,13 @@ class RecurrenceGenerator
     }
 
     /**
-     * The entry in force for each wanted occurrence, keyed by its managed slot.
-     * A trashed/inactive recurrence wants nothing.
+     * The entry in force and the payment day for each wanted occurrence, keyed by its
+     * managed slot. A trashed/inactive recurrence wants nothing.
      *
-     * @return array<string, RecurrenceEntry>
+     * @param  array<string, true>  $holidays
+     * @return array<string, array{0: RecurrenceEntry, 1: CarbonInterface}>
      */
-    private static function desiredOccurrences(Recurrence $recurrence): array
+    private static function desiredOccurrences(Recurrence $recurrence, array $holidays): array
     {
         if ($recurrence->trashed() || ! $recurrence->active) {
             return [];
@@ -111,7 +122,7 @@ class RecurrenceGenerator
                 continue;
             }
             $key = "recurrence:{$recurrence->id}:{$date->toDateString()}";
-            $out[$key] = $entry;
+            $out[$key] = [$entry, self::paymentDate($recurrence, $date, $holidays)];
         }
 
         return $out;
@@ -181,6 +192,22 @@ class RecurrenceGenerator
     }
 
     /**
+     * The day a slot is actually paid. Contractors and employees on a monthly or
+     * yearly cadence are paid on the last working day of the slot's month; anything
+     * else (and any weekly cadence) on the slot, or the next working day after it.
+     *
+     * @param  array<string, true>|null  $holidays
+     */
+    public static function paymentDate(Recurrence $recurrence, CarbonInterface $slot, ?array $holidays = null): CarbonInterface
+    {
+        if ($recurrence->paysOnLastWorkingDay() && $recurrence->interval_unit !== 'week') {
+            return WorkingDays::lastWorkingDay($slot->year, $slot->month, $holidays);
+        }
+
+        return WorkingDays::nextWorkingDay($slot, $holidays);
+    }
+
+    /**
      * The entry in force on a date: the one with the latest `start_date` on or before
      * it, so a later dated change supersedes an earlier one **even when the earlier
      * has no end date** (the next change's start implicitly ends it). A date before
@@ -226,7 +253,8 @@ class RecurrenceGenerator
     }
 
     /**
-     * Fill and save one generated transaction (and its VAT/withholding lines).
+     * Fill and save one generated transaction (and its VAT/withholding lines), dated
+     * on its payment day.
      *
      * @param  array{net: float, vat_amount: float, withheld_amount: float, vat_lines: array<int, array{net: float, vat_rate_id: int|null, vat_amount: float, position: int}>, withheld_lines: array<int, array{net: float, withheld_rate_id: int, withheld_amount: float, position: int}>}|null  $resolved
      */
@@ -234,10 +262,11 @@ class RecurrenceGenerator
         Transaction $t,
         Recurrence $r,
         string $key,
+        CarbonInterface $payDate,
         RecurrenceEntry $entry,
         ?array $resolved,
     ): void {
-        $iso = explode(':', $key)[2];
+        $iso = $payDate->toDateString();
 
         $base = [
             'type' => $r->type,

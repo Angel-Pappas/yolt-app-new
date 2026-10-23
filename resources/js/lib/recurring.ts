@@ -43,3 +43,19 @@ export function recurrenceDefaults(entityType: string | undefined): {
         payroll: entityType === 'employee',
     };
 }
+
+/**
+ * Whether a recurrence is paid on the last working day of each month (contractors
+ * and employees) rather than on its own day moved past weekends and holidays. The
+ * client twin of `Recurrence::paysOnLastWorkingDay()` — keep them in lockstep. A
+ * weekly cadence always uses its own day.
+ */
+export function paysOnLastWorkingDay(
+    type: string,
+    entityType: string | undefined,
+): boolean {
+    return (
+        type === 'expense' &&
+        (entityType === 'contractor' || entityType === 'employee')
+    );
+}

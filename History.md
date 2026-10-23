@@ -12,6 +12,21 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-10-23** — **Recurring payments move off weekends and holidays.** Angel asked
+  what happens when a recurrence's day is an off day: nothing did — rows landed on
+  Saturdays, Sundays and holidays. His rule: contractors and payroll are paid, as is
+  standard, on the **last working day of the month**; other expenses on the set day or
+  the **first working day after** it. Income follows the second rule too (it isn't
+  contractor/payroll). `RecurrenceGenerator` now separates the **slot** (the
+  scheduled day — still the `managed_key`) from the **payment day** (the row's
+  `date` and `invoice_date`), so moving a date updates the existing row instead of
+  creating a second one, and reconciled rows stay frozen untouched. Reuses
+  `WorkingDays` (new `nextWorkingDay`) and the stored public holidays, which is why a
+  holiday write now re-syncs recurrences as well as taxes; an entity type change
+  re-syncs that entity's recurrences. The form shows the rule (the "On day" field
+  reads "Last working day" for contractors/employees, plus a one-line note), as does
+  the entity page's cadence line. Note: live had no public holidays entered yet, so
+  until they are, only weekends are skipped.
 - **2026-10-23** — **Add and edit recurrences from Finance ▸ Recurring.** Angel wanted
   to manage recurrences from the Recurring page instead of going to each entity. The
   recurrence form moved to `components/recurrences/` and is now shared: opened from

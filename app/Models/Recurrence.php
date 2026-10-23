@@ -68,6 +68,18 @@ class Recurrence extends Model
         ];
     }
 
+    /**
+     * Pay contractors and employees on the last working day of each month (the
+     * standard for them); anything else is paid on its day, moved to the next
+     * working day when that is a weekend or public holiday. Mirrored on the client
+     * by `paysOnLastWorkingDay` in `lib/recurring.ts`.
+     */
+    public function paysOnLastWorkingDay(): bool
+    {
+        return $this->type === 'expense'
+            && in_array($this->entity?->type, ['contractor', 'employee'], true);
+    }
+
     /** @return BelongsTo<Entity, $this> */
     public function entity(): BelongsTo
     {

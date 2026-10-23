@@ -16,18 +16,21 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatAmount } from '@/lib/format';
+import { paysOnLastWorkingDay } from '@/lib/recurring';
 
 type Props = {
     entity: EntityOption;
     recurrences: RecurrenceRecord[];
 };
 
-function cadence(r: RecurrenceRecord): string {
+function cadence(r: RecurrenceRecord, entityType: string): string {
     const unit = `${r.interval_unit}${r.interval_count > 1 ? 's' : ''}`;
     const base = `Every ${r.interval_count} ${unit}`;
-    return r.interval_unit === 'week' || r.day_of_month == null
-        ? base
-        : `${base} · day ${r.day_of_month}`;
+    if (r.interval_unit === 'week') return base;
+    if (paysOnLastWorkingDay(r.type, entityType)) {
+        return `${base} · last working day`;
+    }
+    return r.day_of_month == null ? base : `${base} · day ${r.day_of_month}`;
 }
 
 /** What one period moves per occurrence: a payroll period's net, else the cash
@@ -123,7 +126,7 @@ export function RecurrencesPanel({ entity, recurrences }: Props) {
                                         )}
                                     </div>
                                     <div className="text-muted-foreground text-sm">
-                                        {cadence(r)}
+                                        {cadence(r, entity.type)}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">

@@ -3,12 +3,14 @@
 namespace App\Support;
 
 use App\Models\PublicHoliday;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
 /**
- * Working-day arithmetic for tax payment dates. Every monthly tax's bucket is paid
- * on the **last working day of the following month**, where working days are Mon–Fri
- * excluding stored public holidays.
+ * Working-day arithmetic for payment dates. Working days are Mon–Fri excluding the
+ * stored public holidays. Monthly taxes are paid on the **last working day of the
+ * following month**; recurring transactions move off weekends and holidays too
+ * (see {@see RecurrenceGenerator}).
  */
 class WorkingDays
 {
@@ -29,6 +31,24 @@ class WorkingDays
 
         while ($day->isWeekend() || isset($holidays[$day->format('Y-m-d')])) {
             $day->subDay();
+        }
+
+        return $day;
+    }
+
+    /**
+     * The date itself when it is a working day, else the first working day after it.
+     *
+     * @param  array<string, true>|null  $holidays  as for {@see lastWorkingDay()}
+     */
+    public static function nextWorkingDay(CarbonInterface $date, ?array $holidays = null): Carbon
+    {
+        $holidays ??= self::holidaySet();
+
+        $day = Carbon::parse($date->format('Y-m-d'));
+
+        while ($day->isWeekend() || isset($holidays[$day->format('Y-m-d')])) {
+            $day->addDay();
         }
 
         return $day;
