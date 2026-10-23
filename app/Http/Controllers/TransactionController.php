@@ -407,6 +407,8 @@ class TransactionController extends Controller
             'invoice_date' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:255'],
             'wallet_id' => ['required', 'integer', 'exists:wallets,id'],
+            // Sent only by the One-offs page's add form; absent means "leave as is".
+            'is_one_off' => ['sometimes', 'boolean'],
         ];
 
         if ($request->input('type') === 'transfer') {
@@ -469,6 +471,10 @@ class TransactionController extends Controller
      */
     private function persist(Transaction $transaction, array $data): void
     {
+        if (array_key_exists('is_one_off', $data)) {
+            $transaction->is_one_off = (bool) $data['is_one_off'];
+        }
+
         if ($data['type'] === 'transfer') {
             $transaction->fill([
                 'type' => 'transfer',

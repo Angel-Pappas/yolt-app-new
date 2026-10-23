@@ -4,7 +4,8 @@ import { type ColumnDef, type Table } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { ColumnHeader } from '@/components/data-table/column-header';
-import { DataTable } from '@/components/data-table/data-table';
+import { DataTable, DONE_ROW_CLASS } from '@/components/data-table/data-table';
+import { ShowAllToggle } from '@/components/data-table/show-all-toggle';
 import { deleteRecurrence } from '@/components/recurrences/delete-recurrence';
 import {
     type RecurrenceRecord,
@@ -31,8 +32,8 @@ type Row = {
     recurrence: RecurrenceRecord;
     description: string;
     active: boolean;
-    /** Its last period ended before today. */
-    ended: boolean;
+    /** Has an end date and its last transaction is reconciled — hidden unless "Show all". */
+    done: boolean;
     start_date: string;
     end_date: string | null;
     net: number;
@@ -149,12 +150,8 @@ function columnsFor(group: RecurringGroup): ColumnDef<Row>[] {
                     <span className="text-muted-foreground">
                         {row.original.description || '—'}
                     </span>
-                    {row.original.ended ? (
-                        <Badge variant="secondary">Ended</Badge>
-                    ) : (
-                        !row.original.active && (
-                            <Badge variant="secondary">Paused</Badge>
-                        )
+                    {!row.original.active && (
+                        <Badge variant="secondary">Paused</Badge>
                     )}
                 </span>
             ),
@@ -214,14 +211,20 @@ export default function RecurringIndex({
     /** From `?edit=<id>`: open this recurrence's edit form on arrival. */
     editId: number | null;
 }) {
-    // The chosen group survives leaving the page and coming Back.
+    // The chosen group and "Show all" survive leaving the page and coming Back.
+    // Only active recurrences show unless "Show all" (then done ones are green).
     const deepLinked = recurrences.find((r) => r.id === editId) ?? null;
+    const [showAll, setShowAll] = useRemember(
+        deepLinked?.done ?? false,
+        'recurring-show-all',
+    );
+    const visible = showAll ? recurrences : recurrences.filter((r) => !r.done);
     const [group, setGroup] = useRemember<RecurringGroup>(
-        deepLinked?.group ?? defaultGroup(recurrences),
+        deepLinked?.group ?? defaultGroup(visible),
         'recurring-group',
     );
-    const counts = groupCounts(recurrences);
-    const rows = recurrences.filter((r) => r.group === group);
+    const counts = groupCounts(visible);
+    const rows = visible.filter((r) => r.group === group);
 
     // The shared add/edit form. Adding starts with no entity (it's picked in the
     // form); editing keeps the row's entity. The `key` bump gives a fresh form.
@@ -261,6 +264,7 @@ export default function RecurringIndex({
                     enableTotals
                     onRowClick={openForm}
                     rowHref={(r) => `/recurring?edit=${r.id}`}
+                    rowClassName={(r) => (r.done ? DONE_ROW_CLASS : undefined)}
                     action={
                         <Button
                             onClick={() => openForm(null)}
@@ -291,6 +295,7 @@ export default function RecurringIndex({
                                     </span>
                                 </Button>
                             ))}
+                            <ShowAllToggle on={showAll} onChange={setShowAll} />
                         </div>
                     }
                 />

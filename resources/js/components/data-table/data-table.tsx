@@ -57,6 +57,8 @@ type Props<TData, TValue> = {
      * `onRowClick`. Interactive cells must be lifted above it (`relative z-10`).
      */
     rowHref?: (row: TData) => string;
+    /** Extra classes for a row, e.g. {@link DONE_ROW_CLASS} for finished items. */
+    rowClassName?: (row: TData) => string | undefined;
     /** Render a totals footer row from each column's `footer` (sums, a count, …). */
     enableTotals?: boolean;
     emptyMessage?: string;
@@ -80,6 +82,15 @@ type Props<TData, TValue> = {
         first: TData,
     ) => { label: ReactNode; cells: Partial<Record<string, ReactNode>> } | null;
 };
+
+/**
+ * A finished item's row (a reconciled one-off, a done recurrence) when "Show all"
+ * brings it back into view: its text turns green (muted text included), so done and
+ * open rows are told apart at a glance. The last cell — the row's action buttons —
+ * and coloured icons (e.g. the income/expense arrow) keep their own colours.
+ */
+export const DONE_ROW_CLASS =
+    '[&>td:not(:last-child)]:text-emerald-700 dark:[&>td:not(:last-child)]:text-emerald-400 [&_.text-muted-foreground]:text-inherit';
 
 /**
  * The shared, client-side sortable/filterable/searchable table, built on TanStack
@@ -113,6 +124,7 @@ export function DataTable<TData, TValue>({
     initialColumnFilters,
     onRowClick,
     rowHref,
+    rowClassName,
     enableTotals = false,
     emptyMessage = 'Nothing here yet.',
     pageSize = 50,
@@ -410,6 +422,7 @@ export function DataTable<TData, TValue>({
                                             // Positioning context for the row's
                                             // stretched link overlay.
                                             href && 'relative',
+                                            rowClassName?.(row.original),
                                         )}
                                     >
                                         {row

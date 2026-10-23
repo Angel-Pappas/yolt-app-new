@@ -5,13 +5,15 @@ namespace App\Support;
 use App\Models\Recurrence;
 use App\Models\RecurrenceEntry;
 use App\Models\RecurrenceEntryLine;
+use App\Models\Transaction;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 
 /**
  * The Finance ▸ Recurring page: every recurrence as one row, grouped by who it is
  * with — payroll (an employee), contractors, other expenses, and income — showing
- * the amounts of the period that matters now and the recurrence's date range.
+ * the amounts of the period that matters now, the recurrence's date range, and
+ * whether it is done.
  *
  * Amounts resolve through {@see AmountLines::resolve()} (the same resolver the
  * generator uses), so a row shows exactly what its next generated transaction moves.
@@ -21,17 +23,38 @@ class RecurringOverview
     public const GROUPS = ['payroll', 'contractors', 'expenses', 'income'];
 
     /**
-     * @return list<array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, ended: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}>
+     * @return list<array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, done: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}>
      */
     public static function rows(): array
     {
-        return array_values(Recurrence::query()
+        $recurrences = Recurrence::query()
             ->with(['entity:id,name,type', 'entries.lines'])
             ->orderBy('start_date')
             ->orderBy('id')
-            ->get()
-            ->map(fn (Recurrence $r): array => self::row($r))
+            ->get();
+
+        // Whether each recurrence's last generated transaction is reconciled.
+        $lastReconciled = Transaction::query()
+            ->whereIn('recurrence_id', $recurrences->modelKeys())
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get(['recurrence_id', 'is_reconciled'])
+            ->keyBy('recurrence_id')
+            ->map(fn (Transaction $t): bool => $t->is_reconciled);
+
+        return array_values($recurrences
+            ->map(fn (Recurrence $r): array => self::row($r, $lastReconciled->get($r->id)))
             ->all());
+    }
+
+    /**
+     * A recurrence is **done** once it has an end date and its last generated
+     * transaction has been reconciled (or it never generated one). An open-ended
+     * recurrence is never done. The page hides done ones unless "Show all".
+     */
+    public static function isDone(Recurrence $recurrence, ?bool $lastReconciled): bool
+    {
+        return $recurrence->end_date !== null && ($lastReconciled ?? true);
     }
 
     /**
@@ -65,9 +88,9 @@ class RecurringOverview
     }
 
     /**
-     * @return array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, ended: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}
+     * @return array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, done: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}
      */
-    private static function row(Recurrence $recurrence): array
+    private static function row(Recurrence $recurrence, ?bool $lastReconciled): array
     {
         $amounts = self::amounts(self::currentEntry($recurrence), $recurrence->is_payroll);
 
@@ -83,7 +106,7 @@ class RecurringOverview
             'recurrence' => Arr::except($recurrence->toArray(), ['entity']),
             'description' => $recurrence->description,
             'active' => $recurrence->active,
-            'ended' => $recurrence->end_date?->lessThan(Carbon::today()) ?? false,
+            'done' => self::isDone($recurrence, $lastReconciled),
             'start_date' => $recurrence->start_date->toDateString(),
             'end_date' => $recurrence->end_date?->toDateString(),
             ...$amounts,

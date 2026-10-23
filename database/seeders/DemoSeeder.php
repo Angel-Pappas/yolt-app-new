@@ -93,6 +93,31 @@ class DemoSeeder extends Seeder
         ]);
 
         $this->recurrences($bank, $suppliers, $customers, $expense, $income, $vat24->id, $withheld20->id);
+
+        // One-offs: two still open, one done (reconciled).
+        foreach ([
+            ['New laptop', 1450, $expense['Office'], -20, true],
+            ['Trade fair stand', 2300, $expense['Marketing'], 5, false],
+            ['Office chairs', 640, $expense['Office'], 12, false],
+        ] as [$description, $net, $category, $days, $reconciled]) {
+            $date = Carbon::now()->addDays($days)->toDateString();
+            Transaction::create([
+                'date' => $date,
+                'invoice_date' => $date,
+                'description' => $description,
+                'type' => 'expense',
+                'net' => $net,
+                'vat_amount' => round($net * 0.24, 2),
+                'withheld_amount' => 0,
+                'vat_rate_id' => $vat24->id,
+                'entity_id' => $suppliers->random()->id,
+                'category_id' => $category->id,
+                'wallet_id' => $bank->id,
+                'is_reconciled' => $reconciled,
+                'is_one_off' => true,
+                'invoice_not_required' => false,
+            ]);
+        }
     }
 
     /**

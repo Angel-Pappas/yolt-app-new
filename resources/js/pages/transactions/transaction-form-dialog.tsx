@@ -81,13 +81,20 @@ type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     editing?: EditableTransaction | null;
+    /** Adding from Finance ▸ One-offs: tag the new transaction as a one-off. */
+    oneOff?: boolean;
 };
 
 function today(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
-export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
+export function TransactionFormDialog({
+    open,
+    onOpenChange,
+    editing,
+    oneOff = false,
+}: Props) {
     // Lookups come from the globally-shared source, so this form works wherever it's
     // opened without each page having to pass them.
     const { wallets, entities, categories } = useFinanceLookups();
@@ -296,42 +303,22 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
         doSubmit('close');
     }
 
-    // Add flow: 'close' saves and closes; 'new' saves and resets to defaults for
-    // an unrelated next entry; 'same' saves and keeps everything except the typed
-    // amounts, for entering several similar transactions in a row.
-    function doSubmit(mode: 'close' | 'new' | 'same') {
-        form.transform((data) => {
-            if (data.type === 'transfer') {
-                return {
-                    type: data.type,
-                    date: data.date,
-                    invoice_date: data.invoice_date,
-                    description: data.description,
-                    wallet_id: data.wallet_id,
-                    to_wallet_id: data.to_wallet_id,
-                    net: normalizeAmount(data.net),
-                };
-            }
+    // What the server receives for each shape (transfer, payroll, amount lines).
+    function payload(data: typeof form.data) {
+        if (data.type === 'transfer') {
+            return {
+                type: data.type,
+                date: data.date,
+                invoice_date: data.invoice_date,
+                description: data.description,
+                wallet_id: data.wallet_id,
+                to_wallet_id: data.to_wallet_id,
+                net: normalizeAmount(data.net),
+            };
+        }
 
-            const cat = categories.find(
-                (c) => String(c.id) === data.category_id,
-            );
-            if (cat?.name === PAYROLL_CATEGORY) {
-                return {
-                    type: data.type,
-                    date: data.date,
-                    invoice_date: data.invoice_date,
-                    description: data.description,
-                    entity_id: data.entity_id || null,
-                    category_id: data.category_id || null,
-                    wallet_id: data.wallet_id,
-                    net: normalizeAmount(data.net),
-                    fmy_amount: optionalAmount(data.fmy),
-                    efka_employee_amount: optionalAmount(data.efka_employee),
-                    efka_employer_amount: optionalAmount(data.efka_employer),
-                };
-            }
-
+        const cat = categories.find((c) => String(c.id) === data.category_id);
+        if (cat?.name === PAYROLL_CATEGORY) {
             return {
                 type: data.type,
                 date: data.date,
@@ -340,10 +327,33 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
                 entity_id: data.entity_id || null,
                 category_id: data.category_id || null,
                 wallet_id: data.wallet_id,
-                amount_mode: data.amount_mode,
-                lines: linesPayload(data.lines),
+                net: normalizeAmount(data.net),
+                fmy_amount: optionalAmount(data.fmy),
+                efka_employee_amount: optionalAmount(data.efka_employee),
+                efka_employer_amount: optionalAmount(data.efka_employer),
             };
-        });
+        }
+
+        return {
+            type: data.type,
+            date: data.date,
+            invoice_date: data.invoice_date,
+            description: data.description,
+            entity_id: data.entity_id || null,
+            category_id: data.category_id || null,
+            wallet_id: data.wallet_id,
+            amount_mode: data.amount_mode,
+            lines: linesPayload(data.lines),
+        };
+    }
+
+    // Add flow: 'close' saves and closes; 'new' saves and resets to defaults for
+    // an unrelated next entry; 'same' saves and keeps everything except the typed
+    // amounts, for entering several similar transactions in a row.
+    function doSubmit(mode: 'close' | 'new' | 'same') {
+        // A new one-off carries the tag; an edit never sends it, so it's kept.
+        const tag = oneOff && !editing ? { is_one_off: true } : {};
+        form.transform((data) => ({ ...payload(data), ...tag }));
 
         if (editing) {
             form.patch(`/transactions/${editing.id}`, {

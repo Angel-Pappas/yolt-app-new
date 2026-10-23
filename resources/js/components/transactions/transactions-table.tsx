@@ -49,6 +49,8 @@ type Props = {
     showTotals?: boolean;
     /** From `?edit=<id>`: open this transaction's edit modal on mount. */
     editing?: Transaction | null;
+    /** Extra classes per row (passed to the DataTable). */
+    rowClassName?: (t: Transaction) => string | undefined;
 };
 
 /** Sum a numeric column over the currently-filtered rows, formatted as money. */
@@ -90,6 +92,7 @@ export function TransactionsTable({
     pageSize = 50,
     showTotals = true,
     editing = null,
+    rowClassName,
 }: Props) {
     const { wallets, entities, categories } = useFinanceLookups();
 
@@ -414,6 +417,7 @@ export function TransactionsTable({
                 toolbar={toolbar}
                 action={action}
                 onRowClick={openEdit}
+                rowClassName={rowClassName}
                 rowHref={(t) => `/transactions?edit=${t.id}`}
                 enableTotals={showTotals}
                 enableSelection={enableSelection}

@@ -7,6 +7,7 @@ import {
     Landmark,
     PanelLeftClose,
     PanelLeftOpen,
+    Receipt,
     Repeat,
     Settings2,
     Truck,
@@ -38,6 +39,7 @@ const financeNavItems: NavItem[] = [
     { title: 'Transactions', href: '/transactions', icon: ArrowLeftRight },
     { title: 'Wallets', href: '/wallets', icon: Wallet },
     { title: 'Recurring', href: '/recurring', icon: Repeat },
+    { title: 'One-offs', href: '/one-offs', icon: Receipt },
 ];
 
 // The counterparties, one list per type. "State" is the tax pages.

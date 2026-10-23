@@ -38,7 +38,7 @@ the dated what/why in `History.md`. Docs map:
 ## Layout & navigation
 
 - Login lands on **Home** (`/`, logo + welcome for now).
-- Sidebar: Home · **Finance** (Transactions, Wallets, Recurring) · **Entities**
+- Sidebar: Home · **Finance** (Transactions, Wallets, Recurring, One-offs) · **Entities**
   (Customers, Suppliers, Contractors, Employees, Shareholders, **State** = the Taxes
   area) · Configuration. Inside `/configuration/*` the sidebar
   swaps to the setup lists + "Back to app".
@@ -98,6 +98,16 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   the balance just before it. The view stays on through date/preset/toggle changes;
   only its × exits.
 
+## One-offs (`/one-offs`)
+
+- One-off expenses, seen apart from the day-to-day list. A one-off is an ordinary
+  transaction tagged `is_one_off`, set when it's added from this page's **+** (the
+  same transaction form, `oneOff`); editing it anywhere keeps the tag. Same table,
+  row click and row actions (reconcile, invoice month, delete) as Transactions.
+- Only **open** (unreconciled) one-offs show; **Show all** brings back the
+  reconciled ones, in green (`DONE_ROW_CLASS` + `ShowAllToggle`, shared with
+  Recurring).
+
 ## Wallets (`/wallets`)
 
 - Name + starting balance. The **Wallets page balance counts only rows that are
@@ -139,8 +149,11 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   recurrence in one list, switched by group buttons with counts — **Payroll** (entity
   is an employee), **Contractors**, **Expenses** (any other expense), **Income**. It
   opens on the first group with rows and remembers the chosen group on Back. Columns:
-  Entity · Description (with an **Ended** / **Paused** marker) · From · To (or
-  "Ongoing") · amounts. Payroll shows Net · FMY · EFKA employee · EFKA employer ·
+  Entity · Description (with a **Paused** marker) · From · To (or "Ongoing") ·
+  amounts. Only **active** recurrences show: open-ended, or with an end date but its
+  last generated transaction still unreconciled. **Show all** brings back the
+  **done** ones (ended and last transaction reconciled), in green; the group counts
+  follow what's shown. Payroll shows Net · FMY · EFKA employee · EFKA employer ·
   To pay · Total cost; Contractors Net · VAT · Withheld · Total; Expenses/Income
   Net · VAT · Total (Total = cash moved, as on Transactions). Amounts are one
   occurrence of the period in force today (else the next to start, else the last),

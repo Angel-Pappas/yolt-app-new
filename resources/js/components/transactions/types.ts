@@ -26,6 +26,7 @@ export type Transaction = {
     efka_employee_amount: string | null;
     efka_employer_amount: string | null;
     is_reconciled: boolean;
+    is_one_off: boolean;
     invoice_month: number | null;
     invoice_not_required: boolean;
     entity_id: number | null;

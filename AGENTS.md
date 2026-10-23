@@ -224,7 +224,7 @@ php artisan test                # Pest
   SQLite with realistic FAKE data (3 wallets, ~3 months of transactions, categories,
   entities, rates) and a login `demo@example.com` / `password`. Dev only — never live.
 - **Screenshots:** `pnpm run shots /transactions "/transactions?balance=1"`
-  (`--mobile` = 390×844, `--dark`, `--click=<button name>` to click e.g. a tab first) → PNGs in `storage/screenshots/` (gitignored), then
+  (`--mobile` = 390×844, `--dark`, `--click=<button name>` to click e.g. a tab first; repeatable) → PNGs in `storage/screenshots/` (gitignored), then
   read them. It boots `php artisan serve` on port 8123 if needed and caches the login.
   Needs `pnpm run build` first (it serves the built assets). Uses `playwright-core`
   pinned to **1.63.0** because that version's Chromium (revision 1243) is already in

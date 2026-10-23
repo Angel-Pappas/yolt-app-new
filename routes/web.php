@@ -3,6 +3,7 @@
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EntityController;
 use App\Http\Controllers\IncomeTaxYearController;
+use App\Http\Controllers\OneOffController;
 use App\Http\Controllers\PublicHolidayController;
 use App\Http\Controllers\RecurrenceController;
 use App\Http\Controllers\TaxController;
@@ -31,6 +32,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('transactions/{transaction}/reconcile', [TransactionController::class, 'reconcile'])->name('transactions.reconcile');
     Route::post('transactions/{transaction}/invoice', [TransactionController::class, 'invoice'])->name('transactions.invoice');
     Route::patch('transactions/{transaction}/description', [TransactionController::class, 'describe'])->name('transactions.describe');
+
+    // One-off expenses: tagged transactions, listed apart (added/edited as transactions).
+    Route::get('one-offs', [OneOffController::class, 'index'])->name('one-offs.index');
 
     Route::get('wallets', [WalletController::class, 'index'])->name('wallets.index');
     Route::post('wallets', [WalletController::class, 'store'])->name('wallets.store');

@@ -4,10 +4,13 @@ use App\Models\Entity;
 use App\Models\Recurrence;
 use App\Models\RecurrenceEntry;
 use App\Models\RecurrenceEntryLine;
+use App\Models\Setting;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
+use App\Support\RecurrenceGenerator;
 use App\Support\RecurringOverview;
 use Illuminate\Support\Carbon;
 
@@ -171,15 +174,37 @@ test('an open-ended recurrence has no end date', function () {
     $recurrence = overviewRecurrence('supplier', [['2026-02-01', null, [[100]]]]);
 
     expect(overviewRow($recurrence)['end_date'])->toBeNull();
-    expect(overviewRow($recurrence)['ended'])->toBeFalse();
 });
 
-test('a recurrence is ended only once its end date has passed', function () {
-    $endsToday = overviewRecurrence('supplier', [['2026-01-01', '2026-06-15', [[100]]]]);
-    $endedYesterday = overviewRecurrence('supplier', [['2026-01-01', '2026-06-14', [[100]]]]);
+test('an open-ended recurrence is never done, even with everything reconciled', function () {
+    $recurrence = overviewRecurrence('supplier', [['2026-01-01', null, [[100]]]]);
+    RecurrenceGenerator::sync($recurrence);
+    Transaction::where('recurrence_id', $recurrence->id)->update(['is_reconciled' => true]);
 
-    expect(overviewRow($endsToday)['ended'])->toBeFalse();
-    expect(overviewRow($endedYesterday)['ended'])->toBeTrue();
+    expect(overviewRow($recurrence)['done'])->toBeFalse();
+});
+
+test('an ended recurrence is done once its last transaction is reconciled', function () {
+    $recurrence = overviewRecurrence('supplier', [['2026-01-01', '2026-08-31', [[100]]]]);
+    RecurrenceGenerator::sync($recurrence);
+    $rows = Transaction::where('recurrence_id', $recurrence->id)->orderBy('date')->get();
+
+    // Last one (August) still open: active.
+    $rows->slice(0, -1)->each->update(['is_reconciled' => true]);
+    expect(overviewRow($recurrence)['done'])->toBeFalse();
+
+    $rows->last()->update(['is_reconciled' => true]);
+    expect(overviewRow($recurrence)['done'])->toBeTrue();
+});
+
+test('an ended recurrence that never generated a transaction is done', function () {
+    // Entirely before the managed floor, so nothing was generated.
+    Setting::current()->update(['managed_from' => '2026-09-01']);
+    $recurrence = overviewRecurrence('supplier', [['2026-01-01', '2026-03-31', [[100]]]]);
+    RecurrenceGenerator::sync($recurrence);
+
+    expect(Transaction::where('recurrence_id', $recurrence->id)->count())->toBe(0);
+    expect(overviewRow($recurrence)['done'])->toBeTrue();
 });
 
 test('a deleted recurrence is not listed', function () {
