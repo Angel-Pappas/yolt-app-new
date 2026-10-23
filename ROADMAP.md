@@ -33,6 +33,9 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 
 ## Next (suggested)
 
+- [ ] **Payroll bonuses** — Christmas, Easter and leave allowance generated from each
+      employee's payroll recurrence. Not built; rules, design and open questions in
+      `docs/payroll-bonuses.md` (2026-10-23).
 - [ ] **Users page onto the shared list view** — it's the last hand-rolled table
       (`pages/users/index.tsx`), so it lacks search, column filters and sorting.
 - [ ] **Projections / cash-flow view** — the future-balance view the recurring and tax
