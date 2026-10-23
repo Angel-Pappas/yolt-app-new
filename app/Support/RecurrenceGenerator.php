@@ -28,7 +28,10 @@ use Illuminate\Support\Collection;
  * amount in force comes from the matching {@see RecurrenceEntry}; a date no entry
  * covers is skipped. Each period's amount lines (VAT and optional withholding per
  * line, Net/Total mode per period) are resolved server-side from the rates' current
- * percentages by the same {@see AmountLines} resolver as a hand-entered row.
+ * percentages by the same {@see AmountLines} resolver as a hand-entered row. An
+ * employee's payroll recurrence also generates its Easter bonus, leave allowance and
+ * Christmas bonus as extra managed rows ({@see PayrollBonuses}), kept in sync the same
+ * way.
  */
 class RecurrenceGenerator
 {
@@ -70,18 +73,20 @@ class RecurrenceGenerator
             ->get()
             ->keyBy('managed_key');
 
-        foreach ($desired as $key => [$entry, $payDate]) {
+        foreach ($desired as $key => $occurrence) {
             $row = $existing->get($key);
-            if ($row !== null) {
-                // A reconciled occurrence is frozen; leave it exactly as it was.
-                if (! $row->is_reconciled) {
-                    self::write($row, $recurrence, $key, $payDate, $entry, $resolved[$entry->id]);
-                }
-                $existing->forget($key);
-
+            $existing->forget($key);
+            // A reconciled occurrence is frozen; leave it exactly as it was.
+            if ($row?->is_reconciled) {
                 continue;
             }
-            self::write(new Transaction, $recurrence, $key, $payDate, $entry, $resolved[$entry->id]);
+            $row ??= new Transaction;
+            if ($occurrence['bonus'] !== null) {
+                self::writePayroll($row, $recurrence, $key, $occurrence['date'], $occurrence['bonus']['label'], $occurrence['bonus']['amounts']);
+            } else {
+                $entry = $occurrence['entry'];
+                self::write($row, $recurrence, $key, $occurrence['date'], $entry, $resolved[$entry->id]);
+            }
         }
 
         // Occurrences no longer wanted: drop the unreconciled ones, keep reconciled
@@ -103,11 +108,12 @@ class RecurrenceGenerator
     }
 
     /**
-     * The entry in force and the payment day for each wanted occurrence, keyed by its
-     * managed slot. A trashed/inactive recurrence wants nothing.
+     * Each wanted occurrence keyed by its managed slot, with its payment day and either
+     * the entry in force or (for a payroll bonus) its label and amounts. A
+     * trashed/inactive recurrence wants nothing.
      *
      * @param  array<string, true>  $holidays
-     * @return array<string, array{0: RecurrenceEntry, 1: CarbonInterface}>
+     * @return array<string, array{date: CarbonInterface, entry: RecurrenceEntry|null, bonus: array{label: string, amounts: array{net: float, fmy_amount: float|null, efka_employee_amount: float|null, efka_employer_amount: float|null}}|null}>
      */
     private static function desiredOccurrences(Recurrence $recurrence, array $holidays): array
     {
@@ -122,7 +128,16 @@ class RecurrenceGenerator
                 continue;
             }
             $key = "recurrence:{$recurrence->id}:{$date->toDateString()}";
-            $out[$key] = [$entry, self::paymentDate($recurrence, $date, $holidays)];
+            $out[$key] = ['date' => self::paymentDate($recurrence, $date, $holidays), 'entry' => $entry, 'bonus' => null];
+        }
+
+        // Bonuses follow the same window as the salaries: the managed floor (else the
+        // start) through the horizon.
+        $floor = Setting::managedFrom();
+        $from = ($floor !== null && $floor->greaterThan($recurrence->start_date)) ? $floor : $recurrence->start_date;
+        $horizon = Carbon::today()->addMonths(self::HORIZON_MONTHS);
+        foreach (PayrollBonuses::forRecurrence($recurrence, $from, $horizon, $holidays) as $key => $bonus) {
+            $out[$key] = ['date' => $bonus['date'], 'entry' => null, 'bonus' => ['label' => $bonus['label'], 'amounts' => $bonus['amounts']]];
         }
 
         return $out;
@@ -266,42 +281,19 @@ class RecurrenceGenerator
         RecurrenceEntry $entry,
         ?array $resolved,
     ): void {
-        $iso = $payDate->toDateString();
-
-        $base = [
-            'type' => $r->type,
-            'date' => $iso,
-            'invoice_date' => $iso,
-            'description' => $r->description,
-            'entity_id' => $r->entity_id,
-            'category_id' => $r->category_id,
-            'wallet_id' => $r->wallet_id,
-            'to_wallet_id' => null,
-            'is_reconciled' => false,
-            'source' => 'recurrence',
-            'recurrence_id' => $r->id,
-            'managed_key' => $key,
-        ];
-
         if ($r->is_payroll || $resolved === null) {
-            $t->fill($base + [
+            $money = fn (?string $v): ?float => $v !== null ? round((float) $v, 2) : null;
+            self::writePayroll($t, $r, $key, $payDate, $r->description, [
                 'net' => round((float) $entry->net, 2),
-                'vat_rate_id' => null,
-                'vat_amount' => 0,
-                'withheld_amount' => 0,
-                'fmy_amount' => $entry->fmy_amount !== null ? round((float) $entry->fmy_amount, 2) : null,
-                'efka_employee_amount' => $entry->efka_employee_amount !== null ? round((float) $entry->efka_employee_amount, 2) : null,
-                'efka_employer_amount' => $entry->efka_employer_amount !== null ? round((float) $entry->efka_employer_amount, 2) : null,
+                'fmy_amount' => $money($entry->fmy_amount),
+                'efka_employee_amount' => $money($entry->efka_employee_amount),
+                'efka_employer_amount' => $money($entry->efka_employer_amount),
             ]);
-            $t->user_id = $r->user_id;
-            $t->save();
-            $t->vatLines()->delete();
-            $t->withheldLines()->delete();
 
             return;
         }
 
-        $t->fill($base + [
+        $t->fill(self::baseFields($r, $key, $payDate, $r->description) + [
             'net' => $resolved['net'],
             'vat_amount' => $resolved['vat_amount'],
             'withheld_amount' => $resolved['withheld_amount'],
@@ -320,5 +312,55 @@ class RecurrenceGenerator
         $t->vatLines()->createMany($resolved['vat_lines']);
         $t->withheldLines()->delete();
         $t->withheldLines()->createMany($resolved['withheld_lines']);
+    }
+
+    /**
+     * Fill and save a payroll row — a salary or a bonus — from its Net/FMY/EFKA
+     * amounts (no VAT or withholding lines).
+     *
+     * @param  array{net: float, fmy_amount: float|null, efka_employee_amount: float|null, efka_employer_amount: float|null}  $amounts
+     */
+    private static function writePayroll(
+        Transaction $t,
+        Recurrence $r,
+        string $key,
+        CarbonInterface $payDate,
+        string $description,
+        array $amounts,
+    ): void {
+        $t->fill(self::baseFields($r, $key, $payDate, $description) + $amounts + [
+            'vat_rate_id' => null,
+            'vat_amount' => 0,
+            'withheld_amount' => 0,
+        ]);
+        $t->user_id = $r->user_id;
+        $t->save();
+        $t->vatLines()->delete();
+        $t->withheldLines()->delete();
+    }
+
+    /**
+     * The fields every generated row shares.
+     *
+     * @return array<string, mixed>
+     */
+    private static function baseFields(Recurrence $r, string $key, CarbonInterface $payDate, string $description): array
+    {
+        $iso = $payDate->toDateString();
+
+        return [
+            'type' => $r->type,
+            'date' => $iso,
+            'invoice_date' => $iso,
+            'description' => $description,
+            'entity_id' => $r->entity_id,
+            'category_id' => $r->category_id,
+            'wallet_id' => $r->wallet_id,
+            'to_wallet_id' => null,
+            'is_reconciled' => false,
+            'source' => 'recurrence',
+            'recurrence_id' => $r->id,
+            'managed_key' => $key,
+        ];
     }
 }

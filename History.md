@@ -12,6 +12,21 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-10-23** — **Payroll bonuses.** Payroll covered only the monthly salary, so
+  future cash and cost were short by about two salaries per employee per year. Each
+  employee's payroll recurrence now also generates the Easter bonus, leave allowance
+  and Christmas bonus (`PayrollBonuses`, wired into `RecurrenceGenerator`). Angel's
+  choices: Easter shown on the Friday before Holy Monday (Orthodox Easter), Christmas
+  on 20 December (each back to the previous working day), leave at the end of June;
+  amounts pro rata to the days employed, and **day-weighted across every salary
+  period** of the recurrence, so a raise counts for the days it covers and a moved
+  end date lowers the bonuses. Pro-rata rules (8-day and 19-day steps) and the
+  1,041666 factor were checked against several sources; the factor applies only
+  where the leave allowance is paid inside the period, so Christmas has it and
+  Easter doesn't. Leave allowance follows Angel's fraction-of-the-year rule, which
+  is simpler than the statutory first-year rule (noted in Summary). The generator's
+  write path was split (`writePayroll`, `baseFields`) so salaries and bonuses share
+  one writer.
 - **2026-10-23** — **One-offs page; open vs done on One-offs and Recurring.** Angel
   wanted one-off expenses visible on their own when reviewing the finances. A one-off
   is an ordinary transaction with a background tag (`transactions.is_one_off`, new

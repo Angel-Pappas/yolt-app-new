@@ -55,6 +55,24 @@ class WorkingDays
     }
 
     /**
+     * The date itself when it is a working day, else the last working day before it.
+     *
+     * @param  array<string, true>|null  $holidays  as for {@see lastWorkingDay()}
+     */
+    public static function previousWorkingDay(CarbonInterface $date, ?array $holidays = null): Carbon
+    {
+        $holidays ??= self::holidaySet();
+
+        $day = Carbon::parse($date->format('Y-m-d'));
+
+        while ($day->isWeekend() || isset($holidays[$day->format('Y-m-d')])) {
+            $day->subDay();
+        }
+
+        return $day;
+    }
+
+    /**
      * All stored public-holiday dates as a lookup set keyed by 'Y-m-d'. Fetch once
      * and pass to {@see lastWorkingDay()} when computing many months in a ledger.
      *
