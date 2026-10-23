@@ -14,7 +14,7 @@ class EntityFactory extends Factory
     {
         return [
             'name' => fake()->unique()->company(),
-            'type' => null,
+            'type' => 'supplier',
             'vat_number' => fake()->optional()->numerify('EL#########'),
         ];
     }

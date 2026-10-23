@@ -2,12 +2,12 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     ArrowLeft,
     ArrowLeftRight,
-    Boxes,
     Handshake,
     House,
     Landmark,
     PanelLeftClose,
     PanelLeftOpen,
+    Repeat,
     Settings2,
     Truck,
     UserRound,
@@ -37,10 +37,10 @@ import type { NavItem } from '@/types';
 const financeNavItems: NavItem[] = [
     { title: 'Transactions', href: '/transactions', icon: ArrowLeftRight },
     { title: 'Wallets', href: '/wallets', icon: Wallet },
+    { title: 'Recurring', href: '/recurring', icon: Repeat },
 ];
 
-// The counterparties, one list per type. "State" is the tax pages; "Cheese" is the
-// bucket of not-yet-classified entities.
+// The counterparties, one list per type. "State" is the tax pages.
 const entitiesNavItems: NavItem[] = [
     { title: 'Customers', href: '/entities/customers', icon: UserRound },
     { title: 'Suppliers', href: '/entities/suppliers', icon: Truck },
@@ -48,7 +48,6 @@ const entitiesNavItems: NavItem[] = [
     { title: 'Employees', href: '/entities/employees', icon: Users },
     { title: 'Shareholders', href: '/entities/shareholders', icon: Handshake },
     { title: 'State', href: '/taxes', icon: Landmark },
-    { title: 'Cheese', href: '/entities/cheese', icon: Boxes },
 ];
 
 /** The sidebar collapse/expand toggle, living at the bottom of the panel. */

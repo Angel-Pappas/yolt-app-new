@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Recurrence;
 use App\Support\AmountLines;
 use App\Support\RecurrenceGenerator;
+use App\Support\RecurringOverview;
 use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use Inertia\Response;
 
 /**
  * Recurring transactions defined on an entity. A recurrence carries a fixed template
@@ -24,6 +26,14 @@ use Inertia\Inertia;
  */
 class RecurrenceController extends Controller
 {
+    /** Finance ▸ Recurring: every recurrence, grouped (see RecurringOverview). */
+    public function index(): Response
+    {
+        return Inertia::render('recurring/index', [
+            'recurrences' => RecurringOverview::rows(),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $request->validate(['entity_id' => ['required', 'integer', 'exists:entities,id']]);

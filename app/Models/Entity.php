@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $id
  * @property int|null $user_id
  * @property string $name
- * @property string|null $type
+ * @property string $type
  * @property string|null $vat_number
  */
 #[Fillable(['name', 'type', 'vat_number'])]
@@ -23,9 +23,9 @@ class Entity extends Model
     use HasFactory, SoftDeletes;
 
     /**
-     * The entity types. A null `type` is the unclassified "Cheese" bucket.
-     * `shareholder` is both-sided (dividends out / investment in), so it appears in
-     * both the income and expense transaction pickers.
+     * The entity types — every entity has one. `shareholder` is both-sided
+     * (dividends out / investment in), so it appears in both the income and expense
+     * transaction pickers.
      */
     public const TYPES = ['customer', 'supplier', 'contractor', 'employee', 'state', 'shareholder'];
 

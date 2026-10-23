@@ -187,7 +187,7 @@ class RecurrenceGenerator
      * the first entry — or inside an explicit end-to-next-start gap — is uncovered
      * (null), and that occurrence is skipped. Entries are start-ordered ascending.
      */
-    private static function entryFor(Recurrence $recurrence, CarbonInterface $date): ?RecurrenceEntry
+    public static function entryFor(Recurrence $recurrence, CarbonInterface $date): ?RecurrenceEntry
     {
         $inForce = null;
         foreach ($recurrence->entries as $entry) {

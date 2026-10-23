@@ -1,0 +1,189 @@
+<?php
+
+use App\Models\Entity;
+use App\Models\Recurrence;
+use App\Models\RecurrenceEntry;
+use App\Models\RecurrenceEntryLine;
+use App\Models\User;
+use App\Models\VatRate;
+use App\Models\WithheldTaxRate;
+use App\Support\RecurringOverview;
+use Illuminate\Support\Carbon;
+
+beforeEach(function () {
+    Carbon::setTestNow('2026-06-15');
+});
+
+afterEach(function () {
+    Carbon::setTestNow();
+});
+
+/**
+ * A recurrence with one entity of the given type, plus a period per
+ * [start, end, amount lines], each line [amount, vat_rate_id|null, withheld_rate_id|null].
+ *
+ * @param  list<array{0: string, 1: string|null, 2: list<array<int, float|int|null>>}>  $periods
+ */
+function overviewRecurrence(string $entityType, array $periods, array $overrides = []): Recurrence
+{
+    $recurrence = Recurrence::factory()->create(array_merge([
+        'entity_id' => Entity::factory()->create(['type' => $entityType])->id,
+        'start_date' => $periods[0][0],
+        'end_date' => $periods[array_key_last($periods)][1],
+    ], $overrides));
+
+    foreach ($periods as $i => [$start, $end, $lines]) {
+        $entry = RecurrenceEntry::factory()->create([
+            'recurrence_id' => $recurrence->id,
+            'start_date' => $start,
+            'end_date' => $end,
+            'net' => 0,
+            'position' => $i,
+        ]);
+        foreach ($lines as $j => $line) {
+            RecurrenceEntryLine::factory()->create([
+                'recurrence_entry_id' => $entry->id,
+                'amount' => $line[0],
+                'vat_rate_id' => $line[1] ?? null,
+                'withheld_rate_id' => $line[2] ?? null,
+                'position' => $j,
+            ]);
+        }
+    }
+
+    return $recurrence;
+}
+
+/** The overview row for one recurrence. */
+function overviewRow(Recurrence $recurrence): array
+{
+    return collect(RecurringOverview::rows())->firstWhere('id', $recurrence->id);
+}
+
+test('recurrences are grouped by who they are with', function () {
+    $employee = overviewRecurrence('employee', [['2026-01-01', null, []]], ['is_payroll' => true]);
+    $contractor = overviewRecurrence('contractor', [['2026-01-01', null, [[100]]]]);
+    $supplier = overviewRecurrence('supplier', [['2026-01-01', null, [[100]]]]);
+    $shareholder = overviewRecurrence('shareholder', [['2026-01-01', null, [[100]]]]);
+    $customer = overviewRecurrence('customer', [['2026-01-01', null, [[100]]]], ['type' => 'income']);
+
+    expect(overviewRow($employee)['group'])->toBe('payroll');
+    expect(overviewRow($contractor)['group'])->toBe('contractors');
+    expect(overviewRow($supplier)['group'])->toBe('expenses');
+    expect(overviewRow($shareholder)['group'])->toBe('expenses');
+    expect(overviewRow($customer)['group'])->toBe('income');
+});
+
+test('a row shows the VAT, withholding and cash total of its lines', function () {
+    $vat = VatRate::factory()->create(['rate' => 24]);
+    $withheld = WithheldTaxRate::factory()->create(['rate' => 20]);
+    $recurrence = overviewRecurrence('contractor', [
+        ['2026-01-01', null, [[1000, $vat->id, $withheld->id], [50, $vat->id, null]]],
+    ]);
+
+    $row = overviewRow($recurrence);
+
+    expect($row['net'])->toBe(1050.0);
+    expect($row['vat'])->toBe(252.0);
+    expect($row['withheld'])->toBe(200.0);
+    expect($row['total'])->toBe(1102.0); // 1050 + 252 − 200
+});
+
+test('a payroll row shows net, FMY, EFKA, what is paid and what it costs', function () {
+    $recurrence = overviewRecurrence('employee', [['2026-01-01', null, []]], ['is_payroll' => true]);
+    $recurrence->entries()->first()->update([
+        'net' => 1500,
+        'fmy_amount' => 120.50,
+        'efka_employee_amount' => 200,
+        'efka_employer_amount' => 330.25,
+    ]);
+
+    $row = overviewRow($recurrence);
+
+    expect($row['net'])->toBe(1500.0);
+    expect($row['fmy'])->toBe(120.5);
+    expect($row['efka_employee'])->toBe(200.0);
+    expect($row['efka_employer'])->toBe(330.25);
+    expect($row['total'])->toBe(1179.5); // To pay: 1500 − 120,50 − 200
+    expect($row['cost'])->toBe(1830.25); // 1500 + 330,25
+    expect($row['vat'])->toBe(0.0);
+});
+
+test('the amounts come from the period in force today', function () {
+    $recurrence = overviewRecurrence('supplier', [
+        ['2026-01-01', null, [[100]]],
+        ['2026-06-01', null, [[200]]],
+        ['2026-09-01', null, [[300]]],
+    ]);
+
+    expect(overviewRow($recurrence)['net'])->toBe(200.0);
+});
+
+test('a recurrence that has not started shows its first period', function () {
+    $recurrence = overviewRecurrence('supplier', [
+        ['2026-08-01', '2026-12-31', [[150]]],
+        ['2027-01-01', null, [[175]]],
+    ]);
+
+    expect(overviewRow($recurrence)['net'])->toBe(150.0);
+});
+
+test('an ended recurrence shows its last period', function () {
+    $recurrence = overviewRecurrence('supplier', [
+        ['2025-01-01', '2025-06-30', [[80]]],
+        ['2025-07-01', '2026-03-31', [[90]]],
+    ]);
+
+    expect(overviewRow($recurrence)['net'])->toBe(90.0);
+});
+
+test('a row carries the entity and the date range', function () {
+    $recurrence = overviewRecurrence('supplier', [['2026-02-01', '2027-01-31', [[100]]]]);
+
+    $row = overviewRow($recurrence);
+
+    expect($row['entity_id'])->toBe($recurrence->entity_id);
+    expect($row['entity_name'])->toBe($recurrence->entity->name);
+    expect($row['start_date'])->toBe('2026-02-01');
+    expect($row['end_date'])->toBe('2027-01-31');
+});
+
+test('an open-ended recurrence has no end date', function () {
+    $recurrence = overviewRecurrence('supplier', [['2026-02-01', null, [[100]]]]);
+
+    expect(overviewRow($recurrence)['end_date'])->toBeNull();
+    expect(overviewRow($recurrence)['ended'])->toBeFalse();
+});
+
+test('a recurrence is ended only once its end date has passed', function () {
+    $endsToday = overviewRecurrence('supplier', [['2026-01-01', '2026-06-15', [[100]]]]);
+    $endedYesterday = overviewRecurrence('supplier', [['2026-01-01', '2026-06-14', [[100]]]]);
+
+    expect(overviewRow($endsToday)['ended'])->toBeFalse();
+    expect(overviewRow($endedYesterday)['ended'])->toBeTrue();
+});
+
+test('a deleted recurrence is not listed', function () {
+    $recurrence = overviewRecurrence('supplier', [['2026-02-01', null, [[100]]]]);
+    $recurrence->delete();
+
+    expect(RecurringOverview::rows())->toBeEmpty();
+});
+
+test('an active user sees the Recurring page', function () {
+    overviewRecurrence('supplier', [['2026-02-01', null, [[100]]]]);
+
+    $this->actingAs(User::factory()->create())
+        ->get('/recurring')
+        ->assertOk()
+        ->assertInertia(
+            fn ($page) => $page
+                ->component('recurring/index')
+                ->has('recurrences', 1)
+                ->where('recurrences.0.group', 'expenses'),
+        );
+});
+
+test('a guest cannot see the Recurring page', function () {
+    $this->get('/recurring')->assertRedirect(route('login'));
+});

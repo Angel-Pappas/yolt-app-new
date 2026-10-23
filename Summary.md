@@ -38,9 +38,9 @@ the dated what/why in `History.md`. Docs map:
 ## Layout & navigation
 
 - Login lands on **Home** (`/`, logo + welcome for now).
-- Sidebar: Home · **Finance** (Transactions, Wallets) · **Entities** (Customers,
-  Suppliers, Contractors, Employees, Shareholders, **State** = the Taxes area,
-  **Cheese** = unclassified) · Configuration. Inside `/configuration/*` the sidebar
+- Sidebar: Home · **Finance** (Transactions, Wallets, Recurring) · **Entities**
+  (Customers, Suppliers, Contractors, Employees, Shareholders, **State** = the Taxes
+  area) · Configuration. Inside `/configuration/*` the sidebar
   swaps to the setup lists + "Back to app".
 
 ## Lists (every table behaves the same)
@@ -110,7 +110,8 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
 
 - An entity has a name, optional VAT number and a **type**: customer, supplier,
   contractor, employee, state, shareholder (both-sided: dividends out / investment
-  in), or none = **Cheese** (to be classified, per row or in bulk).
+  in). The type is **required** (validation and database) — including when an entity
+  is created inline from the transaction form.
 - Each type has its own list; each entity has a page (`/entities/{id}`) with an edit
   form, its transactions and its **recurrences**.
 
@@ -125,6 +126,16 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   marked with `source`/`managed_key`, kept in sync until **reconciled** (then frozen).
 - **Floor date** `managed_from` (2026-09-01 in prod, `php artisan managed:from`):
   nothing managed is generated before it. `managed:sync` runs daily at 02:00.
+- **Finance ▸ Recurring** (`/recurring`, `App\Support\RecurringOverview`): every
+  recurrence in one list, switched by group buttons with counts — **Payroll** (entity
+  is an employee), **Contractors**, **Expenses** (any other expense), **Income**. It
+  opens on the first group with rows and remembers the chosen group on Back. Columns:
+  Entity · Description (with an **Ended** / **Paused** marker) · From · To (or
+  "Ongoing") · amounts. Payroll shows Net · FMY · EFKA employee · EFKA employer ·
+  To pay · Total cost; Contractors Net · VAT · Withheld · Total; Expenses/Income
+  Net · VAT · Total (Total = cash moved, as on Transactions). Amounts are one
+  occurrence of the period in force today (else the next to start, else the last),
+  resolved like the generator does. A row opens its entity's page (where it's edited).
 
 ## Taxes — "State" (`/taxes`)
 

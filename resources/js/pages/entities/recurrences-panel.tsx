@@ -19,7 +19,7 @@ import {
 type Props = {
     entityId: number;
     entityName: string;
-    entityType: string | null;
+    entityType: string;
     recurrences: RecurrenceRecord[];
 };
 

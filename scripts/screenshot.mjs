@@ -2,6 +2,7 @@
 // a change can be looked at before it ships. Usage:
 //
 //   pnpm run shots /transactions "/transactions?balance=1"   [--mobile] [--dark]
+//   pnpm run shots /recurring --click=Contractors   (click a button by its name first)
 //
 // Starts `php artisan serve` on a spare port if needed, logs in as the demo user
 // (session cached in storage/screenshots/.auth.json), and writes one PNG per path
@@ -18,6 +19,7 @@ const AUTH = `${OUT}/.auth.json`;
 const args = process.argv.slice(2);
 const mobile = args.includes('--mobile');
 const dark = args.includes('--dark');
+const click = args.find((a) => a.startsWith('--click='))?.slice(8);
 const paths = args.filter((a) => !a.startsWith('--'));
 if (paths.length === 0) paths.push('/transactions');
 
@@ -65,8 +67,14 @@ try {
     for (const path of paths) {
         await page.goto(`${BASE}${path}`);
         await page.waitForLoadState('networkidle');
+        if (click) {
+            await page.getByRole('button', { name: click }).first().click();
+            await page.waitForLoadState('networkidle');
+        }
         const slug =
-            path.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'home';
+            `${path}${click ? `-${click}` : ''}`
+                .replace(/[^a-z0-9]+/gi, '-')
+                .replace(/^-|-$/g, '') || 'home';
         const file = `${OUT}/${slug}${mobile ? '-mobile' : ''}${dark ? '-dark' : ''}.png`;
         await page.screenshot({ path: file });
         console.log(file);

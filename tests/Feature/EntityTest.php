@@ -2,28 +2,13 @@
 
 use App\Models\Entity;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 
 test('a finance user can view a per-type entities list', function () {
     $user = User::factory()->create();
     Entity::factory()->customer()->count(2)->create();
 
     $this->actingAs($user)->get('/entities/customers')->assertOk();
-});
-
-test('the Cheese bucket shows only unclassified entities', function () {
-    $user = User::factory()->create();
-    $cheese = Entity::factory()->create(['name' => 'Unsorted Co']);
-    Entity::factory()->supplier()->create(['name' => 'A Supplier']);
-
-    $this->actingAs($user)
-        ->get('/entities/cheese')
-        ->assertInertia(
-            fn ($page) => $page
-                ->component('entities/list')
-                ->where('classify', true)
-                ->has('entities', 1)
-                ->where('entities.0.id', $cheese->id),
-        );
 });
 
 test('a suppliers list shows only suppliers', function () {
@@ -51,9 +36,9 @@ test('shareholders have their own list', function () {
         );
 });
 
-test('an entity can be classified as a shareholder', function () {
+test('an entity can be reclassified as a shareholder', function () {
     $user = User::factory()->create();
-    $entity = Entity::factory()->create();
+    $entity = Entity::factory()->supplier()->create();
 
     $this->actingAs($user)->patch("/entities/{$entity->id}", [
         'name' => $entity->name,
@@ -78,6 +63,7 @@ test('a finance user can create an entity', function () {
 
     $this->actingAs($user)->post('/entities', [
         'name' => 'ACME',
+        'type' => 'supplier',
         'vat_number' => 'EL123456789',
     ])->assertRedirect();
 
@@ -92,6 +78,7 @@ test('an empty vat number is stored as null', function () {
 
     $this->actingAs($user)->post('/entities', [
         'name' => 'No VAT',
+        'type' => 'supplier',
         'vat_number' => '',
     ])->assertRedirect();
 
@@ -101,10 +88,11 @@ test('an empty vat number is stored as null', function () {
 test('an entity can be created with no vat_number field at all (inline create)', function () {
     $user = User::factory()->create();
 
-    // The transaction form's inline "Create" sends only a name — the vat_number
-    // key is absent, which used to throw "Undefined array key".
+    // The transaction form's inline "Create" sends a name and type — the
+    // vat_number key is absent, which used to throw "Undefined array key".
     $this->actingAs($user)->post('/entities', [
         'name' => 'Inline Co',
+        'type' => 'supplier',
     ])->assertRedirect();
 
     $entity = Entity::where('name', 'Inline Co')->first();
@@ -127,6 +115,7 @@ test('a finance user can update an entity', function () {
 
     $this->actingAs($user)->patch("/entities/{$entity->id}", [
         'name' => 'New',
+        'type' => 'supplier',
         'vat_number' => '',
     ])->assertRedirect();
 
@@ -167,18 +156,36 @@ test('an invalid entity type is rejected', function () {
     ])->assertSessionHasErrors('type');
 });
 
-test('entities can be bulk-classified into a type', function () {
+test('an entity cannot be created without a type', function () {
     $user = User::factory()->create();
-    $a = Entity::factory()->create();
-    $b = Entity::factory()->create();
 
-    $this->actingAs($user)->patch('/entities/bulk/type', [
-        'ids' => [$a->id, $b->id],
-        'type' => 'supplier',
-    ])->assertRedirect();
+    $this->actingAs($user)->post('/entities', ['name' => 'Untyped'])
+        ->assertSessionHasErrors('type');
 
-    expect($a->refresh()->type)->toBe('supplier');
-    expect($b->refresh()->type)->toBe('supplier');
+    expect(Entity::where('name', 'Untyped')->exists())->toBeFalse();
+});
+
+test('an entity cannot have its type removed', function () {
+    $user = User::factory()->create();
+    $entity = Entity::factory()->customer()->create();
+
+    $this->actingAs($user)->patch("/entities/{$entity->id}", [
+        'name' => $entity->name,
+        'type' => '',
+    ])->assertSessionHasErrors('type');
+
+    expect($entity->refresh()->type)->toBe('customer');
+});
+
+test('the database refuses an untyped entity', function () {
+    expect(fn () => Entity::query()->insert(['name' => 'Raw', 'type' => null]))
+        ->toThrow(QueryException::class);
+});
+
+test('the old Cheese list is gone', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->get('/entities/cheese')->assertNotFound();
 });
 
 test('the shared entity lookup carries the entity type', function () {
@@ -202,12 +209,26 @@ test('an entity has its own detail page', function () {
             fn ($page) => $page
                 ->component('entities/show')
                 ->where('entity.name', 'Detail Co')
-                ->where('listSlug', 'suppliers'),
+                ->where('listHref', '/entities/suppliers')
+                ->where('listTitle', 'Suppliers'),
         );
 });
 
-test('an entity defaults to no type (the Cheese bucket)', function () {
-    expect(Entity::factory()->create()->type)->toBeNull();
+test('the State entity page links back to the tax pages', function () {
+    $user = User::factory()->create();
+    $state = Entity::factory()->stateType()->create();
+
+    $this->actingAs($user)
+        ->get("/entities/{$state->id}")
+        ->assertInertia(
+            fn ($page) => $page
+                ->where('listHref', '/taxes')
+                ->where('listTitle', 'State'),
+        );
+});
+
+test('a factory entity defaults to a supplier', function () {
+    expect(Entity::factory()->create()->type)->toBe('supplier');
 });
 
 test('the factory type states set the entity type', function () {

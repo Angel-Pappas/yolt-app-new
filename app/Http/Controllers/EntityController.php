@@ -14,21 +14,19 @@ use Inertia\Response;
  * Entities (counterparties) CRUD, split by type. Available to any active user;
  * shared company data with a created-by `user_id` audit field.
  *
- * Entities live under the sidebar's "Entities" section, one list per type. A null
- * `type` is the unclassified "Cheese" bucket, where each entity is assigned a type
- * and migrated out. "State" is a separate concern (the tax pages), so it is not a
+ * Entities live under the sidebar's "Entities" section, one list per type; every
+ * entity has a type. "State" is a separate concern (the tax pages), so it is not a
  * user-managed list here.
  */
 class EntityController extends Controller
 {
-    /** URL slug → stored `type` (null = the Cheese bucket). */
+    /** URL slug → stored `type`. */
     private const SLUGS = [
         'customers' => 'customer',
         'suppliers' => 'supplier',
         'contractors' => 'contractor',
         'employees' => 'employee',
         'shareholders' => 'shareholder',
-        'cheese' => null,
     ];
 
     /** A bare `/entities` visit lands on the first list. */
@@ -37,37 +35,22 @@ class EntityController extends Controller
         return redirect()->route('entities.type', 'customers');
     }
 
-    /** A single type's list (or the Cheese bucket of unclassified entities). */
+    /** A single type's list. */
     public function byType(string $slug): Response
     {
-        $type = self::SLUGS[$slug];
-        $classify = $slug === 'cheese';
-
         return Inertia::render('entities/list', [
             'entities' => Entity::query()
-                ->when($type !== null, fn ($q) => $q->where('type', $type))
-                ->when($type === null, fn ($q) => $q->whereNull('type'))
+                ->where('type', self::SLUGS[$slug])
                 ->orderBy('name')
                 ->get(['id', 'name', 'type', 'vat_number']),
-            'slug' => $slug,
-            'title' => $classify ? 'Cheese' : ucfirst($slug),
-            'singular' => $classify ? 'entity' : rtrim($slug, 's'),
-            'classify' => $classify,
+            'title' => ucfirst($slug),
+            'singular' => rtrim($slug, 's'),
         ]);
     }
 
-    /** URL slug for an entity's type — where its list (and its back link) live. */
-    private const TYPE_SLUG = [
-        'customer' => 'customers',
-        'supplier' => 'suppliers',
-        'contractor' => 'contractors',
-        'employee' => 'employees',
-        'shareholder' => 'shareholders',
-    ];
-
     /**
-     * An entity's own page: the edit form plus every transaction with this
-     * counterparty. Its recurrences will live here too (Phase B). Transactions
+     * An entity's own page: the edit form, its recurrences and every transaction
+     * with this counterparty. Transactions
      * carry their full shape and the finance lookups ride along (shared), so a row
      * opens in the edit dialog.
      */
@@ -80,14 +63,16 @@ class EntityController extends Controller
             ->orderBy('id')
             ->get();
 
-        $slug = self::TYPE_SLUG[$entity->type] ?? 'cheese';
+        // Where the back link goes: the entity's own list, or the tax pages for the
+        // State (it has no entity list of its own).
+        $slug = array_search($entity->type, self::SLUGS, true);
 
         return Inertia::render('entities/show', [
             'entity' => $entity->only(['id', 'name', 'type', 'vat_number']),
             'transactions' => $transactions,
             'recurrences' => $entity->recurrences()->with('entries.lines')->orderByDesc('id')->get(),
-            'listSlug' => $slug,
-            'listTitle' => $entity->type === null ? 'Cheese' : ucfirst($slug),
+            'listHref' => $slug !== false ? "/entities/{$slug}" : '/taxes',
+            'listTitle' => $slug !== false ? ucfirst($slug) : 'State',
         ]);
     }
 
@@ -111,22 +96,6 @@ class EntityController extends Controller
         return back();
     }
 
-    /** Assign a type to many entities at once — the Cheese bucket's bulk classify. */
-    public function bulkType(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'ids' => ['required', 'array'],
-            'ids.*' => ['integer'],
-            'type' => ['required', Rule::in(Entity::TYPES)],
-        ]);
-
-        Entity::whereIn('id', $data['ids'])->update(['type' => $data['type']]);
-
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Entities moved.')]);
-
-        return back();
-    }
-
     public function destroy(Entity $entity): RedirectResponse
     {
         $entity->delete();
@@ -143,14 +112,13 @@ class EntityController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'type' => ['nullable', Rule::in(Entity::TYPES)],
+            'type' => ['required', Rule::in(Entity::TYPES)],
             'vat_number' => ['nullable', 'string', 'max:255'],
         ]);
 
-        // Normalize a blank/absent VAT number or type to null (neither is sent when an
-        // entity is created inline from the transaction form).
+        // Normalize a blank/absent VAT number to null (the transaction form's inline
+        // create doesn't send one).
         $data['vat_number'] = ($data['vat_number'] ?? null) ?: null;
-        $data['type'] = ($data['type'] ?? null) ?: null;
 
         return $data;
     }

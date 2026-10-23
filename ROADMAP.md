@@ -11,8 +11,11 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
       presets, Add + New/Same, in-place entity/category creation.
 - [x] Balance view per wallet with running balance and a Starting balance row.
 - [x] Wallets with live balances (reconciled + dated ≤ today).
-- [x] Entities by type (incl. shareholders and the Cheese bucket), entity pages.
+- [x] Entities by type (incl. shareholders), entity pages; every entity has a type
+      (the Cheese bucket was emptied and removed 2026-10-23).
 - [x] Recurring transactions with periods, generated over a rolling 24-month horizon.
+- [x] Finance ▸ Recurring: every recurrence in one list, grouped Payroll / Contractors
+      / Expenses / Income, with entity, amounts and date range (2026-10-23).
 - [x] Taxes: VAT, withholding, FMY, EFKA, income tax; monthly payment schedule; tax
       payments generated as transactions automatically; public holidays.
 - [x] Configuration: categories (with per-category page and bulk move), VAT and
@@ -33,5 +36,6 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 
 ## Ideas / later
 
-- [ ] Server-side enforcement of entity type per transaction side, once Cheese is empty.
+- [ ] Server-side enforcement of entity type per transaction side (Cheese is gone, so
+      this is now possible).
 - [ ] Notifications (e.g. tax payments due soon, unreconciled rows piling up).

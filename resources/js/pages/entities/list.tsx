@@ -1,23 +1,14 @@
 import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
 import {
     type CrudField,
     type CrudItem,
     CrudResource,
 } from '@/components/crud/crud-resource';
-import { Button } from '@/components/ui/button';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 
 type Entity = {
     id: number;
     name: string;
-    type: string | null;
+    type: string;
     vat_number: string | null;
 };
 
@@ -25,83 +16,11 @@ type Props = {
     entities: Entity[];
     title: string;
     singular: string;
-    /** The Cheese bucket — show a Type picker so each entity can be classified. */
-    classify: boolean;
 };
 
-const TYPE_OPTIONS = [
-    { value: 'customer', label: 'Customer' },
-    { value: 'supplier', label: 'Supplier' },
-    { value: 'contractor', label: 'Contractor' },
-    { value: 'employee', label: 'Employee' },
-    { value: 'shareholder', label: 'Shareholder' },
-];
-
-/** The Cheese bulk-actions bar: pick a type and move every selected entity to it. */
-function CheeseBulkBar({
-    selected,
-    clear,
-}: {
-    selected: CrudItem[];
-    clear: () => void;
-}) {
-    const [type, setType] = useState('');
-
-    function assign() {
-        if (!type) return;
-        router.patch(
-            '/entities/bulk/type',
-            { ids: selected.map((e) => e.id), type },
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    clear();
-                    setType('');
-                },
-            },
-        );
-    }
-
-    return (
-        <>
-            <Select value={type} onValueChange={setType}>
-                <SelectTrigger className="h-8 w-44" aria-label="Assign type">
-                    <SelectValue placeholder="Assign type…" />
-                </SelectTrigger>
-                <SelectContent>
-                    {TYPE_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                            {o.label}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            <Button size="sm" disabled={!type} onClick={assign}>
-                Assign
-            </Button>
-        </>
-    );
-}
-
-export default function EntitiesList({
-    entities,
-    title,
-    singular,
-    classify,
-}: Props) {
+export default function EntitiesList({ entities, title, singular }: Props) {
     const fields: CrudField[] = [
         { key: 'name', label: 'Name', type: 'text', required: true },
-        ...(classify
-            ? [
-                  {
-                      key: 'type',
-                      label: 'Type',
-                      type: 'select' as const,
-                      options: TYPE_OPTIONS,
-                      placeholder: 'Choose a type',
-                  },
-              ]
-            : []),
         { key: 'vat_number', label: 'VAT number (optional)', type: 'text' },
     ];
 
@@ -139,31 +58,11 @@ export default function EntitiesList({
                         },
                     ]}
                     fields={fields}
-                    fixedValues={classify ? {} : { type: singular }}
-                    description={
-                        classify
-                            ? 'Unclassified entities. Assign each a type to move it into the right list.'
-                            : undefined
+                    fixedValues={{ type: singular }}
+                    onRowClick={(item: CrudItem) =>
+                        router.visit(`/entities/${item.id}`)
                     }
-                    onRowClick={
-                        classify
-                            ? undefined
-                            : (item: CrudItem) =>
-                                  router.visit(`/entities/${item.id}`)
-                    }
-                    disableEdit={!classify}
-                    enableSelection={classify}
-                    getRowId={(item: CrudItem) => String(item.id)}
-                    renderBulkActions={
-                        classify
-                            ? (selected, clear) => (
-                                  <CheeseBulkBar
-                                      selected={selected}
-                                      clear={clear}
-                                  />
-                              )
-                            : undefined
-                    }
+                    disableEdit
                 />
             </div>
         </>

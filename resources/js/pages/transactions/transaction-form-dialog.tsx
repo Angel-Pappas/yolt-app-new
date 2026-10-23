@@ -188,7 +188,7 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
     // both-sided (dividends out / investment in), so they show on either side.
     // "Show all" reveals every entity for one-off cross-side cases — e.g. a supplier
     // refunding you (income against a supplier). An already-selected entity is always
-    // kept, so editing a legacy/unclassified (Cheese) row never drops its entity.
+    // kept, so editing a cross-side row never drops its entity.
     const [showAllEntities, setShowAllEntities] = useState(false);
     const entityTypesForType =
         form.data.type === 'income'
@@ -198,7 +198,7 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
         ? entities
         : entities.filter(
               (e) =>
-                  (e.type !== null && entityTypesForType.includes(e.type)) ||
+                  entityTypesForType.includes(e.type) ||
                   String(e.id) === form.data.entity_id,
           );
 
@@ -210,6 +210,7 @@ export function TransactionFormDialog({ open, onOpenChange, editing }: Props) {
             key: 'type',
             label: 'Type',
             type: 'select',
+            required: true,
             options:
                 form.data.type === 'income'
                     ? [

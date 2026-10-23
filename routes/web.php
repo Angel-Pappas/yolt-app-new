@@ -39,18 +39,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('entities', [EntityController::class, 'index'])->name('entities.index');
     Route::post('entities', [EntityController::class, 'store'])->name('entities.store');
-    // Bulk classify — before {entity} so "bulk" is never parsed as an id.
-    Route::patch('entities/bulk/type', [EntityController::class, 'bulkType'])->name('entities.bulk.type');
-    // Per-type lists (and the Cheese bucket) — static slugs, registered before the
+    // Per-type lists — static slugs, registered before the
     // numeric-constrained detail/update/delete routes so they don't collide.
     Route::get('entities/{slug}', [EntityController::class, 'byType'])
-        ->whereIn('slug', ['customers', 'suppliers', 'contractors', 'employees', 'shareholders', 'cheese'])
+        ->whereIn('slug', ['customers', 'suppliers', 'contractors', 'employees', 'shareholders'])
         ->name('entities.type');
     Route::get('entities/{entity}', [EntityController::class, 'show'])->whereNumber('entity')->name('entities.show');
     Route::patch('entities/{entity}', [EntityController::class, 'update'])->whereNumber('entity')->name('entities.update');
     Route::delete('entities/{entity}', [EntityController::class, 'destroy'])->whereNumber('entity')->name('entities.destroy');
 
-    // Recurring transactions (defined on an entity's page).
+    // Recurring transactions (defined on an entity's page; all listed on /recurring).
+    Route::get('recurring', [RecurrenceController::class, 'index'])->name('recurring.index');
     Route::post('recurrences', [RecurrenceController::class, 'store'])->name('recurrences.store');
     Route::patch('recurrences/{recurrence}', [RecurrenceController::class, 'update'])->name('recurrences.update');
     Route::delete('recurrences/{recurrence}', [RecurrenceController::class, 'destroy'])->name('recurrences.destroy');

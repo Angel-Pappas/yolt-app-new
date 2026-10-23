@@ -163,6 +163,7 @@ export function CrudFormDialog({
                                         onValueChange={(v) =>
                                             form.setData(field.key, v)
                                         }
+                                        required={field.required}
                                     >
                                         <SelectTrigger id={field.key}>
                                             <SelectValue

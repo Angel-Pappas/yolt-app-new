@@ -21,7 +21,7 @@ import { RecurrencesPanel } from './recurrences-panel';
 type Entity = {
     id: number;
     name: string;
-    type: string | null;
+    type: string;
     vat_number: string | null;
 };
 
@@ -29,16 +29,12 @@ type Props = {
     entity: Entity;
     transactions: Transaction[];
     recurrences: RecurrenceRecord[];
-    listSlug: string;
+    /** The back link: the entity's own list (or the tax pages for the State). */
+    listHref: string;
     listTitle: string;
 };
 
-// The unclassified sentinel — Radix Select can't hold an empty value, so "Cheese"
-// rides as `none` and is mapped back to '' (→ null type) on submit.
-const NONE = 'none';
-
 const TYPE_OPTIONS = [
-    { value: NONE, label: 'Unclassified (Cheese)' },
     { value: 'customer', label: 'Customer' },
     { value: 'supplier', label: 'Supplier' },
     { value: 'contractor', label: 'Contractor' },
@@ -51,21 +47,17 @@ export default function EntityShow({
     entity,
     transactions,
     recurrences,
-    listSlug,
+    listHref,
     listTitle,
 }: Props) {
     const form = useForm({
         name: entity.name,
-        type: entity.type ?? NONE,
+        type: entity.type,
         vat_number: entity.vat_number ?? '',
     });
 
     function save(e: FormEvent) {
         e.preventDefault();
-        form.transform((data) => ({
-            ...data,
-            type: data.type === NONE ? '' : data.type,
-        }));
         form.patch(`/entities/${entity.id}`, { preserveScroll: true });
     }
 
@@ -76,7 +68,7 @@ export default function EntityShow({
                 <div className="flex items-center gap-3">
                     <Button variant="ghost" size="icon" asChild>
                         <Link
-                            href={`/entities/${listSlug}`}
+                            href={listHref}
                             aria-label={`Back to ${listTitle}`}
                         >
                             <ArrowLeft className="size-4" />

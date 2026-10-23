@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Entity;
+use App\Models\Recurrence;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\VatRate;
@@ -11,6 +12,7 @@ use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Realistic-looking FAKE data for the dev checkout only, so pages can be
@@ -36,9 +38,9 @@ class DemoSeeder extends Seeder
         VatRate::create(['name' => '13%', 'rate' => 13]);
         VatRate::create(['name' => '6%', 'rate' => 6]);
         $vat0 = VatRate::create(['name' => '0%', 'rate' => 0]);
-        WithheldTaxRate::create(['name' => '20%', 'rate' => 20]);
+        $withheld20 = WithheldTaxRate::create(['name' => '20%', 'rate' => 20]);
 
-        $expense = collect(['Software', 'Marketing', 'Office', 'Bank Expenses', 'Fuel'])
+        $expense = collect(['Software', 'Marketing', 'Office', 'Bank Expenses', 'Fuel', 'Payroll'])
             ->mapWithKeys(fn ($n) => [$n => Category::create(['name' => $n, 'type' => 'expense'])]);
         $income = collect(['Services Sold', 'Credits', 'Grant'])
             ->mapWithKeys(fn ($n) => [$n => Category::create(['name' => $n, 'type' => 'income'])]);
@@ -88,6 +90,105 @@ class DemoSeeder extends Seeder
             'to_wallet_id' => $cash->id,
             'is_reconciled' => true,
             'invoice_not_required' => true,
+        ]);
+
+        $this->recurrences($bank, $suppliers, $customers, $expense, $income, $vat24->id, $withheld20->id);
+    }
+
+    /**
+     * A few recurrences in every group of the Recurring page: payroll, contractors,
+     * expenses (one ended, one with a raise to come) and income.
+     *
+     * @param  Collection<int, Entity>  $suppliers
+     * @param  Collection<int, Entity>  $customers
+     * @param  Collection<string, Category>  $expense
+     * @param  Collection<string, Category>  $income
+     */
+    private function recurrences(Wallet $bank, Collection $suppliers, Collection $customers, Collection $expense, Collection $income, int $vat24, int $withheld20): void
+    {
+        $month = Carbon::now()->startOfMonth();
+
+        // Payroll: [employee name, start, net, FMY, EFKA employee, EFKA employer].
+        $salaries = [
+            ['Μαρία Παπαδοπούλου', $month->copy()->subYear(), 1450, 96.4, 201.69, 323.06],
+            ['Nikos Georgiou', $month->copy()->subMonths(5), 1100, 41.2, 153.01, 245.08],
+        ];
+        foreach ($salaries as [$name, $start, $net, $fmy, $efkaEmployee, $efkaEmployer]) {
+            $employee = Entity::create(['name' => $name, 'type' => 'employee']);
+            $recurrence = $this->recurrence($employee, $bank, 'expense', $expense['Payroll'], 'Salary', true, $start, null);
+            $recurrence->entries()->create([
+                'start_date' => $start,
+                'end_date' => null,
+                'net' => $net,
+                'fmy_amount' => $fmy,
+                'efka_employee_amount' => $efkaEmployee,
+                'efka_employer_amount' => $efkaEmployer,
+                'amount_mode' => 'net',
+                'position' => 0,
+            ]);
+        }
+
+        $studio = Entity::create(['name' => 'Studio Kappa', 'type' => 'contractor']);
+        $devLabs = Entity::create(['name' => 'Dev Labs IKE', 'type' => 'contractor']);
+
+        // Line-based: [entity, type, category, description, periods of [start, end, net, VAT, withheld]].
+        $plans = [
+            [$studio, 'expense', $expense['Marketing'], 'Design retainer', [
+                [$month->copy()->subMonths(8), null, 800, $vat24, $withheld20],
+            ]],
+            [$devLabs, 'expense', $expense['Software'], 'Maintenance', [
+                [$month->copy()->subMonths(3), $month->copy()->addMonths(9)->endOfMonth(), 1500, $vat24, $withheld20],
+            ]],
+            [$suppliers[0], 'expense', $expense['Software'], 'Workspace', [
+                [$month->copy()->subYear(), $month->copy()->addMonth()->endOfMonth(), 54, $vat24, null],
+                [$month->copy()->addMonths(2), null, 64, $vat24, null],
+            ]],
+            [$suppliers[1], 'expense', $expense['Software'], 'Hosting', [
+                [$month->copy()->subMonths(6), null, 120.5, $vat24, null],
+            ]],
+            [$suppliers[5], 'expense', $expense['Office'], 'Old server', [
+                [$month->copy()->subYear(), $month->copy()->subMonths(2)->endOfMonth(), 14, $vat24, null],
+            ]],
+            [$customers[2], 'income', $income['Services Sold'], 'Support contract', [
+                [$month->copy()->subMonths(4), null, 2500, $vat24, null],
+            ]],
+        ];
+        foreach ($plans as [$entity, $type, $category, $description, $periods]) {
+            $recurrence = $this->recurrence($entity, $bank, $type, $category, $description, false, $periods[0][0], $periods[array_key_last($periods)][1]);
+            foreach ($periods as $i => [$start, $end, $amount, $vat, $withheld]) {
+                $entry = $recurrence->entries()->create([
+                    'start_date' => $start,
+                    'end_date' => $end,
+                    'net' => 0,
+                    'amount_mode' => 'net',
+                    'position' => $i,
+                ]);
+                $entry->lines()->create([
+                    'amount' => $amount,
+                    'vat_rate_id' => $vat,
+                    'withheld_rate_id' => $withheld,
+                    'position' => 0,
+                ]);
+            }
+        }
+    }
+
+    /** A monthly recurrence on the 1st, paid from the bank. */
+    private function recurrence(Entity $entity, Wallet $bank, string $type, Category $category, string $description, bool $payroll, Carbon $start, ?Carbon $end): Recurrence
+    {
+        return Recurrence::create([
+            'entity_id' => $entity->id,
+            'type' => $type,
+            'description' => $description,
+            'category_id' => $category->id,
+            'wallet_id' => $bank->id,
+            'is_payroll' => $payroll,
+            'interval_count' => 1,
+            'interval_unit' => 'month',
+            'day_of_month' => 1,
+            'start_date' => $start,
+            'end_date' => $end,
+            'active' => true,
         ]);
     }
 }

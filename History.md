@@ -12,6 +12,23 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-10-23** — **Cheese removed; new Finance ▸ Recurring page.** Angel asked to
+  remove Cheese if nothing was left in it: a read-only check of the live data found no
+  untyped entity (live or deleted), so the bucket is gone — its list, sidebar link,
+  bulk-classify action and the "Unclassified" type option. Every entity now must have a
+  type: required in validation, in the transaction form's inline "+ Add entity" (which
+  used to allow none, the only way new Cheese could appear), and in the database
+  (`entities.type` NOT NULL; the migration refuses to run, rather than guess, if an
+  untyped entity exists). The State entity's page now links back to the tax pages
+  instead of the old Cheese list. Angel also wanted one place to see every recurring
+  transaction: `/recurring` lists them all, grouped **Payroll** (employee), **Contractors**,
+  **Expenses** (everything else) as he asked, plus **Income** for recurring income from
+  customers so it is never shown as an expense (none exist yet). Each row: entity,
+  description, From/To, and the amounts of the period that matters now (in force today;
+  else the next to start; else the last) — resolved by the same `AmountLines` as the
+  generator, so they match the generated transactions. Ended and paused recurrences are
+  still listed, marked. `pnpm run shots` gained `--click=<button>` to screenshot
+  client-side tabs.
 - **2026-10-15** — **Money inputs show thousands dots; faster ship.** Angel never types
   the thousands separator but wants to see it. A shared `AmountInput` now shows the
   amount Greek-style (`1.234,56`) whenever the field isn't being edited and plain
