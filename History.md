@@ -12,6 +12,13 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-10-26** — **Security fix: league/commonmark 2.10.0 → 2.10.4.** The new
+  security watcher (`~/security-watch`) flagged CVE-2026-105830 (High): a crafted long
+  Markdown text could tie up the server's PHP workers (denial of service, no data at
+  risk). The library comes with Laravel; Yolt Finance never formats user-typed Markdown,
+  so the real exposure was low, but the fix is a patch release with no other changes.
+  The library had stayed at the version from the app's creation (2026-08-28); the other
+  apps were already on 2.10.3. Only this one package was updated.
 - **2026-10-23** — **Payroll bonuses.** Payroll covered only the monthly salary, so
   future cash and cost were short by about two salaries per employee per year. Each
   employee's payroll recurrence now also generates the Easter bonus, leave allowance
