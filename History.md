@@ -12,6 +12,11 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-10-26** — **Security fix: symfony/http-foundation 8.1.5 → 8.1.9.** Flagged
+  urgent by the security watcher (CVE-2026-108082, High): any visitor, without logging
+  in, could send a crafted `Cache-Control` header costing ~1 s of server CPU per request,
+  slowing the whole shared VM. Every request was reachable, so this mattered more than
+  the commonmark one. Patch release; only this package updated (Angel's go-ahead).
 - **2026-10-26** — **Security fix: league/commonmark 2.10.0 → 2.10.4.** The new
   security watcher (`~/security-watch`) flagged CVE-2026-105830 (High): a crafted long
   Markdown text could tie up the server's PHP workers (denial of service, no data at
