@@ -17,6 +17,8 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 - [x] Finance ▸ Recurring: every recurrence in one list, grouped Payroll / Contractors
       / Expenses / Income, with entity, amounts and date range; add, edit and delete
       recurrences right there (2026-10-23).
+- [x] Finance ▸ De minimis: the record of every de minimis grant (started with the
+      5 grants up to 2026-10-30), downloadable as Excel or Markdown (2026-10-30).
 - [x] Payroll bonuses: each employee's payroll recurrence also generates the Easter
       bonus, leave allowance and Christmas bonus, pro rata to the days employed and
       the salary periods (2026-10-23).
@@ -44,6 +46,8 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 
 ## Ideas / later
 
+- [ ] De minimis: show the rolling 3-year total against the €300.000 ceiling
+      (Regulation (EU) 2023/2831), so the declaration's last check is at a glance.
 - [ ] Server-side enforcement of entity type per transaction side (Cheese is gone, so
       this is now possible).
 - [ ] Notifications (e.g. tax payments due soon, unreconciled rows piling up).

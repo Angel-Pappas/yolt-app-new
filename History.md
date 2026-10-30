@@ -12,6 +12,17 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-10-30** — **De minimis.** Grant applications keep asking for the table of
+  de minimis aid received, and it had to be rebuilt from paper each time. New
+  Finance ▸ De minimis keeps one row per grant with the official table's columns, and
+  downloads the whole list as **Excel** or **Markdown** (`DeMinimisExport`). A data
+  migration starts it with the 5 grants from the PHILOXENIA–HOTELIA declaration Angel
+  shared (35.000,00 € in all) — only that table was taken, none of the declaration's
+  personal details. The downloads use the official table's **Greek** headings (unlike
+  the app's English UI) so they can be pasted straight into a declaration. Excel via
+  `openspout/openspout` 5.13 (light, PHP 8.4/8.5); `CrudResource` gained a `toolbar`,
+  per-column `footer` totals and field `defaultValue`s (Beneficiary/VAT no. start as
+  Yolt Labs).
 - **2026-10-26** — **Security fix: symfony/http-foundation 8.1.5 → 8.1.9.** Flagged
   urgent by the security watcher (CVE-2026-108082, High): any visitor, without logging
   in, could send a crafted `Cache-Control` header costing ~1 s of server CPU per request,

@@ -3,6 +3,7 @@ import {
     ArrowLeft,
     ArrowLeftRight,
     Handshake,
+    HandCoins,
     House,
     Landmark,
     PanelLeftClose,
@@ -40,6 +41,7 @@ const financeNavItems: NavItem[] = [
     { title: 'Wallets', href: '/wallets', icon: Wallet },
     { title: 'Recurring', href: '/recurring', icon: Repeat },
     { title: 'One-offs', href: '/one-offs', icon: Receipt },
+    { title: 'De minimis', href: '/de-minimis', icon: HandCoins },
 ];
 
 // The counterparties, one list per type. "State" is the tax pages.

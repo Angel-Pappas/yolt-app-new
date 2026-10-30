@@ -39,6 +39,8 @@ export type CrudField = {
     options?: { value: string; label: string }[];
     placeholder?: string;
     required?: boolean;
+    /** What a new item's field starts as (an edit shows the item's own value). */
+    defaultValue?: string;
 };
 
 function blankData(
@@ -48,7 +50,8 @@ function blankData(
     const data: Record<string, string> = { ...fixedValues };
     for (const field of fields) {
         data[field.key] =
-            field.type === 'select' ? (field.options?.[0]?.value ?? '') : '';
+            field.defaultValue ??
+            (field.type === 'select' ? (field.options?.[0]?.value ?? '') : '');
     }
     return data;
 }

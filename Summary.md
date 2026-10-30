@@ -38,7 +38,7 @@ the dated what/why in `History.md`. Docs map:
 ## Layout & navigation
 
 - Login lands on **Home** (`/`, logo + welcome for now).
-- Sidebar: Home · **Finance** (Transactions, Wallets, Recurring, One-offs) · **Entities**
+- Sidebar: Home · **Finance** (Transactions, Wallets, Recurring, One-offs, De minimis) · **Entities**
   (Customers, Suppliers, Contractors, Employees, Shareholders, **State** = the Taxes
   area) · Configuration. Inside `/configuration/*` the sidebar
   swaps to the setup lists + "Back to app".
@@ -107,6 +107,17 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
 - Only **open** (unreconciled) one-offs show; **Show all** brings back the
   reconciled ones, in green (`DONE_ROW_CLASS` + `ShowAllToggle`, shared with
   Recurring).
+
+## De minimis (`/de-minimis`)
+
+- The record of every **de minimis** grant, so the table grant applications ask for
+  ("Πίνακας Επιχορηγήσεων de minimis") never has to be rebuilt from paper. One row per
+  approval decision or contract: programme, decision no. and date, approved amount,
+  paid amount, last payment date, beneficiary + VAT no. (new rows start as Yolt Labs).
+  Totals row; add/edit/delete like the other lists.
+- **Download** (header button) → the whole list, oldest decision first, as **Excel**
+  (real numbers and dates, `1.234,56 €`) or **Markdown**, both with the official
+  table's Greek headings and a Σύνολο row (`App\Support\DeMinimisExport`).
 
 ## Wallets (`/wallets`)
 

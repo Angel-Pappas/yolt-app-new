@@ -21,6 +21,11 @@ export type CrudColumn = {
     render?: (item: CrudItem) => ReactNode;
     /** Header filter for this column (text/select/number/date). */
     filter?: ColumnFilterMeta;
+    /**
+     * This column's cell in a totals row, from the rows currently shown (after
+     * filter/search). Giving any column a footer turns the totals row on.
+     */
+    footer?: (shown: CrudItem[]) => ReactNode;
 };
 
 type Props = {
@@ -31,6 +36,8 @@ type Props = {
     columns: CrudColumn[];
     fields: CrudField[];
     description?: string;
+    /** Extra header controls, before the Add button (e.g. a Download menu). */
+    toolbar?: ReactNode;
     /**
      * Values submitted on create/edit but not rendered as fields — e.g. a list
      * scoped to one `type` locks that column so every row it adds gets it.
@@ -66,6 +73,7 @@ export function CrudResource({
     columns,
     fields,
     description,
+    toolbar,
     fixedValues = {},
     onRowClick,
     disableEdit = false,
@@ -111,6 +119,14 @@ export function CrudResource({
                 col.render
                     ? col.render(row.original)
                     : String(row.original[col.key] ?? '—'),
+            footer: col.footer
+                ? ({ table }) =>
+                      col.footer?.(
+                          table
+                              .getFilteredRowModel()
+                              .rows.map((r) => r.original),
+                      )
+                : undefined,
         })),
         {
             id: 'actions',
@@ -158,6 +174,8 @@ export function CrudResource({
                 enableSelection={enableSelection}
                 getRowId={getRowId}
                 renderBulkActions={renderBulkActions}
+                enableTotals={columns.some((col) => col.footer)}
+                toolbar={toolbar}
                 action={
                     <Button
                         onClick={openCreate}

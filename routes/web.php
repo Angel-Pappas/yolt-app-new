@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\DeMinimisAidController;
 use App\Http\Controllers\EntityController;
 use App\Http\Controllers\IncomeTaxYearController;
 use App\Http\Controllers\OneOffController;
@@ -35,6 +36,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // One-off expenses: tagged transactions, listed apart (added/edited as transactions).
     Route::get('one-offs', [OneOffController::class, 'index'])->name('one-offs.index');
+
+    // De minimis grants: the company's record, downloadable as Markdown or Excel.
+    // Downloads are registered before the {deMinimisAid} routes.
+    Route::get('de-minimis', [DeMinimisAidController::class, 'index'])->name('de-minimis.index');
+    Route::get('de-minimis/download.md', [DeMinimisAidController::class, 'markdown'])->name('de-minimis.markdown');
+    Route::get('de-minimis/download.xlsx', [DeMinimisAidController::class, 'excel'])->name('de-minimis.excel');
+    Route::post('de-minimis', [DeMinimisAidController::class, 'store'])->name('de-minimis.store');
+    Route::patch('de-minimis/{deMinimisAid}', [DeMinimisAidController::class, 'update'])->name('de-minimis.update');
+    Route::delete('de-minimis/{deMinimisAid}', [DeMinimisAidController::class, 'destroy'])->name('de-minimis.destroy');
 
     Route::get('wallets', [WalletController::class, 'index'])->name('wallets.index');
     Route::post('wallets', [WalletController::class, 'store'])->name('wallets.store');
