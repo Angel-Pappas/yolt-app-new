@@ -78,6 +78,11 @@ final class PayrollBonuses
                 if ($date->lessThan($from->startOfDay()) || $date->greaterThan($until)) {
                     continue;
                 }
+                // A period set to automatic: FMY and EFKA are calculated on the bonus
+                // amount itself, by the rules in force on its pay day.
+                if (self::isAutomatic($recurrence, $kind, $year)) {
+                    $amounts = RecurrenceGenerator::calculatedPayroll($recurrence, $amounts['net'], $date);
+                }
                 $out["recurrence:{$recurrence->id}:bonus-{$kind}:{$year}"] = [
                     'label' => self::LABELS[$kind],
                     'date' => $date,
@@ -138,6 +143,25 @@ final class PayrollBonuses
             'efka_employee_amount' => $present['efka_employee_amount'] ? $scale('efka_employee_amount') : null,
             'efka_employer_amount' => $present['efka_employer_amount'] ? $scale('efka_employer_amount') : null,
         ];
+    }
+
+    /**
+     * Whether a bonus is calculated automatically: the salary period in force on the
+     * last employed day of its accrual period is set to automatic.
+     *
+     * @param  Kind  $kind
+     */
+    public static function isAutomatic(Recurrence $recurrence, string $kind, int $year): bool
+    {
+        [$first, $last] = self::accrualPeriod($kind, $year);
+        for ($day = $last; $day->greaterThanOrEqualTo($first); $day = $day->subDay()) {
+            $entry = RecurrenceGenerator::entryFor($recurrence, $day);
+            if ($entry !== null) {
+                return (bool) $entry->auto_payroll;
+            }
+        }
+
+        return false;
     }
 
     /**

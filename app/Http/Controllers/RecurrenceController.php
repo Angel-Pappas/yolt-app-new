@@ -172,6 +172,7 @@ class RecurrenceController extends Controller
                 'fmy_amount' => $payroll ? $amount($e, 'fmy_amount') : null,
                 'efka_employee_amount' => $payroll ? $amount($e, 'efka_employee_amount') : null,
                 'efka_employer_amount' => $payroll ? $amount($e, 'efka_employer_amount') : null,
+                'auto_payroll' => $payroll && ($e['auto_payroll'] ?? false),
                 'amount_mode' => $payroll ? 'net' : $e['amount_mode'],
                 'position' => $i,
             ]);
@@ -223,6 +224,8 @@ class RecurrenceController extends Controller
             $rules['entries.*.fmy_amount'] = ['nullable', 'numeric', 'min:0'];
             $rules['entries.*.efka_employee_amount'] = ['nullable', 'numeric', 'min:0'];
             $rules['entries.*.efka_employer_amount'] = ['nullable', 'numeric', 'min:0'];
+            // FMY and EFKA calculated from the gross by the tax rules (employees).
+            $rules['entries.*.auto_payroll'] = ['sometimes', 'boolean'];
         } else {
             $rules['entries.*.amount_mode'] = ['required', 'in:net,total'];
             $rules['entries.*.lines'] = ['required', 'array', 'min:1'];

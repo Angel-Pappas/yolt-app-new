@@ -1,7 +1,9 @@
 import { X } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import InputError from '@/components/input-error';
 import { useFinanceLookups } from '@/components/transactions/lookups';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AmountInput } from '@/components/amount-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +20,7 @@ import {
     defaultWithheldRateId,
     emptyAmountLine,
     lineCalc,
+    normalizeAmount,
     type PayrollAmounts,
     parseAmount,
     round2,
@@ -58,6 +61,8 @@ type EditorProps = {
     lines: AmountLine[];
     onLinesChange: (lines: AmountLine[]) => void;
     error?: string;
+    /** The date whose rates apply (the invoice date); today when omitted. */
+    date?: string;
 };
 
 /**
@@ -71,6 +76,7 @@ export function AmountLinesEditor({
     lines,
     onLinesChange,
     error,
+    date,
 }: EditorProps) {
     const { vatRates, withheldRates } = useFinanceLookups();
 
@@ -118,7 +124,13 @@ export function AmountLinesEditor({
             </div>
 
             {lines.map((line, i) => {
-                const calc = lineCalc(line, mode, vatRates, withheldRates);
+                const calc = lineCalc(
+                    line,
+                    mode,
+                    vatRates,
+                    withheldRates,
+                    date,
+                );
                 return (
                     <div key={i} className="grid gap-1.5">
                         <div className="flex items-center gap-2">
@@ -238,9 +250,12 @@ export function AmountLinesEditor({
 export function AmountSummary({
     lines,
     mode,
+    date,
 }: {
     lines: AmountLine[];
     mode: AmountMode;
+    /** The date whose rates apply (the invoice date); today when omitted. */
+    date?: string;
 }) {
     const { vatRates, withheldRates } = useFinanceLookups();
     const { net, vat, withheld, total } = sumLines(
@@ -248,6 +263,7 @@ export function AmountSummary({
         mode,
         vatRates,
         withheldRates,
+        date,
     );
     const hasWithheld = lines.some((l) => l.withheld);
 
@@ -284,20 +300,39 @@ export function AmountSummary({
     );
 }
 
+/**
+ * The "calculate for me" option of the payroll fields: FMY and both EFKA shares
+ * come from the gross amount by the tax rules in force on `date`, for the employee
+ * `entityId` (children and age from their details). The figures are fetched from
+ * the server's own calculator, so the form shows exactly what will be saved.
+ */
+export type PayrollAuto = {
+    on: boolean;
+    onChange: (on: boolean) => void;
+    entityId: string;
+    date: string;
+};
+
 type PayrollFieldsProps = {
     value: PayrollAmounts;
     onChange: (patch: Partial<PayrollAmounts>) => void;
     /** Prefix for the inputs' ids, so several sets can share one page. */
     idPrefix?: string;
     errors?: Partial<Record<keyof PayrollAmounts, string>>;
+    /** Offer automatic calculation (employees). Omit for typed-only fields. */
+    auto?: PayrollAuto;
 };
 
-/** The manual payroll inputs: Net amount · FMY · EFKA Employee · EFKA Employer. */
+/**
+ * The payroll inputs: Net amount (the gross salary) · FMY · EFKA Employee · EFKA
+ * Employer. With `auto` on, the last three are calculated and read-only.
+ */
 export function PayrollFields({
     value,
     onChange,
     idPrefix = '',
     errors = {},
+    auto,
 }: PayrollFieldsProps) {
     const fields: { key: keyof PayrollAmounts; label: string }[] = [
         { key: 'net', label: 'Net amount' },
@@ -305,26 +340,75 @@ export function PayrollFields({
         { key: 'efka_employee', label: 'EFKA Employee' },
         { key: 'efka_employer', label: 'EFKA Employer' },
     ];
+    const calculated = auto?.on ?? false;
+    const gross = normalizeAmount(value.net);
+    const entityId = auto?.entityId ?? '';
+    const date = auto?.date ?? '';
+
+    // Keep the calculated figures in step with the gross, employee and date.
+    // Debounced, and a stale answer is dropped.
+    const onChangeRef = useRef(onChange);
+    useEffect(() => {
+        onChangeRef.current = onChange;
+    });
+    useEffect(() => {
+        if (!calculated || !date || !Number.isFinite(Number(gross))) return;
+        let stale = false;
+        const timer = setTimeout(() => {
+            const query = new URLSearchParams({ gross, date });
+            if (entityId) query.set('entity_id', entityId);
+            fetch(`/payroll/preview?${query}`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            })
+                .then((r) => (r.ok ? r.json() : null))
+                .then((calc) => {
+                    if (stale || !calc) return;
+                    onChangeRef.current({
+                        fmy: String(calc.fmy),
+                        efka_employee: String(calc.efka_employee),
+                        efka_employer: String(calc.efka_employer),
+                    });
+                })
+                .catch(() => {});
+        }, 250);
+        return () => {
+            stale = true;
+            clearTimeout(timer);
+        };
+    }, [calculated, gross, entityId, date]);
 
     return (
-        <div className="grid gap-3 sm:grid-cols-2">
-            {fields.map(({ key, label }) => (
-                <div key={key} className="grid gap-2">
-                    <Label htmlFor={`${idPrefix}${key}`}>{label}</Label>
-                    <AmountInput
-                        id={`${idPrefix}${key}`}
-                        value={value[key]}
-                        onChange={(v) => onChange({ [key]: v })}
-                        required={key === 'net'}
+        <div className="grid gap-3">
+            {auto && (
+                <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                        checked={auto.on}
+                        onCheckedChange={(v) => auto.onChange(v === true)}
                     />
-                    <InputError message={errors[key]} />
-                </div>
-            ))}
+                    Calculate FMY and EFKA from the net amount
+                </label>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+                {fields.map(({ key, label }) => (
+                    <div key={key} className="grid gap-2">
+                        <Label htmlFor={`${idPrefix}${key}`}>{label}</Label>
+                        <AmountInput
+                            id={`${idPrefix}${key}`}
+                            value={value[key]}
+                            onChange={(v) => onChange({ [key]: v })}
+                            required={key === 'net'}
+                            disabled={calculated && key !== 'net'}
+                        />
+                        <InputError message={errors[key]} />
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
 
-/** Payroll figures (all manual): To Pay = Net − FMY − EFKA ee is the cash the
+/** Payroll figures: To Pay = Net − FMY − EFKA ee is the cash the
  *  employee actually receives (and what the wallet moves by); Total Cost =
  *  Net + EFKA er is informational — employer EFKA is a liability paid later. */
 export function PayrollSummary({ value }: { value: PayrollAmounts }) {

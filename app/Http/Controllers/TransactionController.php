@@ -5,10 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Project;
 use App\Models\Transaction;
-use App\Models\VatRate;
 use App\Models\Wallet;
-use App\Models\WithheldTaxRate;
 use App\Support\AmountLines;
+use App\Support\Rates;
 use App\Support\TaxSync;
 use App\Support\WalletBalances;
 use Illuminate\Http\RedirectResponse;
@@ -323,12 +322,8 @@ class TransactionController extends Controller
 
         $withheldByPosition = $transaction->withheldLines()->get()->keyBy('position');
         $oldNet = (float) $lines->sum(fn ($l) => (float) $l->net);
-        $vatRates = VatRate::query()
-            ->whereIn('id', $lines->pluck('vat_rate_id')->filter())
-            ->pluck('rate', 'id');
-        $withheldRates = WithheldTaxRate::query()
-            ->whereIn('id', $withheldByPosition->pluck('withheld_rate_id')->filter())
-            ->pluck('rate', 'id');
+        // Rates as in force on the invoice date — what tax law goes by.
+        $invoiceDate = $transaction->invoice_date;
 
         $count = $lines->count();
         $remaining = $newNet;
@@ -346,7 +341,7 @@ class TransactionController extends Controller
             }
             $remaining -= $lineNet;
 
-            $rate = $line->vat_rate_id !== null ? (float) $vatRates[$line->vat_rate_id] : 0.0;
+            $rate = Rates::vat($line->vat_rate_id, $invoiceDate);
             $lineVat = round($lineNet * $rate / 100, 2);
             $line->update(['net' => $lineNet, 'vat_amount' => $lineVat]);
 
@@ -355,9 +350,7 @@ class TransactionController extends Controller
 
             $withheldLine = $withheldByPosition->get($line->position);
             if ($withheldLine !== null) {
-                $wRate = $withheldLine->withheld_rate_id !== null
-                    ? (float) $withheldRates[$withheldLine->withheld_rate_id]
-                    : 0.0;
+                $wRate = Rates::withheld($withheldLine->withheld_rate_id, $invoiceDate);
                 $lineWithheld = round($lineNet * $wRate / 100, 2);
                 $withheldLine->update(['net' => $lineNet, 'withheld_amount' => $lineWithheld]);
                 $sumWithheld += $lineWithheld;
@@ -624,7 +617,7 @@ class TransactionController extends Controller
             return;
         }
 
-        $resolved = AmountLines::resolve($data['lines'], $data['amount_mode']);
+        $resolved = AmountLines::resolve($data['lines'], $data['amount_mode'], $data['invoice_date']);
 
         $transaction->fill([
             'type' => $data['type'],

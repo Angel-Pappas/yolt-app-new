@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { CrudResource } from '@/components/crud/crud-resource';
 
 type WithheldRate = {
@@ -36,6 +36,15 @@ export default function WithheldTaxRatesIndex({
                                 `${Number(item.rate).toFixed(2)}%`,
                         },
                     ]}
+                    // A rate's page holds its dated changes.
+                    onRowClick={(item) =>
+                        router.visit(
+                            `/configuration/withheld-tax-rates/${item.id}`,
+                        )
+                    }
+                    rowHref={(item) =>
+                        `/configuration/withheld-tax-rates/${item.id}`
+                    }
                     fields={[
                         {
                             key: 'name',

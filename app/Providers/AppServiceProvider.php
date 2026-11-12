@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Support\Rates;
+use App\Support\TaxRules;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +19,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Per-request lookups of the dated rates and tax rules.
+        $this->app->scoped(Rates::class);
+        $this->app->scoped(TaxRules::class);
     }
 
     /**

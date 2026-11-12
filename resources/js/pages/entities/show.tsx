@@ -16,6 +16,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { type RecurrenceRecord } from '@/components/recurrences/recurrence-form-dialog';
+import { type EmployeeDetails, EmployeePanel } from './employee-panel';
 import { RecurrencesPanel } from './recurrences-panel';
 
 type Entity = {
@@ -29,6 +30,8 @@ type Props = {
     entity: Entity;
     transactions: Transaction[];
     recurrences: RecurrenceRecord[];
+    /** An employee's details for payroll, leave and severance; null otherwise. */
+    employee: EmployeeDetails | null;
     /** The back link: the entity's own list (or the tax pages for the State). */
     listHref: string;
     listTitle: string;
@@ -47,6 +50,7 @@ export default function EntityShow({
     entity,
     transactions,
     recurrences,
+    employee,
     listHref,
     listTitle,
 }: Props) {
@@ -145,6 +149,10 @@ export default function EntityShow({
                         </form>
                     </CardContent>
                 </Card>
+
+                {employee && (
+                    <EmployeePanel entityId={entity.id} employee={employee} />
+                )}
 
                 <RecurrencesPanel entity={entity} recurrences={recurrences} />
 

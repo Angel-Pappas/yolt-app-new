@@ -20,6 +20,16 @@ something came to be; read `Summary.md` for how the app works **now**.
   replace the copy's database → migrate → sync). `ship.sh` on this branch pushes
   `next` and deploys the copy only. When Angel approves, `next` becomes `main` and the
   copy (site, database, nginx site, branch) is removed.
+- **2026-11-12** — **Dated rates, tax rules, payroll from gross.** VAT/withholding
+  rates take dated changes (`rate_periods`, `App\Support\Rates`; a rate's page lists
+  them) and amounts use the rate in force on the **invoice date**. Configuration ▸ Tax
+  rules holds dated sets of the law's figures (`tax_rules`, `TaxRules::at()`; sources
+  in `TaxRuleDefaults`). `PayrollCalculator` derives EFKA and FMY from the gross (it
+  reproduces two real 2026 payslips: 920,00 → 25,33 and 1.462,18 at age 27 → 66,69); a
+  payroll period can be set to automatic (`auto_payroll`; existing periods keep their
+  typed figures), bonuses included. Employees get an Employment card (children, birth
+  date, hire date…). Any such change runs `Recalculate::everything()`: unreconciled
+  rows follow, reconciled ones stay.
 - **2026-11-12** — **Include/exclude, income status, Projects, Income.** Everything is
   entered as real; any item can be **switched off** (Angel: the Excel tick boxes) — it
   stays in its normal list, struck through, and counts for nothing (balances, taxes).

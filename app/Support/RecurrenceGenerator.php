@@ -28,7 +28,9 @@ use Illuminate\Support\Collection;
  * amount in force comes from the matching {@see RecurrenceEntry}; a date no entry
  * covers is skipped. Each period's amount lines (VAT and optional withholding per
  * line, Net/Total mode per period) are resolved server-side from the rates' current
- * percentages by the same {@see AmountLines} resolver as a hand-entered row. An
+ * percentages **on the occurrence's date** by the same {@see AmountLines} resolver as
+ * a hand-entered row; a payroll period set to automatic is calculated from its gross
+ * by the tax rules in force that day ({@see PayrollCalculator}). An
  * employee's payroll recurrence also generates its Easter bonus, leave allowance and
  * Christmas bonus as extra managed rows ({@see PayrollBonuses}), kept in sync the same
  * way.
@@ -43,7 +45,7 @@ class RecurrenceGenerator
     {
         $holidays = WorkingDays::holidaySet();
 
-        Recurrence::query()->withTrashed()->with(['entries.lines', 'entity'])->get()
+        Recurrence::query()->withTrashed()->with(['entries.lines', 'entity.employeeProfile'])->get()
             ->each(fn (Recurrence $r) => self::sync($r, $holidays));
     }
 
@@ -55,15 +57,8 @@ class RecurrenceGenerator
      */
     public static function sync(Recurrence $recurrence, ?array $holidays = null): void
     {
-        $recurrence->loadMissing(['entries.lines', 'entity']);
+        $recurrence->loadMissing(['entries.lines', 'entity.employeeProfile']);
         $holidays ??= WorkingDays::holidaySet();
-
-        // Each period's lines resolve to the same money on every occurrence, so
-        // resolve once per period rather than once per generated row.
-        $resolved = [];
-        foreach ($recurrence->entries as $entry) {
-            $resolved[$entry->id] = self::resolveEntry($entry);
-        }
 
         $desired = self::desiredOccurrences($recurrence, $holidays);
 
@@ -84,8 +79,10 @@ class RecurrenceGenerator
             if ($occurrence['bonus'] !== null) {
                 self::writePayroll($row, $recurrence, $key, $occurrence['date'], $occurrence['bonus']['label'], $occurrence['bonus']['amounts']);
             } else {
+                // Resolved per occurrence: the VAT/withholding rates and the payroll
+                // rules are the ones in force on that occurrence's own date.
                 $entry = $occurrence['entry'];
-                self::write($row, $recurrence, $key, $occurrence['date'], $entry, $resolved[$entry->id]);
+                self::write($row, $recurrence, $key, $occurrence['date'], $entry, self::resolveEntry($entry, $occurrence['date']));
             }
         }
 
@@ -251,7 +248,7 @@ class RecurrenceGenerator
      *
      * @return array{net: float, vat_amount: float, withheld_amount: float, vat_lines: array<int, array{net: float, vat_rate_id: int|null, vat_amount: float, position: int}>, withheld_lines: array<int, array{net: float, withheld_rate_id: int, withheld_amount: float, position: int}>}|null
      */
-    private static function resolveEntry(RecurrenceEntry $entry): ?array
+    private static function resolveEntry(RecurrenceEntry $entry, CarbonInterface $date): ?array
     {
         if ($entry->lines->isEmpty()) {
             return null;
@@ -264,7 +261,50 @@ class RecurrenceGenerator
                 'withheld_rate_id' => $l->withheld_rate_id,
             ])->all(),
             $entry->amount_mode,
+            $date,
         );
+    }
+
+    /**
+     * A payroll period's amounts for a payment on `$date`: calculated from the gross
+     * by the tax rules in force that day when the period is set to automatic (and
+     * the recurrence is an employee's), else the figures typed on the period.
+     *
+     * @return array{net: float, fmy_amount: float|null, efka_employee_amount: float|null, efka_employer_amount: float|null}
+     */
+    public static function payrollAmounts(Recurrence $r, RecurrenceEntry $entry, CarbonInterface $date): array
+    {
+        $gross = round((float) $entry->net, 2);
+
+        if ($entry->auto_payroll && $r->entity?->type === 'employee') {
+            return self::calculatedPayroll($r, $gross, $date);
+        }
+
+        $money = fn (?string $v): ?float => $v !== null ? round((float) $v, 2) : null;
+
+        return [
+            'net' => $gross,
+            'fmy_amount' => $money($entry->fmy_amount),
+            'efka_employee_amount' => $money($entry->efka_employee_amount),
+            'efka_employer_amount' => $money($entry->efka_employer_amount),
+        ];
+    }
+
+    /**
+     * FMY and EFKA calculated from a gross amount for the recurrence's employee.
+     *
+     * @return array{net: float, fmy_amount: float, efka_employee_amount: float, efka_employer_amount: float}
+     */
+    public static function calculatedPayroll(Recurrence $r, float $gross, CarbonInterface $date): array
+    {
+        $calc = PayrollCalculator::forEmployee($gross, $r->entity?->employeeProfile, $date);
+
+        return [
+            'net' => $calc['gross'],
+            'fmy_amount' => $calc['fmy'],
+            'efka_employee_amount' => $calc['efka_employee'],
+            'efka_employer_amount' => $calc['efka_employer'],
+        ];
     }
 
     /**
@@ -282,13 +322,7 @@ class RecurrenceGenerator
         ?array $resolved,
     ): void {
         if ($r->is_payroll || $resolved === null) {
-            $money = fn (?string $v): ?float => $v !== null ? round((float) $v, 2) : null;
-            self::writePayroll($t, $r, $key, $payDate, $r->description, [
-                'net' => round((float) $entry->net, 2),
-                'fmy_amount' => $money($entry->fmy_amount),
-                'efka_employee_amount' => $money($entry->efka_employee_amount),
-                'efka_employer_amount' => $money($entry->efka_employer_amount),
-            ]);
+            self::writePayroll($t, $r, $key, $payDate, $r->description, self::payrollAmounts($r, $entry, $payDate));
 
             return;
         }

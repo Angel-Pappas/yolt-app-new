@@ -4,7 +4,14 @@ export type WalletOption = { id: number; name: string };
 export type EntityOption = { id: number; name: string; type: string };
 export type CategoryOption = { id: number; name: string; type: string };
 export type ProjectOption = { id: number; name: string; entity_id: number };
-export type RateOption = { id: number; name: string; rate: string };
+export type RateOption = {
+    id: number;
+    name: string;
+    /** The percentage that applies before the first dated change. */
+    rate: string;
+    /** Dated changes, oldest first: from `valid_from` on the rate is `rate` %. */
+    changes?: { valid_from: string; rate: string }[];
+};
 
 /**
  * The finance lookup lists shared on every authenticated page (see

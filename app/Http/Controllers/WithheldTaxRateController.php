@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\WithheldTaxRate;
+use App\Support\Recalculate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -37,6 +38,10 @@ class WithheldTaxRateController extends Controller
     public function update(Request $request, WithheldTaxRate $withheldTaxRate): RedirectResponse
     {
         $withheldTaxRate->update($this->validateRate($request));
+        // The percentage feeds every amount not yet reconciled.
+        if ($withheldTaxRate->wasChanged('rate')) {
+            Recalculate::everything();
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Withheld tax rate updated.')]);
 

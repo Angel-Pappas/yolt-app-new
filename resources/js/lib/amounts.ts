@@ -97,10 +97,24 @@ export function optionalAmount(value: string): string | null {
     return value ? normalizeAmount(value) : null;
 }
 
-/** The percentage of the rate a select id points at, or 0 when unset/unknown. */
-export function ratePct(rates: RateOption[], id: string): number {
+/**
+ * The percentage of the rate a select id points at **on a date** (ISO; today when
+ * omitted): its latest dated change starting on or before the date, else its base
+ * percentage. 0 when unset/unknown. Server twin: `App\Support\Rates`.
+ */
+export function ratePct(
+    rates: RateOption[],
+    id: string,
+    date?: string,
+): number {
     const rate = rates.find((r) => String(r.id) === id);
-    return rate ? Number(rate.rate) : 0;
+    if (!rate) return 0;
+    const day = (date || new Date().toISOString()).slice(0, 10);
+    let pct = Number(rate.rate);
+    for (const change of rate.changes ?? []) {
+        if (change.valid_from.slice(0, 10) <= day) pct = Number(change.rate);
+    }
+    return pct;
 }
 
 /** The withholding rate a freshly-toggled line gets: the 20% one (the usual Greek
@@ -114,7 +128,8 @@ export function defaultWithheldRateId(withheldRates: RateOption[]): string {
           : '';
 }
 
-/** Net / VAT / withheld for one line, interpreted by the single Net/Total mode.
+/** Net / VAT / withheld for one line, interpreted by the single Net/Total mode,
+ *  at the rates in force on `date` (the invoice date; today when omitted).
  *  Total mode reverses the net out of the cash total (net + VAT − withheld) and
  *  anchors VAT so the line reconstructs to the exact typed total. */
 export function lineCalc(
@@ -122,10 +137,13 @@ export function lineCalc(
     mode: AmountMode,
     vatRates: RateOption[],
     withheldRates: RateOption[],
+    date?: string,
 ): { net: number; vat: number; withheld: number } {
     const amount = parseAmount(line.amount);
-    const v = ratePct(vatRates, line.vat_rate_id);
-    const w = line.withheld ? ratePct(withheldRates, line.withheld_rate_id) : 0;
+    const v = ratePct(vatRates, line.vat_rate_id, date);
+    const w = line.withheld
+        ? ratePct(withheldRates, line.withheld_rate_id, date)
+        : 0;
 
     if (mode === 'total') {
         const denom = 1 + (v - w) / 100;
@@ -148,12 +166,13 @@ export function sumLines(
     mode: AmountMode,
     vatRates: RateOption[],
     withheldRates: RateOption[],
+    date?: string,
 ): { net: number; vat: number; withheld: number; total: number } {
     let net = 0;
     let vat = 0;
     let withheld = 0;
     for (const line of lines) {
-        const c = lineCalc(line, mode, vatRates, withheldRates);
+        const c = lineCalc(line, mode, vatRates, withheldRates, date);
         net += c.net;
         vat += c.vat;
         withheld += c.withheld;

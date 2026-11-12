@@ -28,7 +28,7 @@ class RecurringOverview
     public static function rows(): array
     {
         $recurrences = Recurrence::query()
-            ->with(['entity:id,name,type', 'entries.lines'])
+            ->with(['entity:id,name,type', 'entity.employeeProfile', 'entries.lines'])
             ->orderBy('start_date')
             ->orderBy('id')
             ->get();
@@ -92,7 +92,7 @@ class RecurringOverview
      */
     private static function row(Recurrence $recurrence, ?bool $lastReconciled): array
     {
-        $amounts = self::amounts(self::currentEntry($recurrence), $recurrence->is_payroll);
+        $amounts = self::amounts(self::currentEntry($recurrence), $recurrence->is_payroll, $recurrence);
 
         return [
             'id' => $recurrence->id,
@@ -122,7 +122,7 @@ class RecurringOverview
      *
      * @return array{net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}
      */
-    public static function amounts(?RecurrenceEntry $entry, bool $payroll): array
+    public static function amounts(?RecurrenceEntry $entry, bool $payroll, ?Recurrence $recurrence = null): array
     {
         $net = $vat = $withheld = $fmy = $efkaEmployee = $efkaEmployer = 0.0;
 
@@ -134,15 +134,20 @@ class RecurringOverview
                     'withheld_rate_id' => $l->withheld_rate_id,
                 ])->all(),
                 $entry->amount_mode,
+                Carbon::today(),
             );
             $net = $resolved['net'];
             $vat = $resolved['vat_amount'];
             $withheld = $resolved['withheld_amount'];
         } elseif ($entry !== null) {
-            $net = (float) $entry->net;
-            $fmy = (float) ($entry->fmy_amount ?? 0);
-            $efkaEmployee = (float) ($entry->efka_employee_amount ?? 0);
-            $efkaEmployer = (float) ($entry->efka_employer_amount ?? 0);
+            // Typed figures, or (a period set to automatic) today's calculation.
+            $payrollAmounts = $recurrence !== null
+                ? RecurrenceGenerator::payrollAmounts($recurrence, $entry, Carbon::today())
+                : ['net' => (float) $entry->net, 'fmy_amount' => $entry->fmy_amount, 'efka_employee_amount' => $entry->efka_employee_amount, 'efka_employer_amount' => $entry->efka_employer_amount];
+            $net = (float) $payrollAmounts['net'];
+            $fmy = (float) ($payrollAmounts['fmy_amount'] ?? 0);
+            $efkaEmployee = (float) ($payrollAmounts['efka_employee_amount'] ?? 0);
+            $efkaEmployer = (float) ($payrollAmounts['efka_employer_amount'] ?? 0);
         }
 
         return [

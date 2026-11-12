@@ -6,10 +6,13 @@ use App\Http\Controllers\EntityController;
 use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\IncomeTaxYearController;
 use App\Http\Controllers\OneOffController;
+use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PublicHolidayController;
+use App\Http\Controllers\RateChangeController;
 use App\Http\Controllers\RecurrenceController;
 use App\Http\Controllers\TaxController;
+use App\Http\Controllers\TaxRuleController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VatRateController;
@@ -74,6 +77,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('entities.type');
     Route::get('entities/{entity}', [EntityController::class, 'show'])->whereNumber('entity')->name('entities.show');
     Route::patch('entities/{entity}', [EntityController::class, 'update'])->whereNumber('entity')->name('entities.update');
+    Route::patch('entities/{entity}/employee', [EntityController::class, 'updateEmployee'])->whereNumber('entity')->name('entities.employee');
+    Route::get('payroll/preview', [PayrollController::class, 'preview'])->name('payroll.preview');
     Route::delete('entities/{entity}', [EntityController::class, 'destroy'])->whereNumber('entity')->name('entities.destroy');
 
     // Recurring transactions (defined on an entity's page; all listed on /recurring).
@@ -104,6 +109,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('categories/{category}', [CategoryController::class, 'show'])->name('categories.show');
         Route::patch('categories/{category}', [CategoryController::class, 'update'])->name('categories.update');
         Route::delete('categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy');
+
+        // A rate's own page: its dated changes. `{kind}` is vat-rates or
+        // withheld-tax-rates.
+        Route::controller(RateChangeController::class)
+            ->prefix('{kind}/{rate}')
+            ->whereIn('kind', array_keys(RateChangeController::KINDS))
+            ->whereNumber('rate')
+            ->group(function () {
+                Route::get('/', 'show')->name('rates.show');
+                Route::post('changes', 'store')->name('rates.changes.store');
+                Route::patch('changes/{change}', 'update')->name('rates.changes.update');
+                Route::delete('changes/{change}', 'destroy')->name('rates.changes.destroy');
+            });
+
+        Route::get('tax-rules', [TaxRuleController::class, 'index'])->name('tax-rules.index');
+        Route::post('tax-rules', [TaxRuleController::class, 'store'])->name('tax-rules.store');
+        Route::patch('tax-rules/{taxRule}', [TaxRuleController::class, 'update'])->name('tax-rules.update');
+        Route::delete('tax-rules/{taxRule}', [TaxRuleController::class, 'destroy'])->name('tax-rules.destroy');
 
         Route::get('vat-rates', [VatRateController::class, 'index'])->name('vat-rates.index');
         Route::post('vat-rates', [VatRateController::class, 'store'])->name('vat-rates.store');

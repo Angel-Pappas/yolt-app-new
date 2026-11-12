@@ -53,6 +53,8 @@ type Period = {
     amount_mode: AmountMode;
     lines: AmountLine[];
     payroll: PayrollAmounts;
+    /** Payroll of an employee: FMY and EFKA calculated from the gross. */
+    auto: boolean;
 };
 
 export type RecurrenceEntryRecord = {
@@ -63,6 +65,7 @@ export type RecurrenceEntryRecord = {
     fmy_amount: string | null;
     efka_employee_amount: string | null;
     efka_employer_amount: string | null;
+    auto_payroll?: boolean;
     lines: {
         amount: string;
         vat_rate_id: number | null;
@@ -111,6 +114,12 @@ function shiftDays(iso: string, days: number): string {
     return d.toISOString().slice(0, 10);
 }
 
+/** The date whose rates a period's preview uses: today for one already running,
+ *  its start date for one still to come. */
+function periodRateDate(period: { start_date: string }): string {
+    return period.start_date > today() ? period.start_date : today();
+}
+
 function emptyPeriod(start: string): Period {
     return {
         start_date: start,
@@ -118,6 +127,8 @@ function emptyPeriod(start: string): Period {
         amount_mode: 'net',
         lines: [emptyAmountLine()],
         payroll: emptyPayroll(),
+        // A new period is calculated (it only applies to an employee's payroll).
+        auto: true,
     };
 }
 
@@ -144,6 +155,7 @@ function periodFromRecord(e: RecurrenceEntryRecord): Period {
             efka_employee: e.efka_employee_amount ?? '',
             efka_employer: e.efka_employer_amount ?? '',
         },
+        auto: e.auto_payroll ?? false,
     };
 }
 
@@ -296,6 +308,7 @@ export function RecurrenceFormDialog({
                   amount_mode: prev.amount_mode,
                   lines: prev.lines.map((l) => ({ ...l, amount: '' })),
                   payroll: emptyPayroll(),
+                  auto: prev.auto,
               }
             : emptyPeriod(today());
         form.setData('periods', [...form.data.periods, next]);
@@ -353,6 +366,7 @@ export function RecurrenceFormDialog({
                           efka_employer_amount: optionalAmount(
                               p.payroll.efka_employer,
                           ),
+                          auto_payroll: p.auto && entityType === 'employee',
                       }
                     : {
                           start_date: p.start_date,
@@ -700,6 +714,29 @@ export function RecurrenceFormDialog({
                                                             },
                                                         })
                                                     }
+                                                    auto={
+                                                        entityType ===
+                                                        'employee'
+                                                            ? {
+                                                                  on: period.auto,
+                                                                  onChange: (
+                                                                      auto,
+                                                                  ) =>
+                                                                      setPeriod(
+                                                                          i,
+                                                                          {
+                                                                              auto,
+                                                                          },
+                                                                      ),
+                                                                  entityId:
+                                                                      form.data
+                                                                          .entity_id,
+                                                                  date: periodRateDate(
+                                                                      period,
+                                                                  ),
+                                                              }
+                                                            : undefined
+                                                    }
                                                     errors={{
                                                         net: errors[
                                                             `entries.${i}.net`
@@ -742,10 +779,16 @@ export function RecurrenceFormDialog({
                                                             `entries.${i}.lines.0.amount`
                                                         ]
                                                     }
+                                                    date={periodRateDate(
+                                                        period,
+                                                    )}
                                                 />
                                                 <AmountSummary
                                                     lines={period.lines}
                                                     mode={period.amount_mode}
+                                                    date={periodRateDate(
+                                                        period,
+                                                    )}
                                                 />
                                             </>
                                         )}

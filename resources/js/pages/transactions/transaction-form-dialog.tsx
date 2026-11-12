@@ -283,6 +283,13 @@ export function TransactionFormDialog({
 
     const transferAmount = parseAmount(form.data.net);
 
+    // Payroll for an employee can be calculated from the gross. On by default for a
+    // new entry; an existing one keeps its saved figures until asked.
+    const [autoPayroll, setAutoPayroll] = useState(!editing);
+    const payrollEntityIsEmployee =
+        entities.find((e) => String(e.id) === form.data.entity_id)?.type ===
+        'employee';
+
     // The manual payroll figures, as the shared payroll fields/summary expect them.
     const payroll: PayrollAmounts = {
         net: form.data.net,
@@ -743,6 +750,18 @@ export function TransactionFormDialog({
                                     <PayrollFields
                                         value={payroll}
                                         onChange={setPayroll}
+                                        auto={
+                                            payrollEntityIsEmployee
+                                                ? {
+                                                      on: autoPayroll,
+                                                      onChange: setAutoPayroll,
+                                                      entityId:
+                                                          form.data.entity_id,
+                                                      date: form.data
+                                                          .invoice_date,
+                                                  }
+                                                : undefined
+                                        }
                                         errors={{
                                             net: form.errors.net,
                                             fmy: errors['fmy_amount'],
@@ -765,6 +784,7 @@ export function TransactionFormDialog({
                                             form.setData('lines', lines)
                                         }
                                         error={netError}
+                                        date={form.data.invoice_date}
                                     />
                                 </div>
                             )}
@@ -801,6 +821,7 @@ export function TransactionFormDialog({
                                     <AmountSummary
                                         lines={form.data.lines}
                                         mode={form.data.amount_mode}
+                                        date={form.data.invoice_date}
                                     />
                                 </div>
                             )}

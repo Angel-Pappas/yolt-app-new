@@ -5,10 +5,12 @@ import {
     defaultWithheldRateId,
     displayAmount,
     editableAmount,
+    emptyAmountLine,
     lineCalc,
     linesPayload,
     normalizeAmount,
     parseAmount,
+    ratePct,
     readAmount,
     round2,
     sumLines,
@@ -187,5 +189,44 @@ describe('defaultWithheldRateId', () => {
         expect(defaultWithheldRateId(withheld)).toBe('9');
         expect(defaultWithheldRateId([withheld[0]])).toBe('7');
         expect(defaultWithheldRateId([])).toBe('');
+    });
+});
+
+describe('dated rates', () => {
+    const dated: RateOption[] = [
+        {
+            id: 1,
+            name: 'Normal',
+            rate: '24.00',
+            changes: [
+                { valid_from: '2027-07-01', rate: '25.00' },
+                { valid_from: '2028-01-01', rate: '23.00' },
+            ],
+        },
+    ];
+
+    it('uses the base rate before the first change', () => {
+        expect(ratePct(dated, '1', '2027-06-30')).toBe(24);
+    });
+
+    it('uses the latest change on or before the date', () => {
+        expect(ratePct(dated, '1', '2027-07-01')).toBe(25);
+        expect(ratePct(dated, '1', '2027-12-31')).toBe(25);
+        expect(ratePct(dated, '1', '2028-06-01')).toBe(23);
+    });
+
+    it('feeds the line maths with the rate of the invoice date', () => {
+        const line = { ...emptyAmountLine(), amount: '1000', vat_rate_id: '1' };
+        expect(lineCalc(line, 'net', dated, [], '2027-06-30').vat).toBe(240);
+        expect(lineCalc(line, 'net', dated, [], '2027-07-01').vat).toBe(250);
+        expect(
+            sumLines(
+                [{ ...line, amount: '1250' }],
+                'total',
+                dated,
+                [],
+                '2027-07-01',
+            ).net,
+        ).toBe(1000);
     });
 });

@@ -45,6 +45,8 @@ type Props = {
     fixedValues?: Record<string, string>;
     /** Called when a row is clicked (e.g. to open the item's own page). */
     onRowClick?: (item: CrudItem) => void;
+    /** Each row's own page — makes rows openable in a new tab (see DataTable). */
+    rowHref?: (item: CrudItem) => string;
     /**
      * Hide the per-row edit (pencil) button — for a resource that edits on its own
      * page instead of in the list's dialog. The Add dialog is unaffected.
@@ -76,6 +78,7 @@ export function CrudResource({
     toolbar,
     fixedValues = {},
     onRowClick,
+    rowHref,
     disableEdit = false,
     enableSelection = false,
     getRowId,
@@ -136,7 +139,8 @@ export function CrudResource({
             header: () => null,
             cell: ({ row }) => (
                 <div
-                    className="flex justify-end gap-1"
+                    // Above a row's stretched open-in-new-tab link.
+                    className="relative z-10 flex justify-end gap-1"
                     onClick={(e) => e.stopPropagation()}
                 >
                     {!disableEdit && (
@@ -171,6 +175,7 @@ export function CrudResource({
                 searchPlaceholder={`Search ${title.toLowerCase()}…`}
                 emptyMessage={`No ${title.toLowerCase()} yet.`}
                 onRowClick={onRowClick}
+                rowHref={rowHref}
                 enableSelection={enableSelection}
                 getRowId={getRowId}
                 renderBulkActions={renderBulkActions}

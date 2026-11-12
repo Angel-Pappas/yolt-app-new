@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
+use App\Support\Rates;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -57,9 +58,13 @@ class HandleInertiaRequests extends Middleware
                 'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
                 'entities' => Entity::query()->orderBy('name')->get(['id', 'name', 'type']),
                 'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
-                'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+                // Each rate with its dated changes, so a form's preview uses the
+                // percentage in force on the row's invoice date, like the server.
+                'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate'])
+                    ->map(fn (VatRate $r): array => [...$r->only(['id', 'name', 'rate']), 'changes' => Rates::changes('vat', $r->id)]),
                 'projects' => Project::query()->orderBy('name')->get(['id', 'name', 'entity_id']),
-                'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+                'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate'])
+                    ->map(fn (WithheldTaxRate $r): array => [...$r->only(['id', 'name', 'rate']), 'changes' => Rates::changes('withheld', $r->id)]),
             ] : null,
         ];
     }

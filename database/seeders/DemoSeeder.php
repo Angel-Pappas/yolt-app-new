@@ -184,6 +184,14 @@ class DemoSeeder extends Seeder
         ];
         foreach ($salaries as [$name, $start, $net, $fmy, $efkaEmployee, $efkaEmployer]) {
             $employee = Entity::create(['name' => $name, 'type' => 'employee']);
+            // The first is calculated from the gross (one child); the second typed.
+            $auto = $name === 'Μαρία Παπαδοπούλου';
+            $employee->employeeProfile()->create([
+                'birth_date' => $auto ? '1988-03-14' : '1999-09-02',
+                'children' => $auto ? 1 : 0,
+                'hire_date' => $start->toDateString(),
+                'prior_service_years' => $auto ? 6 : 0,
+            ]);
             $recurrence = $this->recurrence($employee, $bank, 'expense', $expense['Payroll'], 'Salary', true, $start, null);
             $recurrence->entries()->create([
                 'start_date' => $start,
@@ -192,6 +200,7 @@ class DemoSeeder extends Seeder
                 'fmy_amount' => $fmy,
                 'efka_employee_amount' => $efkaEmployee,
                 'efka_employer_amount' => $efkaEmployer,
+                'auto_payroll' => $auto,
                 'amount_mode' => 'net',
                 'position' => 0,
             ]);
