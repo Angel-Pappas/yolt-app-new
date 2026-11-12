@@ -8,13 +8,16 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-LIVE=/home/ploi/yolt-app.pappas.yoltobots.click
+# TEMPORARY (the "next" copy, 2026-11): this checkout ships branch `next` to the copy
+# site, never to the live app. Remove this block when `next` becomes `main`.
+BRANCH=next
+LIVE=/home/ploi/yolt-next/site
 REPO=Angel-Pappas/yolt-app-new
 subject=${1:?usage: ./ship.sh "Commit subject" ["body"]}
 body=${2:-}
 
 [ "$(pwd)" != "$LIVE" ] || { echo "Run ship.sh from the dev checkout, not the live folder." >&2; exit 1; }
-[ "$(git rev-parse --abbrev-ref HEAD)" = main ] || { echo "Not on main." >&2; exit 1; }
+[ "$(git rev-parse --abbrev-ref HEAD)" = "$BRANCH" ] || { echo "Not on $BRANCH." >&2; exit 1; }
 
 step() { printf '\n==> %s  (+%ss)\n' "$1" "$SECONDS"; }
 
@@ -31,9 +34,9 @@ msg="$subject"
 $body"
 git commit -q -m "$msg
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>"
 sha=$(git rev-parse HEAD)
-git push -q origin main
+git push -q origin "$BRANCH"
 
 step "Waiting for CI"
 run=""
