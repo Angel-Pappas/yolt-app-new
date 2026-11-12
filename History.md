@@ -20,6 +20,20 @@ something came to be; read `Summary.md` for how the app works **now**.
   replace the copy's database → migrate → sync). `ship.sh` on this branch pushes
   `next` and deploys the copy only. When Angel approves, `next` becomes `main` and the
   copy (site, database, nginx site, branch) is removed.
+- **2026-11-12** — **Leave, termination cost, Agreements, Home.** On an employee's
+  page: **Leave** (entries with days counted from the dates; entitlement by law per
+  calendar year — 20 pro rata / 21 / 22, 25 at 10 years here or 12 in all, 26 at 25 —
+  or an override; `App\Support\Leave`) and **If they leave** (`Termination`: severance
+  by completed years × monthly pay capped at 8×30×minimum daily wage + 1/6, halved
+  with notice; plus unused leave, and the leave allowance and bonus earned so far if
+  unpaid). **Agreements** (`/agreements`, and on every entity's page): title, dates
+  (open-ended allowed), notes and a private file (`storage/app/private/agreements`,
+  served only to signed-in users); "ending" within `settings.agreement_warning_days`
+  (30, Angel; changeable on the page). **Home** is now a dashboard: wallets, income due
+  and overdue, taxes this month, rows to reconcile, the year ahead, agreements ending.
+  **Cutover note:** uploads over 2 MB need `upload_max_filesize`/`post_max_size` raised
+  for the site (set to 20M/21M in the copy's own nginx site via `fastcgi_param
+PHP_VALUE`) — the live site's nginx config needs the same line when `next` goes live.
 - **2026-11-12** — **Income tax estimate, Projection.** `IncomeTaxEstimate` works out
   each fiscal year's profit from the transactions (income − expenses − employer EFKA,
   by invoice date; tax rows, transfers, shareholders and categories switched off under

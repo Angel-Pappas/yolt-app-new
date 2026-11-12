@@ -3,6 +3,7 @@ import {
     ArrowLeft,
     ArrowLeftRight,
     ChartNoAxesCombined,
+    FileSignature,
     FolderKanban,
     Handshake,
     HandCoins,
@@ -47,6 +48,7 @@ const financeNavItems: NavItem[] = [
     { title: 'Projects', href: '/projects', icon: FolderKanban },
     { title: 'Recurring', href: '/recurring', icon: Repeat },
     { title: 'One-offs', href: '/one-offs', icon: Receipt },
+    { title: 'Agreements', href: '/agreements', icon: FileSignature },
     { title: 'De minimis', href: '/de-minimis', icon: HandCoins },
 ];
 

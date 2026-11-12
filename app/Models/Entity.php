@@ -36,6 +36,12 @@ class Entity extends Model
         return $this->hasMany(Transaction::class);
     }
 
+    /** @return HasMany<Agreement, $this> */
+    public function agreements(): HasMany
+    {
+        return $this->hasMany(Agreement::class);
+    }
+
     /** @return HasOne<EmployeeProfile, $this> */
     public function employeeProfile(): HasOne
     {

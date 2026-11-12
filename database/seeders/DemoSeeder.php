@@ -2,8 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Models\Agreement;
 use App\Models\Category;
 use App\Models\Entity;
+use App\Models\LeaveEntry;
 use App\Models\Project;
 use App\Models\Recurrence;
 use App\Models\Transaction;
@@ -122,6 +124,34 @@ class DemoSeeder extends Seeder
         }
 
         $this->projects($bank, $customers, $income['Services Sold'], $vat24->id);
+
+        // Agreements: one running, one about to end, one open-ended, one over.
+        foreach ([
+            [$customers[0], 'Webshop maintenance contract', -200, 400],
+            [$customers[1], 'Support contract 2026', -320, 18],
+            [$suppliers[0], 'Office lease', -700, null],
+            [$customers[2], 'Brand refresh agreement', -400, -30],
+        ] as [$entity, $title, $from, $to]) {
+            Agreement::forceCreate([
+                'entity_id' => $entity->id,
+                'title' => $title,
+                'start_date' => Carbon::now()->addDays($from)->toDateString(),
+                'end_date' => $to !== null ? Carbon::now()->addDays($to)->toDateString() : null,
+            ]);
+        }
+
+        // Leave taken by the first employee.
+        $employee = Entity::query()->where('type', 'employee')->orderBy('id')->first();
+        if ($employee !== null) {
+            foreach ([[-150, -146, 5], [-60, -51, 8]] as [$from, $to, $days]) {
+                LeaveEntry::forceCreate([
+                    'entity_id' => $employee->id,
+                    'start_date' => Carbon::now()->addDays($from)->toDateString(),
+                    'end_date' => Carbon::now()->addDays($to)->toDateString(),
+                    'days' => $days,
+                ]);
+            }
+        }
     }
 
     /**

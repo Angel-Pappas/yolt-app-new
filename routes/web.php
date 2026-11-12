@@ -1,10 +1,13 @@
 <?php
 
+use App\Http\Controllers\AgreementController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DeMinimisAidController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\IncomeTaxYearController;
+use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\OneOffController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ProjectController;
@@ -24,8 +27,8 @@ use Illuminate\Support\Facades\Route;
 // Every active user can use the whole app; a deactivated user is logged out by the
 // EnsureAccountIsActive middleware. Admin-only areas add `can:admin`.
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Home — the landing page after login (a welcome for now).
-    Route::inertia('/', 'home')->name('home');
+    // Home — the landing page after login: what needs attention today.
+    Route::get('/', [HomeController::class, 'index'])->name('home');
 
     // Finance — the day-to-day pages.
     Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
@@ -47,6 +50,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Income (every income with its status tag) and Projects (containers of income
     // installments).
+    // Agreements (files are private, served through `download`).
+    Route::get('agreements', [AgreementController::class, 'index'])->name('agreements.index');
+    Route::post('agreements', [AgreementController::class, 'store'])->name('agreements.store');
+    Route::patch('agreements/warning', [AgreementController::class, 'updateWarning'])->name('agreements.warning');
+    Route::post('agreements/{agreement}', [AgreementController::class, 'update'])->name('agreements.update');
+    Route::delete('agreements/{agreement}', [AgreementController::class, 'destroy'])->name('agreements.destroy');
+    Route::get('agreements/{agreement}/file', [AgreementController::class, 'download'])->name('agreements.download');
+
     Route::get('projection', [ProjectionController::class, 'index'])->name('projection.index');
     Route::get('income', [IncomeController::class, 'index'])->name('income.index');
     Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
@@ -80,6 +91,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('entities/{entity}', [EntityController::class, 'show'])->whereNumber('entity')->name('entities.show');
     Route::patch('entities/{entity}', [EntityController::class, 'update'])->whereNumber('entity')->name('entities.update');
     Route::patch('entities/{entity}/employee', [EntityController::class, 'updateEmployee'])->whereNumber('entity')->name('entities.employee');
+    Route::post('entities/{entity}/leave', [LeaveController::class, 'store'])->whereNumber('entity')->name('entities.leave.store');
+    Route::patch('entities/{entity}/leave/{leave}', [LeaveController::class, 'update'])->whereNumber('entity')->name('entities.leave.update');
+    Route::delete('entities/{entity}/leave/{leave}', [LeaveController::class, 'destroy'])->whereNumber('entity')->name('entities.leave.destroy');
+    Route::get('entities/{entity}/termination', [LeaveController::class, 'termination'])->whereNumber('entity')->name('entities.termination');
     Route::get('payroll/preview', [PayrollController::class, 'preview'])->name('payroll.preview');
     Route::delete('entities/{entity}', [EntityController::class, 'destroy'])->whereNumber('entity')->name('entities.destroy');
 

@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Agreement;
 use App\Models\Entity;
+use App\Models\LeaveEntry;
 use App\Models\Recurrence;
 use App\Models\Transaction;
+use App\Support\Leave;
 use App\Support\RecurrenceGenerator;
 use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
@@ -75,7 +78,20 @@ class EntityController extends Controller
             'entity' => $entity->only(['id', 'name', 'type', 'vat_number']),
             'transactions' => $transactions,
             'recurrences' => $entity->recurrences()->with('entries.lines')->orderByDesc('id')->get(),
+            'agreements' => AgreementController::rows(Agreement::query()->where('entity_id', $entity->id)),
             'employee' => $entity->type === 'employee' ? self::employeeData($entity) : null,
+            'leave' => $entity->type === 'employee' ? [
+                'entries' => LeaveEntry::query()->where('entity_id', $entity->id)->orderByDesc('start_date')
+                    ->get(['id', 'start_date', 'end_date', 'days', 'note'])
+                    ->map(fn (LeaveEntry $l): array => [
+                        'id' => $l->id,
+                        'start_date' => $l->start_date->format('Y-m-d'),
+                        'end_date' => $l->end_date->format('Y-m-d'),
+                        'days' => $l->days,
+                        'note' => $l->note,
+                    ]),
+                'years' => [Leave::summary($entity, now()->year), Leave::summary($entity, now()->year - 1)],
+            ] : null,
             'listHref' => $slug !== false ? "/entities/{$slug}" : '/taxes',
             'listTitle' => $slug !== false ? ucfirst($slug) : 'State',
         ]);

@@ -38,6 +38,8 @@ type Props = {
     description?: string;
     /** Extra header controls, before the Add button (e.g. a Download menu). */
     toolbar?: ReactNode;
+    /** A row under the header (e.g. summary figures), as on {@see DataTable}. */
+    controls?: ReactNode;
     /**
      * Values submitted on create/edit but not rendered as fields — e.g. a list
      * scoped to one `type` locks that column so every row it adds gets it.
@@ -76,6 +78,7 @@ export function CrudResource({
     fields,
     description,
     toolbar,
+    controls,
     fixedValues = {},
     onRowClick,
     rowHref,
@@ -181,6 +184,7 @@ export function CrudResource({
                 renderBulkActions={renderBulkActions}
                 enableTotals={columns.some((col) => col.footer)}
                 toolbar={toolbar}
+                controls={controls}
                 action={
                     <Button
                         onClick={openCreate}
