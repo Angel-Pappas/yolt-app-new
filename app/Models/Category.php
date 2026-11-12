@@ -15,12 +15,18 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $name
  * @property string $type
  * @property string|null $description
+ * @property bool $counts_for_profit
  */
-#[Fillable(['name', 'type', 'description'])]
+#[Fillable(['name', 'type', 'description', 'counts_for_profit'])]
 class Category extends Model
 {
     /** @use HasFactory<CategoryFactory> */
     use HasFactory, SoftDeletes;
+
+    protected function casts(): array
+    {
+        return ['counts_for_profit' => 'boolean'];
+    }
 
     /** @return HasMany<Transaction, $this> */
     public function transactions(): HasMany

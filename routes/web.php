@@ -8,6 +8,7 @@ use App\Http\Controllers\IncomeTaxYearController;
 use App\Http\Controllers\OneOffController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectionController;
 use App\Http\Controllers\PublicHolidayController;
 use App\Http\Controllers\RateChangeController;
 use App\Http\Controllers\RecurrenceController;
@@ -46,6 +47,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Income (every income with its status tag) and Projects (containers of income
     // installments).
+    Route::get('projection', [ProjectionController::class, 'index'])->name('projection.index');
     Route::get('income', [IncomeController::class, 'index'])->name('income.index');
     Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
     Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');

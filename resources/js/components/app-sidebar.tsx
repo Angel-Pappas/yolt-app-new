@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     ArrowLeft,
     ArrowLeftRight,
+    ChartNoAxesCombined,
     FolderKanban,
     Handshake,
     HandCoins,
@@ -39,6 +40,7 @@ import type { NavItem } from '@/types';
 
 // The day-to-day operational pages.
 const financeNavItems: NavItem[] = [
+    { title: 'Projection', href: '/projection', icon: ChartNoAxesCombined },
     { title: 'Transactions', href: '/transactions', icon: ArrowLeftRight },
     { title: 'Wallets', href: '/wallets', icon: Wallet },
     { title: 'Income', href: '/income', icon: TrendingUp },

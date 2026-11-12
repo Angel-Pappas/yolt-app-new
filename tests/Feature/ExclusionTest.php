@@ -101,7 +101,9 @@ test('excluding a transaction removes the tax payment it caused', function () {
     Wallet::factory()->create();
     $t = Transaction::factory()->create(['type' => 'income', 'invoice_date' => '2026-12-10', 'date' => '2026-12-10', 'net' => 1000, 'vat_amount' => 240]);
     TaxSync::run();
-    expect(Transaction::query()->where('source', 'tax')->count())->toBe(1);
+    // Its VAT payment, and the income tax estimated on it.
+    expect(Transaction::query()->where('managed_key', 'like', 'tax:vat:%')->count())->toBe(1);
+    expect(Transaction::query()->where('managed_key', 'like', 'tax:income:%')->count())->toBe(8);
 
     $this->actingAs(User::factory()->create())->patch("/transactions/{$t->id}/excluded", ['excluded' => true]);
 

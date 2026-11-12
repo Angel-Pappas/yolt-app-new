@@ -20,6 +20,18 @@ something came to be; read `Summary.md` for how the app works **now**.
   replace the copy's database → migrate → sync). `ship.sh` on this branch pushes
   `next` and deploys the copy only. When Angel approves, `next` becomes `main` and the
   copy (site, database, nginx site, branch) is removed.
+- **2026-11-12** — **Income tax estimate, Projection.** `IncomeTaxEstimate` works out
+  each fiscal year's profit from the transactions (income − expenses − employer EFKA,
+  by invoice date; tax rows, transfers, shareholders and categories switched off under
+  the new "counts toward profit" tick are left out — Taxes and Deposit start off),
+  then tax, levy, next year's advance less the advance already paid, in 8 installments
+  from July. It stands in until the accountant's figure for that year is entered
+  (`advance_amount` on a year passes its advance on). A year with no activity is not
+  estimated (no levy-only payments). **Finance ▸ Projection** (`App\Support\Projection`):
+  month-by-month starting balance, income, expenses / payroll / contractors / taxes,
+  ending balance, with a hand-drawn SVG graph (no chart library added); range, wallets
+  and "unreconciled past" are remembered per user (`users.preferences`), the range
+  relative to the current month.
 - **2026-11-12** — **Dated rates, tax rules, payroll from gross.** VAT/withholding
   rates take dated changes (`rate_periods`, `App\Support\Rates`; a rate's page lists
   them) and amounts use the rate in force on the **invoice date**. Configuration ▸ Tax

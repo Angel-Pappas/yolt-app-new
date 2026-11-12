@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Transaction;
+use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -44,7 +45,7 @@ class CategoryController extends Controller
             ->get();
 
         return Inertia::render('categories/show', [
-            'category' => $category->only(['id', 'name', 'type', 'description']),
+            'category' => $category->only(['id', 'name', 'type', 'description', 'counts_for_profit']),
             'transactions' => $transactions,
             // Same-type siblings are the valid targets for a bulk recategorise. (The
             // transaction edit form's own lookups come from the shared `financeLookups`.)
@@ -89,6 +90,10 @@ class CategoryController extends Controller
     public function update(Request $request, Category $category): RedirectResponse
     {
         $category->update($this->validateCategory($request));
+        // The flag changes the income tax estimate, and so its payments.
+        if ($category->wasChanged('counts_for_profit')) {
+            TaxSync::run();
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Category updated.')]);
 
@@ -128,6 +133,8 @@ class CategoryController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::in(['income', 'expense'])],
             'description' => ['nullable', 'string', 'max:2000'],
+            // Whether its transactions are part of the profit (income tax estimate).
+            'counts_for_profit' => ['sometimes', 'boolean'],
         ]);
     }
 }

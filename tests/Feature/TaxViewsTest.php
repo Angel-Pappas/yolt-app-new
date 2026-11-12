@@ -20,8 +20,10 @@ test('the taxes index exposes the payment-schedule obligations', function () {
         ->assertInertia(fn (Assert $page) => $page
             ->component('taxes/index')
             ->has('current_month')
-            ->has('obligations', 1)
-            ->where('obligations.0.tax', 'vat'));
+            // The VAT payment, then the income tax estimated on that income.
+            ->where('obligations.0.tax', 'vat')
+            ->where('obligations', fn ($all) => collect($all)->where('tax', 'vat')->count() === 1
+                && collect($all)->where('tax', 'income')->count() === 8));
 });
 
 test('the VAT page lists only its contributing transactions', function () {

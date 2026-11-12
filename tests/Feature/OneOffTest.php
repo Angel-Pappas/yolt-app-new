@@ -25,7 +25,7 @@ test('a transaction added from the One-offs page is tagged a one-off', function 
         ->post('/transactions', oneOffPayload($wallet, ['is_one_off' => true]))
         ->assertRedirect();
 
-    expect(Transaction::sole()->is_one_off)->toBeTrue();
+    expect(Transaction::query()->whereNull('source')->sole()->is_one_off)->toBeTrue();
 });
 
 test('an ordinary transaction is not a one-off', function () {
@@ -33,14 +33,14 @@ test('an ordinary transaction is not a one-off', function () {
 
     $this->actingAs(User::factory()->create())->post('/transactions', oneOffPayload($wallet));
 
-    expect(Transaction::sole()->is_one_off)->toBeFalse();
+    expect(Transaction::query()->whereNull('source')->sole()->is_one_off)->toBeFalse();
 });
 
 test('editing a one-off keeps its tag', function () {
     $wallet = Wallet::factory()->create();
     $user = User::factory()->create();
     $this->actingAs($user)->post('/transactions', oneOffPayload($wallet, ['is_one_off' => true]));
-    $transaction = Transaction::sole();
+    $transaction = Transaction::query()->whereNull('source')->sole();
 
     // The shared edit form never sends the tag.
     $this->actingAs($user)

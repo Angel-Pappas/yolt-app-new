@@ -10,14 +10,15 @@ use Illuminate\Support\Carbon;
  * year contributes one installment per month across its window (first → last
  * installment month), each equal to the flat monthly amount and due on **that month's
  * own last working day** (unlike the monthly taxes, income tax is paid in the month it
- * is listed, not the following one).
+ * is listed, not the following one). A fiscal year with no record yet contributes
+ * the installments of its {@see IncomeTaxEstimate} instead, marked `estimated`.
  */
 class IncomeTaxLedger
 {
     /**
      * The full installment schedule, oldest first.
      *
-     * @return list<array{year: int, month: string, amount: float, due_date: string}>
+     * @return list<array{year: int, month: string, amount: float, due_date: string, estimated: bool}>
      */
     public static function schedule(): array
     {
@@ -35,6 +36,20 @@ class IncomeTaxLedger
                     'month' => $m->format('Y-m'),
                     'amount' => $amount,
                     'due_date' => WorkingDays::lastWorkingDay($m->year, $m->month, $holidays)->format('Y-m-d'),
+                    'estimated' => false,
+                ];
+            }
+        }
+
+        // Fiscal years without an entered figure: the estimate's installments.
+        foreach (IncomeTaxEstimate::years() as $estimate) {
+            foreach ($estimate['installments'] as $installment) {
+                $rows[] = [
+                    'year' => $estimate['year'],
+                    'month' => $installment['month'],
+                    'amount' => $installment['amount'],
+                    'due_date' => $installment['due_date'],
+                    'estimated' => true,
                 ];
             }
         }
@@ -49,11 +64,19 @@ class IncomeTaxLedger
      */
     public static function obligations(): array
     {
-        $out = [];
+        // One payment per month: an entered year's last installments and the next
+        // year's estimate can fall in the same month.
+        $byMonth = [];
         foreach (self::schedule() as $row) {
             if ($row['amount'] > 0) {
-                $out[] = new TaxObligation('income', $row['month'], $row['amount'], $row['due_date']);
+                $byMonth[$row['month']] ??= ['amount' => 0.0, 'due_date' => $row['due_date']];
+                $byMonth[$row['month']]['amount'] += $row['amount'];
             }
+        }
+
+        $out = [];
+        foreach ($byMonth as $month => $row) {
+            $out[] = new TaxObligation('income', $month, round($row['amount'], 2), $row['due_date']);
         }
 
         return $out;

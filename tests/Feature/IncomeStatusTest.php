@@ -24,10 +24,10 @@ test('a new income starts as agreed; an expense has no status', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)->post('/transactions', incomePayload($wallet))->assertRedirect();
-    expect(Transaction::sole()->income_status)->toBe('agreed');
+    expect(Transaction::query()->whereNull('source')->sole()->income_status)->toBe('agreed');
 
     $this->actingAs($user)->post('/transactions', incomePayload($wallet, ['type' => 'expense']));
-    expect(Transaction::query()->where('type', 'expense')->sole()->income_status)->toBeNull();
+    expect(Transaction::query()->whereNull('source')->where('type', 'expense')->sole()->income_status)->toBeNull();
 });
 
 test('an income status is set by hand and never touches reconciled', function () {
@@ -66,7 +66,7 @@ test('editing an income keeps its status and project unless they are sent', func
     $project = Project::factory()->create();
     $user = User::factory()->create();
     $this->actingAs($user)->post('/transactions', incomePayload($wallet, ['project_id' => $project->id, 'income_status' => 'invoiced']));
-    $t = Transaction::sole();
+    $t = Transaction::query()->whereNull('source')->sole();
     expect($t->project_id)->toBe($project->id);
 
     $this->actingAs($user)->patch("/transactions/{$t->id}", incomePayload($wallet, ['description' => 'Site']));

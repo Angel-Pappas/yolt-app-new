@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\IncomeTaxYear;
+use App\Support\IncomeTaxEstimate;
 use App\Support\IncomeTaxLedger;
 use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
@@ -32,11 +33,13 @@ class IncomeTaxYearController extends Controller
                     'year',
                     'revenue_before_tax',
                     'total_tax',
+                    'advance_amount',
                     'first_installment_month',
                     'last_installment_month',
                     'monthly_installment_amount',
                 ]),
             'schedule' => IncomeTaxLedger::schedule(),
+            'estimates' => IncomeTaxEstimate::years(),
         ]);
     }
 
@@ -97,6 +100,7 @@ class IncomeTaxYearController extends Controller
             ],
             'revenue_before_tax' => ['required', 'numeric', 'min:0'],
             'total_tax' => ['required', 'numeric', 'min:0'],
+            'advance_amount' => ['nullable', 'numeric', 'min:0'],
             'first_installment_month' => ['required', 'date'],
             'last_installment_month' => ['required', 'date', 'after_or_equal:first_installment_month'],
             'monthly_installment_amount' => ['required', 'numeric', 'min:0'],
