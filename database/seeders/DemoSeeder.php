@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Entity;
+use App\Models\Project;
 use App\Models\Recurrence;
 use App\Models\Transaction;
 use App\Models\User;
@@ -73,6 +74,7 @@ class DemoSeeder extends Seeder
                 'category_id' => ($isIncome ? $income : $expense)->random()->id,
                 'wallet_id' => $bank->id,
                 'is_reconciled' => $day->lt(Carbon::now()->startOfMonth()),
+                'income_status' => $isIncome ? ($day->lt(Carbon::now()->startOfMonth()) ? 'paid' : 'agreed') : null,
                 'invoice_month' => mt_rand(0, 2) ? (int) $day->format('n') : null,
                 'invoice_not_required' => false,
             ])->forceFill(['user_id' => $user->id])->save();
@@ -117,6 +119,48 @@ class DemoSeeder extends Seeder
                 'is_one_off' => true,
                 'invoice_not_required' => false,
             ]);
+        }
+
+        $this->projects($bank, $customers, $income['Services Sold'], $vat24->id);
+    }
+
+    /**
+     * Projects with installments in every state: one part-paid, one all still to
+     * come (switched off — a "what if"), one finished.
+     *
+     * @param  Collection<int, Entity>  $customers
+     */
+    private function projects(Wallet $bank, Collection $customers, Category $category, int $vat24): void
+    {
+        foreach ([
+            ['Webshop rebuild', $customers[0], 30000, false, [[-40, 10000, 'paid'], [-5, 10000, 'invoiced'], [25, 10000, 'agreed']]],
+            ['Mobile app (proposal)', $customers[1], 24000, true, [[20, 8000, 'agreed'], [50, 8000, 'agreed'], [80, 8000, 'agreed']]],
+            ['Brand refresh', $customers[2], 6000, false, [[-70, 3000, 'paid'], [-35, 3000, 'paid']]],
+            ['Booking platform', $customers[0], 18000, false, [[10, 6000, 'agreed'], [40, 6000, 'agreed'], [70, 2000, 'dropped']]],
+        ] as [$name, $customer, $total, $excluded, $installments]) {
+            $project = Project::create(['name' => $name, 'entity_id' => $customer->id, 'agreed_total' => $total, 'is_excluded' => $excluded]);
+
+            foreach ($installments as $i => [$days, $net, $status]) {
+                $date = Carbon::now()->addDays($days)->toDateString();
+                Transaction::create([
+                    'date' => $date,
+                    'invoice_date' => $date,
+                    'description' => $name.' — installment '.($i + 1),
+                    'type' => 'income',
+                    'net' => $net,
+                    'vat_amount' => round($net * 0.24, 2),
+                    'withheld_amount' => 0,
+                    'vat_rate_id' => $vat24,
+                    'entity_id' => $customer->id,
+                    'category_id' => $category->id,
+                    'wallet_id' => $bank->id,
+                    'is_reconciled' => $status === 'paid',
+                    'is_excluded' => $excluded,
+                    'income_status' => $status,
+                    'project_id' => $project->id,
+                    'invoice_not_required' => false,
+                ]);
+            }
         }
     }
 

@@ -93,6 +93,15 @@ export const DONE_ROW_CLASS =
     '[&>td:not(:last-child)]:text-emerald-700 dark:[&>td:not(:last-child)]:text-emerald-400 [&_.text-muted-foreground]:text-inherit';
 
 /**
+ * A switched-off row (an excluded transaction, recurrence or project, or a dropped
+ * income): it stays in the list but counts for nothing, so its text is faded and
+ * struck through. The last cell — the row's action buttons, where it is switched
+ * back on — keeps its normal look.
+ */
+export const EXCLUDED_ROW_CLASS =
+    '[&>td:not(:last-child)]:opacity-50 [&>td:not(:last-child)]:line-through';
+
+/**
  * The shared, client-side sortable/filterable/searchable table, built on TanStack
  * Table. Every list in the app renders through this so they look and behave
  * identically: a uniform header row (title · search · actions), optional per-column

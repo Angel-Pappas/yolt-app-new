@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     ArrowLeft,
     ArrowLeftRight,
+    FolderKanban,
     Handshake,
     HandCoins,
     House,
@@ -11,6 +12,7 @@ import {
     Receipt,
     Repeat,
     Settings2,
+    TrendingUp,
     Truck,
     UserRound,
     Users,
@@ -39,6 +41,8 @@ import type { NavItem } from '@/types';
 const financeNavItems: NavItem[] = [
     { title: 'Transactions', href: '/transactions', icon: ArrowLeftRight },
     { title: 'Wallets', href: '/wallets', icon: Wallet },
+    { title: 'Income', href: '/income', icon: TrendingUp },
+    { title: 'Projects', href: '/projects', icon: FolderKanban },
     { title: 'Recurring', href: '/recurring', icon: Repeat },
     { title: 'One-offs', href: '/one-offs', icon: Receipt },
     { title: 'De minimis', href: '/de-minimis', icon: HandCoins },

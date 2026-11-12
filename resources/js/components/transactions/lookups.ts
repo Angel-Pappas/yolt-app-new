@@ -3,6 +3,7 @@ import { usePage } from '@inertiajs/react';
 export type WalletOption = { id: number; name: string };
 export type EntityOption = { id: number; name: string; type: string };
 export type CategoryOption = { id: number; name: string; type: string };
+export type ProjectOption = { id: number; name: string; entity_id: number };
 export type RateOption = { id: number; name: string; rate: string };
 
 /**
@@ -14,6 +15,7 @@ export type FinanceLookups = {
     wallets: WalletOption[];
     entities: EntityOption[];
     categories: CategoryOption[];
+    projects: ProjectOption[];
     vatRates: RateOption[];
     withheldRates: RateOption[];
 };

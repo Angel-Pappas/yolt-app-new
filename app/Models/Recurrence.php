@@ -34,6 +34,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $start_date
  * @property Carbon|null $end_date
  * @property bool $active
+ * @property bool $is_excluded
  */
 #[Fillable([
     'entity_id',
@@ -48,6 +49,7 @@ use Illuminate\Support\Carbon;
     'start_date',
     'end_date',
     'active',
+    'is_excluded',
 ])]
 class Recurrence extends Model
 {
@@ -63,6 +65,7 @@ class Recurrence extends Model
             'end_date' => 'date',
             'is_payroll' => 'boolean',
             'active' => 'boolean',
+            'is_excluded' => 'boolean',
             'interval_count' => 'integer',
             'day_of_month' => 'integer',
         ];

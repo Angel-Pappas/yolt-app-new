@@ -3,8 +3,10 @@
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DeMinimisAidController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\IncomeTaxYearController;
 use App\Http\Controllers\OneOffController;
+use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PublicHolidayController;
 use App\Http\Controllers\RecurrenceController;
 use App\Http\Controllers\TaxController;
@@ -30,12 +32,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('transactions/bulk', [TransactionController::class, 'bulkDestroy'])->name('transactions.bulk.destroy');
     Route::patch('transactions/{transaction}', [TransactionController::class, 'update'])->name('transactions.update');
     Route::delete('transactions/{transaction}', [TransactionController::class, 'destroy'])->name('transactions.destroy');
+    Route::patch('transactions/{transaction}/excluded', [TransactionController::class, 'exclude'])->name('transactions.exclude');
+    Route::patch('transactions/{transaction}/status', [TransactionController::class, 'status'])->name('transactions.status');
     Route::post('transactions/{transaction}/reconcile', [TransactionController::class, 'reconcile'])->name('transactions.reconcile');
     Route::post('transactions/{transaction}/invoice', [TransactionController::class, 'invoice'])->name('transactions.invoice');
     Route::patch('transactions/{transaction}/description', [TransactionController::class, 'describe'])->name('transactions.describe');
 
     // One-off expenses: tagged transactions, listed apart (added/edited as transactions).
     Route::get('one-offs', [OneOffController::class, 'index'])->name('one-offs.index');
+
+    // Income (every income with its status tag) and Projects (containers of income
+    // installments).
+    Route::get('income', [IncomeController::class, 'index'])->name('income.index');
+    Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
+    Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
+    Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+    Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+    Route::patch('projects/{project}/excluded', [ProjectController::class, 'exclude'])->name('projects.exclude');
+    Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
 
     // De minimis grants: the company's record, downloadable as Markdown or Excel.
     // Downloads are registered before the {deMinimisAid} routes.
@@ -66,6 +80,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('recurring', [RecurrenceController::class, 'index'])->name('recurring.index');
     Route::post('recurrences', [RecurrenceController::class, 'store'])->name('recurrences.store');
     Route::patch('recurrences/{recurrence}', [RecurrenceController::class, 'update'])->name('recurrences.update');
+    Route::patch('recurrences/{recurrence}/excluded', [RecurrenceController::class, 'exclude'])->name('recurrences.exclude');
     Route::delete('recurrences/{recurrence}', [RecurrenceController::class, 'destroy'])->name('recurrences.destroy');
 
     Route::get('taxes', [TaxController::class, 'index'])->name('taxes.index');

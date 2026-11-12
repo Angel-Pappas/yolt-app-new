@@ -23,7 +23,7 @@ class RecurringOverview
     public const GROUPS = ['payroll', 'contractors', 'expenses', 'income'];
 
     /**
-     * @return list<array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, done: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}>
+     * @return list<array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, excluded: bool, done: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}>
      */
     public static function rows(): array
     {
@@ -88,7 +88,7 @@ class RecurringOverview
     }
 
     /**
-     * @return array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, done: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}
+     * @return array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, excluded: bool, done: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}
      */
     private static function row(Recurrence $recurrence, ?bool $lastReconciled): array
     {
@@ -106,6 +106,7 @@ class RecurringOverview
             'recurrence' => Arr::except($recurrence->toArray(), ['entity']),
             'description' => $recurrence->description,
             'active' => $recurrence->active,
+            'excluded' => $recurrence->is_excluded,
             'done' => self::isDone($recurrence, $lastReconciled),
             'start_date' => $recurrence->start_date->toDateString(),
             'end_date' => $recurrence->end_date?->toDateString(),

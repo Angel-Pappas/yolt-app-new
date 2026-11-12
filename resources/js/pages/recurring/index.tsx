@@ -4,7 +4,12 @@ import { type ColumnDef, type Table } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { ColumnHeader } from '@/components/data-table/column-header';
-import { DataTable, DONE_ROW_CLASS } from '@/components/data-table/data-table';
+import {
+    DataTable,
+    DONE_ROW_CLASS,
+    EXCLUDED_ROW_CLASS,
+} from '@/components/data-table/data-table';
+import { ExcludeToggle } from '@/components/exclude-toggle';
 import { ShowAllToggle } from '@/components/data-table/show-all-toggle';
 import { deleteRecurrence } from '@/components/recurrences/delete-recurrence';
 import {
@@ -32,6 +37,8 @@ type Row = {
     recurrence: RecurrenceRecord;
     description: string;
     active: boolean;
+    /** Switched off: its unreconciled transactions count for nothing. */
+    excluded: boolean;
     /** Has an end date and its last transaction is reconciled — hidden unless "Show all". */
     done: boolean;
     start_date: string;
@@ -64,8 +71,8 @@ const MONEY_COLUMNS: Record<RecurringGroup, [MoneyKey, string][]> = {
     payroll: [
         ['net', 'Net'],
         ['fmy', 'FMY'],
-        ['efka_employee', 'EFKA employee'],
-        ['efka_employer', 'EFKA employer'],
+        ['efka_employee', 'EFKA ee'],
+        ['efka_employer', 'EFKA er'],
         ['total', 'To pay'],
         ['cost', 'Total cost'],
     ],
@@ -109,11 +116,13 @@ function moneyColumn(key: MoneyKey, title: string): ColumnDef<Row> {
                 {formatAmount(row.original[key])}
             </span>
         ),
+        // Switched-off recurrences are listed but add nothing to the totals.
         footer: ({ table }: { table: Table<Row> }) =>
             formatAmount(
                 table
                     .getFilteredRowModel()
-                    .rows.reduce((s, r) => s + r.original[key], 0),
+                    .rows.filter((r) => !r.original.excluded)
+                    .reduce((s, r) => s + r.original[key], 0),
             ),
     };
 }
@@ -185,19 +194,25 @@ function columnsFor(group: RecurringGroup): ColumnDef<Row>[] {
             meta: { align: 'right' },
             header: () => null,
             cell: ({ row }) => (
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    // Above the row's stretched open-in-new-tab link.
-                    className="relative z-10"
-                    aria-label={`Delete ${row.original.entity.name}'s recurring transaction`}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        deleteRecurrence(row.original.id);
-                    }}
-                >
-                    <Trash2 className="size-4" />
-                </Button>
+                // Above the row's stretched open-in-new-tab link.
+                <div className="relative z-10 flex justify-end gap-1">
+                    <ExcludeToggle
+                        url={`/recurrences/${row.original.id}/excluded`}
+                        excluded={row.original.excluded}
+                        label="recurring transaction"
+                    />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete ${row.original.entity.name}'s recurring transaction`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            deleteRecurrence(row.original.id);
+                        }}
+                    >
+                        <Trash2 className="size-4" />
+                    </Button>
+                </div>
             ),
         },
     ];
@@ -264,7 +279,12 @@ export default function RecurringIndex({
                     enableTotals
                     onRowClick={openForm}
                     rowHref={(r) => `/recurring?edit=${r.id}`}
-                    rowClassName={(r) => (r.done ? DONE_ROW_CLASS : undefined)}
+                    rowClassName={(r) =>
+                        cn(
+                            r.excluded && EXCLUDED_ROW_CLASS,
+                            r.done && DONE_ROW_CLASS,
+                        )
+                    }
                     action={
                         <Button
                             onClick={() => openForm(null)}

@@ -45,6 +45,7 @@ export default function OneOffsIndex({
                         reconcile: true,
                         invoice: true,
                         delete: true,
+                        exclude: true,
                     }}
                     rowClassName={(t) =>
                         t.is_reconciled ? DONE_ROW_CLASS : undefined

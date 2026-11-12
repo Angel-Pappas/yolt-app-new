@@ -22,6 +22,8 @@ import {
     PayrollFields,
     PayrollSummary,
 } from '@/components/transactions/amount-lines';
+import { INCOME_STATUSES } from '@/components/transactions/income-status';
+import { type IncomeStatus } from '@/components/transactions/types';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import {
@@ -75,6 +77,8 @@ export type EditableTransaction = {
     efka_employer_amount: string | null;
     vat_lines: VatLine[];
     withheld_lines: WithheldLine[];
+    income_status?: IncomeStatus | null;
+    project_id?: number | null;
 };
 
 type Props = {
@@ -83,6 +87,10 @@ type Props = {
     editing?: EditableTransaction | null;
     /** Adding from Finance ▸ One-offs: tag the new transaction as a one-off. */
     oneOff?: boolean;
+    /** Adding from Finance ▸ Income: the new transaction starts as an income. */
+    income?: boolean;
+    /** Adding from a project's page: an income installment of that project. */
+    project?: { id: number; entity_id: number } | null;
 };
 
 function today(): string {
@@ -94,10 +102,12 @@ export function TransactionFormDialog({
     onOpenChange,
     editing,
     oneOff = false,
+    income = false,
+    project = null,
 }: Props) {
     // Lookups come from the globally-shared source, so this form works wherever it's
     // opened without each page having to pass them.
-    const { wallets, entities, categories } = useFinanceLookups();
+    const { wallets, entities, categories, projects } = useFinanceLookups();
 
     // Re-couple each stored VAT line with its withheld line (matched by position),
     // so an edited transaction shows the withholding toggle lit on the right lines.
@@ -150,13 +160,18 @@ export function TransactionFormDialog({
                   efka_employer: editing.efka_employer_amount ?? '',
                   amount_mode: 'net' as AmountMode,
                   lines: editingLines(),
+                  income_status: (editing.income_status ??
+                      'agreed') as IncomeStatus,
+                  project_id: editing.project_id
+                      ? String(editing.project_id)
+                      : '',
               }
             : {
-                  type: 'expense',
+                  type: income || project ? 'income' : 'expense',
                   date: today(),
                   invoice_date: today(),
                   description: '',
-                  entity_id: '',
+                  entity_id: project ? String(project.entity_id) : '',
                   category_id: '',
                   wallet_id: wallets[0] ? String(wallets[0].id) : '',
                   to_wallet_id: '',
@@ -166,6 +181,8 @@ export function TransactionFormDialog({
                   efka_employer: '',
                   amount_mode: 'net' as AmountMode,
                   lines: [emptyAmountLine()],
+                  income_status: 'agreed' as IncomeStatus,
+                  project_id: project ? String(project.id) : '',
               },
     );
 
@@ -185,6 +202,29 @@ export function TransactionFormDialog({
     const [addCategoryKey, setAddCategoryKey] = useState(0);
 
     const isTransfer = form.data.type === 'transfer';
+    const isIncome = form.data.type === 'income';
+
+    // The projects offered: the chosen entity's (all of them while none is chosen).
+    // An already-selected project is always kept.
+    const availableProjects = projects.filter(
+        (p) =>
+            form.data.entity_id === '' ||
+            String(p.entity_id) === form.data.entity_id ||
+            String(p.id) === form.data.project_id,
+    );
+
+    // Picking a project fills in its customer when none is chosen yet.
+    function changeProject(value: string) {
+        const picked = projects.find((p) => String(p.id) === value);
+        form.setData((data) => ({
+            ...data,
+            project_id: value,
+            entity_id:
+                picked && data.entity_id === ''
+                    ? String(picked.entity_id)
+                    : data.entity_id,
+        }));
+    }
 
     const availableCategories = categories.filter(
         (c) => c.type === form.data.type,
@@ -344,6 +384,13 @@ export function TransactionFormDialog({
             wallet_id: data.wallet_id,
             amount_mode: data.amount_mode,
             lines: linesPayload(data.lines),
+            // An income's tags; the server ignores them on any other type.
+            ...(data.type === 'income'
+                ? {
+                      income_status: data.income_status,
+                      project_id: data.project_id || null,
+                  }
+                : {}),
         };
     }
 
@@ -566,6 +613,59 @@ export function TransactionFormDialog({
                                             <Plus className="size-4" />
                                         </Button>
                                     </div>
+                                </div>
+                            )}
+
+                            {isIncome && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="project_id">Project</Label>
+                                    <Combobox
+                                        id="project_id"
+                                        value={form.data.project_id}
+                                        onChange={changeProject}
+                                        options={availableProjects.map((p) => ({
+                                            value: String(p.id),
+                                            label: p.name,
+                                        }))}
+                                        placeholder="— None —"
+                                        searchPlaceholder="Search projects…"
+                                        emptyText="No projects found."
+                                        allowNone
+                                    />
+                                    <InputError
+                                        message={errors['project_id']}
+                                    />
+                                </div>
+                            )}
+
+                            {isIncome && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="income_status">
+                                        Status
+                                    </Label>
+                                    <Select
+                                        value={form.data.income_status}
+                                        onValueChange={(v) =>
+                                            form.setData(
+                                                'income_status',
+                                                v as IncomeStatus,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger id="income_status">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {INCOME_STATUSES.map((s) => (
+                                                <SelectItem
+                                                    key={s.value}
+                                                    value={s.value}
+                                                >
+                                                    {s.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             )}
 

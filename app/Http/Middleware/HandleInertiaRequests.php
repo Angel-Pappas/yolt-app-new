@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Category;
 use App\Models\Entity;
+use App\Models\Project;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
@@ -57,6 +58,7 @@ class HandleInertiaRequests extends Middleware
                 'entities' => Entity::query()->orderBy('name')->get(['id', 'name', 'type']),
                 'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
                 'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+                'projects' => Project::query()->orderBy('name')->get(['id', 'name', 'entity_id']),
                 'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
             ] : null,
         ];

@@ -305,7 +305,7 @@ class RecurrenceGenerator
                 ? $resolved['vat_lines'][0]['vat_rate_id']
                 : null,
         ]);
-        $t->user_id = $r->user_id;
+        self::newRowDefaults($t, $r);
         $t->save();
 
         $t->vatLines()->delete();
@@ -333,10 +333,25 @@ class RecurrenceGenerator
             'vat_amount' => 0,
             'withheld_amount' => 0,
         ]);
-        $t->user_id = $r->user_id;
+        self::newRowDefaults($t, $r);
         $t->save();
         $t->vatLines()->delete();
         $t->withheldLines()->delete();
+    }
+
+    /**
+     * What a row gets only when it is first generated — never overwritten after, so a
+     * row switched off (or an income re-tagged) by hand keeps that through later syncs.
+     * A new row follows its recurrence's on/off switch; a new income starts as agreed.
+     */
+    private static function newRowDefaults(Transaction $t, Recurrence $r): void
+    {
+        $t->user_id = $r->user_id;
+        if ($t->exists) {
+            return;
+        }
+        $t->is_excluded = (bool) $r->is_excluded;
+        $t->income_status = $r->type === 'income' ? 'agreed' : null;
     }
 
     /**

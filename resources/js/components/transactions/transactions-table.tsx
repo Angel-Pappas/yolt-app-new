@@ -3,7 +3,11 @@ import { type ColumnDef, type Table } from '@tanstack/react-table';
 import { CircleCheck, FileText, Trash2 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { ColumnHeader } from '@/components/data-table/column-header';
-import { DataTable } from '@/components/data-table/data-table';
+import {
+    DataTable,
+    EXCLUDED_ROW_CLASS,
+} from '@/components/data-table/data-table';
+import { ExcludeToggle } from '@/components/exclude-toggle';
 import { Button } from '@/components/ui/button';
 import { formatAmount, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -12,17 +16,20 @@ import { ReconcileModal } from '@/pages/transactions/reconcile-modal';
 import { TransactionFormDialog } from '@/pages/transactions/transaction-form-dialog';
 import { useFinanceLookups } from './lookups';
 import { DescriptionButton, DescriptionDialog } from './description-cell';
+import { INCOME_STATUSES, IncomeStatusBadge } from './income-status';
 import {
     TransactionTypeIcon,
     transactionTypeOptions,
 } from './transaction-type-icon';
-import { type Transaction, transactionTotal } from './types';
+import { type Transaction, transactionCounts, transactionTotal } from './types';
 
 /** Which per-row action buttons to show beside the always-present ⓘ description. */
 type RowActions = {
     reconcile?: boolean;
     invoice?: boolean;
     delete?: boolean;
+    /** The include/exclude switch. */
+    exclude?: boolean;
 };
 
 type Props = {
@@ -51,15 +58,29 @@ type Props = {
     editing?: Transaction | null;
     /** Extra classes per row (passed to the DataTable). */
     rowClassName?: (t: Transaction) => string | undefined;
+    /**
+     * Show the income Status column (the tag, changeable in place). On for lists
+     * that are about income; off by default so expense lists carry no empty column.
+     */
+    showStatus?: boolean;
+    /**
+     * Columns to leave out because they'd say the same on every row here (e.g.
+     * `type` on an income-only list, `entity` on one customer's project).
+     */
+    hideColumns?: ('type' | 'entity' | 'category' | 'wallet')[];
 };
 
-/** Sum a numeric column over the currently-filtered rows, formatted as money. */
+/**
+ * Sum a numeric column over the currently-filtered rows that count (a switched-off
+ * row or a dropped income is listed but adds nothing), formatted as money.
+ */
 function sumFooter(id: string) {
     return ({ table }: { table: Table<Transaction> }) =>
         formatAmount(
             table
                 .getFilteredRowModel()
-                .rows.reduce((s, r) => s + Number(r.getValue(id)), 0),
+                .rows.filter((r) => transactionCounts(r.original))
+                .reduce((s, r) => s + Number(r.getValue(id)), 0),
         );
 }
 
@@ -93,6 +114,8 @@ export function TransactionsTable({
     showTotals = true,
     editing = null,
     rowClassName,
+    showStatus = false,
+    hideColumns = [],
 }: Props) {
     const { wallets, entities, categories } = useFinanceLookups();
 
@@ -166,8 +189,9 @@ export function TransactionsTable({
         label: e.name,
     }));
 
-    const columns: ColumnDef<Transaction>[] = [
+    const allColumns: ColumnDef<Transaction>[] = [
         {
+            id: 'type',
             accessorKey: 'type',
             meta: {
                 filter: { type: 'select', options: transactionTypeOptions },
@@ -266,6 +290,30 @@ export function TransactionsTable({
                 </span>
             ),
         },
+        ...(showStatus
+            ? [
+                  {
+                      id: 'status',
+                      accessorFn: (row: Transaction) => row.income_status ?? '',
+                      meta: {
+                          filter: {
+                              type: 'select' as const,
+                              options: INCOME_STATUSES,
+                          },
+                      },
+                      header: ({ column }) => (
+                          <ColumnHeader column={column} title="Status" />
+                      ),
+                      cell: ({ row }) =>
+                          row.original.income_status ? (
+                              <IncomeStatusBadge
+                                  transactionId={row.original.id}
+                                  status={row.original.income_status}
+                              />
+                          ) : null,
+                  } as ColumnDef<Transaction>,
+              ]
+            : []),
         {
             id: 'net',
             accessorFn: (row) => Number(row.net),
@@ -348,6 +396,20 @@ export function TransactionsTable({
                             description={t.description}
                             onClick={() => openDescription(t)}
                         />
+                        {rowActions.exclude && t.source !== 'tax' && (
+                            <ExcludeToggle
+                                url={`/transactions/${t.id}/excluded`}
+                                label="transaction"
+                                excluded={!transactionCounts(t)}
+                                disabledReason={
+                                    t.income_status === 'dropped'
+                                        ? 'A dropped income counts for nothing — change its status to bring it back'
+                                        : t.is_reconciled
+                                          ? 'A reconciled transaction always counts'
+                                          : undefined
+                                }
+                            />
+                        )}
                         {rowActions.reconcile && (
                             <Button
                                 variant="ghost"
@@ -404,6 +466,10 @@ export function TransactionsTable({
         },
     ];
 
+    const columns = allColumns.filter(
+        (c) => !(hideColumns as string[]).includes(c.id ?? ''),
+    );
+
     return (
         <>
             <DataTable
@@ -417,7 +483,12 @@ export function TransactionsTable({
                 toolbar={toolbar}
                 action={action}
                 onRowClick={openEdit}
-                rowClassName={rowClassName}
+                rowClassName={(t) =>
+                    cn(
+                        !transactionCounts(t) && EXCLUDED_ROW_CLASS,
+                        rowClassName?.(t),
+                    )
+                }
                 rowHref={(t) => `/transactions?edit=${t.id}`}
                 enableTotals={showTotals}
                 enableSelection={enableSelection}

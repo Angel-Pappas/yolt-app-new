@@ -1,5 +1,7 @@
 export type TransactionType = 'income' | 'expense' | 'transfer';
 
+export type IncomeStatus = 'agreed' | 'invoiced' | 'paid' | 'dropped';
+
 type Related = { id: number; name: string } | null;
 type VatLine = { net: string; vat_rate_id: number | null; position: number };
 type WithheldLine = {
@@ -27,6 +29,14 @@ export type Transaction = {
     efka_employer_amount: string | null;
     is_reconciled: boolean;
     is_one_off: boolean;
+    /** Switched off: listed, but counts for nothing. */
+    is_excluded: boolean;
+    /** An income's hand-set tag; null on expenses and transfers. */
+    income_status: IncomeStatus | null;
+    project_id: number | null;
+    project?: Related;
+    /** 'recurrence' | 'tax' for generated rows; null when typed in. */
+    source: string | null;
     invoice_month: number | null;
     invoice_not_required: boolean;
     entity_id: number | null;
@@ -59,4 +69,14 @@ export function transactionTotal(t: Transaction): number {
         Number(t.fmy_amount ?? 0) -
         Number(t.efka_employee_amount ?? 0)
     );
+}
+
+/**
+ * Whether a row counts toward balances, the projection and taxes: not switched off
+ * and not a dropped income. Mirrors `Transaction::counts()` on the server.
+ */
+export function transactionCounts(
+    t: Pick<Transaction, 'is_excluded' | 'income_status'>,
+): boolean {
+    return !t.is_excluded && t.income_status !== 'dropped';
 }

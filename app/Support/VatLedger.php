@@ -43,6 +43,7 @@ class VatLedger
         $byMonth = [];
 
         Transaction::query()
+            ->counted()
             ->whereIn('type', ['income', 'expense'])
             ->get(['type', 'invoice_date', 'vat_amount'])
             ->each(function (Transaction $t) use (&$byMonth): void {

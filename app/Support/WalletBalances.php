@@ -22,7 +22,9 @@ class WalletBalances
      * annotated with a `balance` attribute = the running balance after it (seeded
      * from the wallet's starting balance). Because a running balance depends on
      * every prior row, this always walks the wallet's full history; display
-     * filters are applied to the result afterwards, not to this walk.
+     * filters are applied to the result afterwards, not to this walk. Rows that
+     * don't count (switched off, or a dropped income) are kept in the list but leave
+     * the balance untouched.
      *
      * @return Collection<int, Transaction>
      */
@@ -41,6 +43,13 @@ class WalletBalances
                 // The balance just before this row — the balance view's
                 // "Starting balance" line reads it off the first row it shows.
                 $t->setAttribute('balance_before', round($running, 2));
+
+                // A switched-off (or dropped) row is listed but moves nothing.
+                if (! $t->counts()) {
+                    $t->setAttribute('balance', round($running, 2));
+
+                    return;
+                }
 
                 if ($t->type === 'income' && $t->wallet_id === $walletId) {
                     $running += $total;
@@ -92,6 +101,7 @@ class WalletBalances
         }
 
         Transaction::query()
+            ->counted()
             ->where('is_reconciled', true)
             ->whereDate('date', '<=', Carbon::today()->toDateString())
             ->get(['type', 'net', 'vat_amount', 'withheld_amount', 'fmy_amount', 'efka_employee_amount', 'wallet_id', 'to_wallet_id'])

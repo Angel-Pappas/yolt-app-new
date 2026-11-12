@@ -81,6 +81,27 @@ class RecurrenceController extends Controller
         return back();
     }
 
+    /**
+     * Switch a whole recurrence off or on: a shortcut for switching every transaction
+     * it produced that hasn't been reconciled (those really happened), and what new
+     * rows it generates from now on start as.
+     */
+    public function exclude(Request $request, Recurrence $recurrence): RedirectResponse
+    {
+        $data = $request->validate(['excluded' => ['required', 'boolean']]);
+        $excluded = (bool) $data['excluded'];
+
+        DB::transaction(function () use ($recurrence, $excluded) {
+            $recurrence->update(['is_excluded' => $excluded]);
+            $recurrence->transactions()->where('is_reconciled', false)->update(['is_excluded' => $excluded]);
+            TaxSync::run();
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $excluded ? __('Recurring transaction excluded.') : __('Recurring transaction included.')]);
+
+        return back();
+    }
+
     public function destroy(Recurrence $recurrence): RedirectResponse
     {
         DB::transaction(function () use ($recurrence) {

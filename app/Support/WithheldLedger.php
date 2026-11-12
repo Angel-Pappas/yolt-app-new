@@ -39,6 +39,7 @@ class WithheldLedger
         $byMonth = [];
 
         Transaction::query()
+            ->counted()
             ->where('type', 'expense')
             ->where('withheld_amount', '>', 0)
             ->get(['invoice_date', 'withheld_amount'])

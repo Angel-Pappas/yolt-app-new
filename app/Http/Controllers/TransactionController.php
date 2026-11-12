@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Project;
 use App\Models\Transaction;
 use App\Models\VatRate;
 use App\Models\Wallet;
@@ -15,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -267,12 +269,24 @@ class TransactionController extends Controller
 
         DB::transaction(function () use ($data, $transaction) {
             $newNet = round((float) $data['net'], 2);
+            $reconciled = $data['is_reconciled'] ?? true;
+
+            // The invoice date follows the payment date until it has been set apart
+            // by hand — so it moves along here only while the two are still equal.
+            $followsDate = $transaction->invoice_date->toDateString() === $transaction->date->toDateString();
 
             $transaction->fill([
                 'date' => $data['date'],
                 'wallet_id' => $data['wallet_id'],
-                'is_reconciled' => $data['is_reconciled'] ?? true,
+                'is_reconciled' => $reconciled,
             ]);
+            if ($followsDate) {
+                $transaction->invoice_date = $data['date'];
+            }
+            // A reconciled row really happened, so it always counts.
+            if ($reconciled) {
+                $transaction->is_excluded = false;
+            }
 
             if ($transaction->type === 'transfer') {
                 $transaction->to_wallet_id = $data['to_wallet_id'];
@@ -411,6 +425,13 @@ class TransactionController extends Controller
             'is_one_off' => ['sometimes', 'boolean'],
         ];
 
+        if ($request->input('type') === 'income') {
+            // An income's hand-set tag and (optionally) the project it belongs to.
+            // Absent means "leave as is" (a new income starts as agreed).
+            $rules['income_status'] = ['sometimes', Rule::in(Transaction::INCOME_STATUSES)];
+            $rules['project_id'] = ['sometimes', 'nullable', 'integer', 'exists:projects,id'];
+        }
+
         if ($request->input('type') === 'transfer') {
             $rules['to_wallet_id'] = ['required', 'integer', 'different:wallet_id', 'exists:wallets,id'];
             $rules['net'] = ['required', 'numeric', 'min:0'];
@@ -462,6 +483,80 @@ class TransactionController extends Controller
     }
 
     /**
+     * The income-only tags: status (a new income starts as agreed) and project. Any
+     * other type carries neither. A new installment of a switched-off project starts
+     * switched off too.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function applyIncomeTags(Transaction $transaction, array $data): void
+    {
+        if ($data['type'] !== 'income') {
+            $transaction->income_status = null;
+            $transaction->project_id = null;
+
+            return;
+        }
+
+        $transaction->income_status = $data['income_status'] ?? $transaction->income_status ?? 'agreed';
+
+        if (array_key_exists('project_id', $data)) {
+            $transaction->project_id = $data['project_id'] !== null ? (int) $data['project_id'] : null;
+        }
+
+        if (! $transaction->exists && $transaction->project_id !== null
+            && Project::query()->whereKey($transaction->project_id)->value('is_excluded')) {
+            $transaction->is_excluded = true;
+        }
+    }
+
+    /**
+     * Switch a transaction off or on. Off, it stays in every list but counts for
+     * nothing. A reconciled row really happened and a tax row is derived, so neither
+     * can be switched off.
+     */
+    public function exclude(Request $request, Transaction $transaction): RedirectResponse
+    {
+        $data = $request->validate(['excluded' => ['required', 'boolean']]);
+        $excluded = (bool) $data['excluded'];
+
+        if ($excluded && ($transaction->is_reconciled || $transaction->source === 'tax')) {
+            throw ValidationException::withMessages([
+                'excluded' => $transaction->is_reconciled
+                    ? __('A reconciled transaction cannot be excluded.')
+                    : __('A tax payment is calculated and cannot be excluded.'),
+            ]);
+        }
+
+        DB::transaction(function () use ($transaction, $excluded) {
+            $transaction->update(['is_excluded' => $excluded]);
+            TaxSync::run();
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $excluded ? __('Transaction excluded.') : __('Transaction included.')]);
+
+        return back();
+    }
+
+    /**
+     * Set an income's status tag by hand. It never touches the reconciled flag (and
+     * reconciling never touches it); only "dropped" changes the numbers, because a
+     * dropped income counts for nothing.
+     */
+    public function status(Request $request, Transaction $transaction): RedirectResponse
+    {
+        abort_unless($transaction->type === 'income', 422);
+        $data = $request->validate(['status' => ['required', Rule::in(Transaction::INCOME_STATUSES)]]);
+
+        DB::transaction(function () use ($transaction, $data) {
+            $transaction->update(['income_status' => $data['status']]);
+            TaxSync::run();
+        });
+
+        return back();
+    }
+
+    /**
      * Set a transaction's fields from validated input and (re)write its VAT and
      * withholding lines wholesale. Shared by store and update; handles both a
      * transfer and an income/expense, nulling the other shape's fields so a type
@@ -474,6 +569,7 @@ class TransactionController extends Controller
         if (array_key_exists('is_one_off', $data)) {
             $transaction->is_one_off = (bool) $data['is_one_off'];
         }
+        $this->applyIncomeTags($transaction, $data);
 
         if ($data['type'] === 'transfer') {
             $transaction->fill([

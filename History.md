@@ -12,6 +12,27 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-12** — **The "next" build begins (branch `next`, copy site).** Angel asked
+  for the whole remaining scope to be built in one go on a copy he can test, without
+  touching the live app: a second site `yolt-next.pappas.yoltobots.click`
+  (`/home/ploi/yolt-next/{dev,site}`, database `yolt_next`, its own MySQL user with no
+  rights on `yolt_app`) filled by `refresh-from-live.sh` (read-only dump of live →
+  replace the copy's database → migrate → sync). `ship.sh` on this branch pushes
+  `next` and deploys the copy only. When Angel approves, `next` becomes `main` and the
+  copy (site, database, nginx site, branch) is removed.
+- **2026-11-12** — **Include/exclude, income status, Projects, Income.** Everything is
+  entered as real; any item can be **switched off** (Angel: the Excel tick boxes) — it
+  stays in its normal list, struck through, and counts for nothing (balances, taxes).
+  The switch is on a transaction, a recurrence (flips its unreconciled rows; new rows
+  follow) and a project (same). A reconciled row always counts; a tax row can't be
+  switched. One rule for "counts": `Transaction::scopeCounted()` — used by every
+  ledger and balance. An income carries a hand-set **status** (agreed → invoiced →
+  paid, or dropped = counts for nothing); status and reconciling never touch each
+  other (Angel). Existing incomes were backfilled paid/agreed by reconciled.
+  **Projects** are containers of income installments (ordinary transactions with
+  `project_id`); **Finance ▸ Income** lists every income with its status and due
+  buttons. The invoice date now also follows the date on **reconcile** while the two
+  are still equal (Angel: it follows the payment date until changed by hand).
 - **2026-10-30** — **De minimis.** Grant applications keep asking for the table of
   de minimis aid received, and it had to be rebuilt from paper each time. New
   Finance ▸ De minimis keeps one row per grant with the official table's columns, and

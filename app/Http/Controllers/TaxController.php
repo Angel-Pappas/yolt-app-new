@@ -143,6 +143,7 @@ class TaxController extends Controller
     private static function contributing(\Closure $scope): Collection
     {
         $query = Transaction::query()
+            ->counted()
             ->withListData()
             ->orderBy('date')
             ->orderBy('id');
