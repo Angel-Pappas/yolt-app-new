@@ -20,6 +20,13 @@ something came to be; read `Summary.md` for how the app works **now**.
   replace the copy's database → migrate → sync). `ship.sh` on this branch pushes
   `next` and deploys the copy only. When Angel approves, `next` becomes `main` and the
   copy (site, database, nginx site, branch) is removed.
+- **2026-11-12** — **Smoothness pass.** Lists now remember their setup for the tab's
+  session — search, column filters, sorting, scroll (`DataTable` by `title`/`stateKey`)
+  and page toggles (`useStoredState`, replacing Inertia's `useRemember`, which only
+  survived the Back button, not a back link or the sidebar). Rows that open something
+  are real links everywhere (entities, rates, categories, wallets → their balance
+  view, projects, projection months). `backup-db.sh` also archives the agreement
+  files. The screenshot tool gained `--tall` for long pages.
 - **2026-11-12** — **Leave, termination cost, Agreements, Home.** On an employee's
   page: **Leave** (entries with days counted from the dates; entitlement by law per
   calendar year — 20 pro rata / 21 / 22, 25 at 10 years here or 12 in all, 26 at 25 —

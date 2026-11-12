@@ -17,8 +17,12 @@ the dated what/why in `History.md`. Docs map:
 ## The app
 
 - **Yolt Finance** (repo/project name **Yolt-App**): the company's finance app —
-  transactions across wallets, entities, recurring transactions, and Greek taxes
-  (VAT, withholding, FMY, EFKA, income tax) that turn into scheduled payments.
+  transactions across wallets, entities, recurring transactions, projects and
+  planned income, agreements, payroll, and Greek taxes (VAT, withholding, FMY, EFKA,
+  income tax) that turn into scheduled payments — all feeding a cash-flow projection.
+- **Transactions drive everything.** Past rows are the ledger (reconciled = checked);
+  future rows are the plan. Recurrences, projects and taxes only _produce_
+  transactions; every balance, tax and projection is computed from transactions.
 - **Laravel 13 + Inertia/React** on our own VM with MySQL; live at
   `https://yolt-app.pappas.yoltobots.click`. Built fresh on Laravel in 2026-08 to
   replace a Next.js/Supabase app; real data cut over 2026-09-09; that old app is gone.
@@ -37,8 +41,12 @@ the dated what/why in `History.md`. Docs map:
 
 ## Layout & navigation
 
-- Login lands on **Home** (`/`, logo + welcome for now).
-- Sidebar: Home · **Finance** (Transactions, Wallets, Recurring, One-offs, De minimis) · **Entities**
+- Login lands on **Home** (`/`): a dashboard of what needs attention — money really
+  in the wallets, income due this month and overdue, taxes to pay this month, past
+  rows not yet reconciled, the year ahead (graph + lowest balance), agreements ending
+  soon. Every figure links to its page.
+- Sidebar: Home · **Finance** (Projection, Transactions, Wallets, Income, Projects,
+  Recurring, One-offs, Agreements, De minimis) · **Entities**
   (Customers, Suppliers, Contractors, Employees, Shareholders, **State** = the Taxes
   area) · Configuration. Inside `/configuration/*` the sidebar
   swaps to the setup lists + "Back to app".
@@ -57,6 +65,26 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   as a line under the table.
 - Optional row selection with a bulk-actions bar; optional "leading row" above the
   data (used for the balance view's Starting balance).
+- **A list remembers its setup** — search, column filters, sorting, scroll, and
+  toggles like "Show all" or the Recurring group — for the browser tab's session
+  (`lib/stored-state.ts`, `useStoredState`, the table's `stateKey`), so it is the
+  same when you come back from an item's page.
+- **Every row that opens something is a real link** (`rowHref`): middle/Ctrl-click
+  opens it in a new tab — entities, projects, rates, categories, wallets (→ their
+  transactions with running balance), recurrences, transactions, projection months.
+
+## Counting or not: the on/off switch and dropped incomes
+
+- Everything is entered as real. Any item can be **switched off** (the eye button):
+  it stays in its normal list, struck through, and **counts for nothing** — balances,
+  the projection, every tax. This is how "what if" is tried.
+- The switch is on a **transaction**, a **recurrence** (flips all its unreconciled
+  rows; rows it generates later start the same way) and a **project** (same). A row
+  switched by hand keeps that through later syncs. A **reconciled** row always counts
+  (reconciling switches it back on); a generated **tax payment** can't be switched.
+- One rule, one place: `Transaction::scopeCounted()` / `counts()` (client twin
+  `transactionCounts`) — not excluded and not a dropped income. Every ledger, balance,
+  estimate and the projection read through it. Totals rows skip what doesn't count.
 
 ## Transactions (`/transactions`)
 
@@ -97,6 +125,38 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   by a running **Balance**; a **Starting balance** row above the first shown row gives
   the balance just before it. The view stays on through date/preset/toggle changes;
   only its × exits.
+
+## Income, status and Projects
+
+- An income carries a hand-set **status**: Agreed (default) → Invoiced → Paid, or
+  **Dropped** (the deal fell through: kept on record, counts for nothing). Status and
+  reconciling **never touch each other** (Angel). Change it from the badge in the row
+  or in the form. Expenses have no status.
+- **Finance ▸ Income** (`/income`): every income with its status. Open ones (agreed,
+  invoiced) by default; **Show all** brings back paid (green) and dropped. Buttons
+  narrow by payment date: All · Overdue · This month · Next month.
+- **A project** (`/projects`, `/projects/{id}`) is a container: customer, name,
+  optional agreed total (net), notes, on/off switch. Its **installments are ordinary
+  income transactions** (`project_id`), added from its page with the shared form — so
+  VAT, taxes and the projection follow by themselves. The list and page show
+  Scheduled · Invoiced · Paid · Outstanding · Next due (and "Not yet scheduled" against
+  the agreed total), net, from `App\Support\ProjectOverview`. A project is done when
+  every installment is paid or dropped (hidden unless Show all). Deleting a project
+  keeps its installments.
+- The **invoice date** follows the payment date until it is changed by hand — in the
+  form, and on reconcile (it moves along only while the two are still equal).
+
+## Projection (`/projection`)
+
+- Month by month: starting balance, income, expenses (other / payroll / contractors /
+  taxes), net, ending balance — cash amounts by payment date, counted rows only — with
+  a graph (income and expense bars, balance line, current month marked) and the lowest
+  balance ahead. `App\Support\Projection`. A month opens its transactions.
+- Controls, remembered per user (`users.preferences`): from/to month (kept relative
+  to the current month, default 3 back → 12 ahead), which wallets (transfers across
+  the selection's edge then show as their own column), and **Unreconciled past** —
+  whether rows dated before today that aren't reconciled still count (on) or the past
+  is only what was reconciled (off).
 
 ## One-offs (`/one-offs`)
 
@@ -216,6 +276,27 @@ same row; reconciled rows are frozen; same floor and horizon as salaries.
   [RISU — Easter dates 2001–2050](https://risu.ua/en/easter-calendar-2001-2050_n33997).
   The planning note is kept in `docs/archive/Payroll bonuses plan.md`.
 
+### Payroll from the gross, leave, and leaving
+
+- A payroll period can be **calculated**: tick "Calculate FMY and EFKA from the net
+  amount" (the Net amount is the gross salary) and the three figures come from the
+  tax rules in force on each pay day and the employee's children and age
+  (`App\Support\PayrollCalculator`: EFKA % of gross up to the cap; FMY = scale on
+  (gross − employee EFKA) × 14, minus the tax reduction, ÷ 14). Bonuses of a
+  calculated period are calculated on their own amount. The form previews through
+  `GET /payroll/preview` (the server's own calculator — no client copy). Periods that
+  existed before keep their typed figures until ticked.
+- An **employee's page** has: **Employment** (hired/left, born, dependent children,
+  working week, years worked elsewhere, optional leave-days override); **Leave**
+  (entries from–to, days counted from the dates without weekends/holidays unless
+  typed; per year: days by law — 20 pro rata in the hiring year, 21, then 22; 25 with
+  10 years here or 12 in all; 26 with 25; 24/25/26/30/31 on a 6-day week — taken and
+  left; `App\Support\Leave`); and **If they leave** (`App\Support\Termination`): for
+  a chosen date, severance (by completed years: <1 none, 1–<4 2 months, 4–<6 3, 6–<8
+  4, 8–<10 5, 10→6 … 15→11, 16+ 12; a month = pay up to 8×30×minimum daily wage, +1/6;
+  halved with notice), unused leave (days × monthly ÷ 25), and the leave allowance and
+  running bonus earned so far if not yet paid. Gross, an estimate for planning.
+
 ## Taxes — "State" (`/taxes`)
 
 - Each tax is a **bucket** per (invoice month, tax) that emits payment **obligations**
@@ -224,8 +305,16 @@ same row; reconciled rows are frozen; same floor and horizon as salaries.
   Public holidays excluded).
 - **VAT:** output − input per month; a credit rolls forward; a debit is paid in one go.
 - **Withholding, FMY, EFKA:** amounts collected in a month, paid the next month.
-- **Income tax:** entered per year (`/taxes/income`); generates monthly installments,
-  each due on that month's own last working day.
+- **Income tax:** **estimated** per fiscal year from the transactions until the
+  accountant's figure is entered (`App\Support\IncomeTaxEstimate`): profit = income
+  net − expense net − employer EFKA (by invoice date; tax payments, transfers,
+  shareholder rows and categories with "counts toward profit" off are left out); tax =
+  22 % of a positive profit + business levy; plus the advance toward next year (80 %),
+  less the advance already paid; in 8 monthly installments from July of the next
+  year, each on that month's last working day. Entering a year at `/taxes/income`
+  (its installments, and optionally the advance it contains) replaces the estimate
+  for the payments starting that year. A year with no activity isn't estimated; losses
+  aren't carried forward.
 - `/taxes` opens on a **month-by-month payment schedule** (what's due that month),
   then a card per tax and the **tax wallet** selector; each tax page shows its ledger
   and the transactions feeding it.
@@ -234,13 +323,36 @@ same row; reconciled rows are frozen; same floor and horizon as salaries.
   due date, in the tax wallet), recomputed after every transaction/recurrence/income
   tax/holiday write and daily; deleted if the amount drops to zero.
 
+## Agreements (`/agreements`, and on every entity's page)
+
+- For the record: title, the entity, start, end (empty = open-ended), notes and the
+  signed **file** (PDF/Office/image up to 20 MB), stored privately
+  (`storage/app/private/agreements`) and opened only by signed-in users. Status:
+  Not started · Active · **Ends in N days** (within the warning window — 30 days,
+  changeable on the page; also listed on Home) · Ended (hidden unless Show all).
+  `backup-db.sh` archives the files with each database backup.
+
 ## Configuration (`/configuration`)
 
 - **Categories:** side-by-side Income / Expense lists with one search + one Add; Add
   can create **Both** (one of each). Each category has a page with an edit form and
   its transactions, with bulk **Move** to another category / **Delete**. A category
   can't be deleted while live transactions use it; once unused it's removed for good.
-- **VAT rates**, **Withheld tax rates** (name + %), **Public holidays** (date + name).
+- **VAT rates**, **Withheld tax rates** (name + %). A rate's row opens its page of
+  **dated changes** ("from this date the rate is X %"); amounts use the rate in force
+  on the **invoice date** (`App\Support\Rates`, client twin `ratePct`).
+- **Tax rules**: dated sets of the law's figures — EFKA shares and cap, the payroll
+  tax scale (brackets × children, young-employee rates, tax reduction), company tax
+  (rate, advance, levy, installments), the minimum daily wage for the severance cap.
+  A change in the law is a new set from its date (it starts as a copy), so earlier
+  dates keep the old law (`App\Support\TaxRules`, defaults + sources in
+  `TaxRuleDefaults`).
+- **Whenever a rule changes** (a rate, a dated change, the tax rules, an employee's
+  details) `App\Support\Recalculate` re-derives everything **not reconciled** and
+  rebuilds the tax payments; reconciled rows never move.
+- A category has **Counts toward the company's profit** (off for pass-through money
+  like deposits or tax payments) — used by the income tax estimate.
+- **Public holidays** (date + name).
 - **Users** (admins only): create (invite link), toggle admin/active.
 
 ## Conventions

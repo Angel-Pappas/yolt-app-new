@@ -268,7 +268,7 @@ export default function ProjectionIndex({
                     </Button>
                 </div>
                 <Card>
-                    <CardContent className="grid gap-4">
+                    <CardContent className="grid min-w-0 gap-4">
                         {lowest && (
                             <div className="text-sm">
                                 <span className="text-muted-foreground">

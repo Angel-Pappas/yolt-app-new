@@ -1,5 +1,5 @@
 import { type Page } from '@inertiajs/core';
-import { Head, useRemember } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { type ColumnDef, type Table } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -19,6 +19,7 @@ import {
 import { type EntityOption } from '@/components/transactions/lookups';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useStoredState } from '@/hooks/use-stored-state';
 import { formatAmount, formatDate } from '@/lib/format';
 import {
     defaultGroup,
@@ -229,14 +230,17 @@ export default function RecurringIndex({
     // The chosen group and "Show all" survive leaving the page and coming Back.
     // Only active recurrences show unless "Show all" (then done ones are green).
     const deepLinked = recurrences.find((r) => r.id === editId) ?? null;
-    const [showAll, setShowAll] = useRemember(
-        deepLinked?.done ?? false,
+    const [showAll, setShowAll] = useStoredState(
         'recurring-show-all',
+        false,
+        // A deep-linked row must be visible, whatever was chosen before.
+        deepLinked?.done ? true : undefined,
     );
     const visible = showAll ? recurrences : recurrences.filter((r) => !r.done);
-    const [group, setGroup] = useRemember<RecurringGroup>(
-        deepLinked?.group ?? defaultGroup(visible),
+    const [group, setGroup] = useStoredState<RecurringGroup>(
         'recurring-group',
+        defaultGroup(visible),
+        deepLinked?.group,
     );
     const counts = groupCounts(visible);
     const rows = visible.filter((r) => r.group === group);
@@ -271,6 +275,7 @@ export default function RecurringIndex({
                     // A fresh table per group: its columns differ, so a column
                     // filter from another group must not linger.
                     key={group}
+                    stateKey={`recurring-${group}`}
                     columns={columnsFor(group)}
                     data={rows}
                     title="Recurring"

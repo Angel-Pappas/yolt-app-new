@@ -65,7 +65,7 @@ export function CashFlowChart({
     const hovered = hover !== null ? points[hover] : null;
 
     return (
-        <div className={cn('flex flex-col gap-2', className)}>
+        <div className={cn('flex min-w-0 flex-col gap-2', className)}>
             <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-xs">
                 <span className="flex items-center gap-1.5">
                     <span className="size-2.5 rounded-sm bg-emerald-500" />
@@ -81,10 +81,17 @@ export function CashFlowChart({
                 </span>
             </div>
 
-            <div ref={wrapRef} className="relative w-full">
+            {/* The box takes its width from the layout (never from the drawing,
+                which is laid over it), so the chart always fits its container. */}
+            <div
+                ref={wrapRef}
+                className="relative w-full min-w-0"
+                style={{ height }}
+            >
                 <svg
                     width={width}
                     height={height}
+                    className="absolute top-0 left-0"
                     role="img"
                     aria-label="Income, expenses and balance per month"
                     onMouseLeave={() => setHover(null)}

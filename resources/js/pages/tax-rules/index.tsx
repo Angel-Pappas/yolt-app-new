@@ -1,4 +1,4 @@
-import { Head, router, useForm, useRemember } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { Plus, Trash2, X } from 'lucide-react';
 import { type FormEvent, type ReactNode, useState } from 'react';
 import { CrudFormDialog } from '@/components/crud/crud-form-dialog';
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateField } from '@/components/ui/date-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useStoredState } from '@/hooks/use-stored-state';
 import { normalizeAmount } from '@/lib/amounts';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -578,9 +579,9 @@ function RuleSetForm({ set, canDelete }: { set: RuleSet; canDelete: boolean }) {
  * moves.
  */
 export default function TaxRulesIndex({ sets }: { sets: RuleSet[] }) {
-    const [selectedId, setSelectedId] = useRemember(
-        sets[0]?.id ?? 0,
+    const [selectedId, setSelectedId] = useStoredState(
         'tax-rules-set',
+        sets[0]?.id ?? 0,
     );
     const selected = sets.find((s) => s.id === selectedId) ?? sets[0];
     const [addOpen, setAddOpen] = useState(false);

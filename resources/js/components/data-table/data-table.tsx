@@ -15,6 +15,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { readStored, writeStored } from '@/lib/stored-state';
 import { cn } from '@/lib/utils';
 import {
     Table,
@@ -34,11 +35,27 @@ function cellAlign(meta: unknown): string | undefined {
     return undefined;
 }
 
+/** What a table remembers of its setup (see `stateKey`). */
+type SavedSetup = {
+    sorting?: SortingState;
+    columnFilters?: ColumnFiltersState;
+    globalFilter?: string;
+    visibleCount?: number;
+    scrollTop?: number;
+};
+
 type Props<TData, TValue> = {
     columns: ColumnDef<TData, TValue>[];
     data: TData[];
     /** Page heading, rendered at the left of the toolbar row. */
     title?: string;
+    /**
+     * Names this table when remembering its setup (search, column filters, sorting,
+     * scroll) for the tab's session. Defaults to the title; a table with neither
+     * isn't remembered. Give one when two tables on a page share a title, or one
+     * table shows different column sets (Recurring's groups).
+     */
+    stateKey?: string;
     /** Placeholder for the global search box; omit to hide the search box. */
     searchPlaceholder?: string;
     /** Extra controls rendered in the header's right cluster, before `action`. */
@@ -126,6 +143,7 @@ export function DataTable<TData, TValue>({
     columns,
     data,
     title,
+    stateKey,
     searchPlaceholder,
     toolbar,
     action,
@@ -142,11 +160,37 @@ export function DataTable<TData, TValue>({
     renderBulkActions,
     leadingRow,
 }: Props<TData, TValue>) {
-    const [sorting, setSorting] = useState<SortingState>([]);
+    // The table's setup is remembered per page + table for the tab's session, so a
+    // list is still filtered, sorted and scrolled the same when the user comes back
+    // to it from an item's page.
+    const storeKey = useMemo(() => {
+        const name = stateKey ?? title;
+        return name && typeof window !== 'undefined'
+            ? `table:${window.location.pathname}:${name}`
+            : null;
+    }, [stateKey, title]);
+    const [saved] = useState<SavedSetup>(() => {
+        if (!storeKey) return {};
+        const setup = readStored<SavedSetup>(storeKey, {});
+        // Drop anything saved for a column this table no longer has.
+        const ids = new Set(
+            columns.map((c) => {
+                const key = (c as { accessorKey?: unknown }).accessorKey;
+                return c.id ?? (typeof key === 'string' ? key : '');
+            }),
+        );
+        return {
+            ...setup,
+            sorting: setup.sorting?.filter((x) => ids.has(x.id)),
+            columnFilters: setup.columnFilters?.filter((x) => ids.has(x.id)),
+        };
+    });
+
+    const [sorting, setSorting] = useState<SortingState>(saved.sorting ?? []);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
-        initialColumnFilters ?? [],
+        saved.columnFilters ?? initialColumnFilters ?? [],
     );
-    const [globalFilter, setGlobalFilter] = useState('');
+    const [globalFilter, setGlobalFilter] = useState(saved.globalFilter ?? '');
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
     // Give every column that declares a `meta.filter` the matching filter function
@@ -239,7 +283,9 @@ export function DataTable<TData, TValue>({
     // Load-as-you-scroll: render only the first `visibleCount` filtered/sorted
     // rows, revealing another `pageSize` whenever the bottom sentinel is in view.
     const rows = table.getRowModel().rows;
-    const [visibleCount, setVisibleCount] = useState(pageSize);
+    const [visibleCount, setVisibleCount] = useState(
+        Math.max(pageSize, saved.visibleCount ?? 0),
+    );
 
     // Reset back to the top whenever the filter/search/sort selection changes, so a
     // freshly filtered list starts short and grows on scroll (render-time reset, no
@@ -278,6 +324,34 @@ export function DataTable<TData, TValue>({
         observer.observe(head);
         return () => observer.disconnect();
     }, []);
+
+    // Remember the setup (see `storeKey`). Scroll is saved as it happens and put
+    // back once, after the first render has the rows in place.
+    const scrollTopRef = useRef(saved.scrollTop ?? 0);
+    useEffect(() => {
+        if (!storeKey) return;
+        writeStored<SavedSetup>(storeKey, {
+            sorting,
+            columnFilters,
+            globalFilter,
+            visibleCount,
+            scrollTop: scrollTopRef.current,
+        });
+    }, [storeKey, sorting, columnFilters, globalFilter, visibleCount]);
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el || !storeKey) return;
+        if (scrollTopRef.current > 0) el.scrollTop = scrollTopRef.current;
+        const onScroll = () => {
+            scrollTopRef.current = el.scrollTop;
+            writeStored<SavedSetup>(storeKey, {
+                ...readStored<SavedSetup>(storeKey, {}),
+                scrollTop: el.scrollTop,
+            });
+        };
+        el.addEventListener('scroll', onScroll, { passive: true });
+        return () => el.removeEventListener('scroll', onScroll);
+    }, [storeKey]);
 
     useEffect(() => {
         const el = sentinelRef.current;

@@ -1,4 +1,4 @@
-import { Head, useRemember } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { DONE_ROW_CLASS } from '@/components/data-table/data-table';
@@ -7,6 +7,7 @@ import { useFinanceLookups } from '@/components/transactions/lookups';
 import { TransactionsTable } from '@/components/transactions/transactions-table';
 import { type Transaction } from '@/components/transactions/types';
 import { Button } from '@/components/ui/button';
+import { useStoredState } from '@/hooks/use-stored-state';
 import { TransactionFormDialog } from '@/pages/transactions/transaction-form-dialog';
 
 /**
@@ -21,7 +22,7 @@ export default function OneOffsIndex({
     transactions: Transaction[];
 }) {
     const { wallets } = useFinanceLookups();
-    const [showAll, setShowAll] = useRemember(false, 'one-offs-show-all');
+    const [showAll, setShowAll] = useStoredState('one-offs-show-all', false);
     const [addOpen, setAddOpen] = useState(false);
     // Bumped on every open so the dialog remounts with a fresh form.
     const [addKey, setAddKey] = useState(0);

@@ -135,7 +135,7 @@ export default function Home({
                 </div>
 
                 <Card>
-                    <CardHeader className="flex-row items-baseline justify-between gap-4">
+                    <CardHeader className="flex flex-row flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                         <CardTitle>
                             <Link
                                 href="/projection"

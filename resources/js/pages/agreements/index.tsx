@@ -1,9 +1,10 @@
-import { Head, router, useRemember } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import {
     type Agreement,
     AgreementsTable,
 } from '@/components/agreements/agreements-table';
 import { ShowAllToggle } from '@/components/data-table/show-all-toggle';
+import { useStoredState } from '@/hooks/use-stored-state';
 import {
     Select,
     SelectContent,
@@ -27,7 +28,7 @@ export default function AgreementsIndex({
     agreements: Agreement[];
     warning_days: number;
 }) {
-    const [showAll, setShowAll] = useRemember(false, 'agreements-show-all');
+    const [showAll, setShowAll] = useStoredState('agreements-show-all', false);
     const rows = showAll
         ? agreements
         : agreements.filter((a) => a.state !== 'ended');

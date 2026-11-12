@@ -1,4 +1,4 @@
-import { Head, router, useRemember } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { type ColumnDef, type Table } from '@tanstack/react-table';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -16,6 +16,7 @@ import { ShowAllToggle } from '@/components/data-table/show-all-toggle';
 import { ExcludeToggle } from '@/components/exclude-toggle';
 import { useFinanceLookups } from '@/components/transactions/lookups';
 import { Button } from '@/components/ui/button';
+import { useStoredState } from '@/hooks/use-stored-state';
 import { formatAmount, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -163,7 +164,7 @@ const columns: ColumnDef<Row>[] = [
  */
 export default function ProjectsIndex({ projects }: { projects: Row[] }) {
     const { entities } = useFinanceLookups();
-    const [showAll, setShowAll] = useRemember(false, 'projects-show-all');
+    const [showAll, setShowAll] = useStoredState('projects-show-all', false);
     const [addOpen, setAddOpen] = useState(false);
     const [addKey, setAddKey] = useState(0);
 

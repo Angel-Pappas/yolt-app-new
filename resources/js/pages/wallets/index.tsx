@@ -124,7 +124,11 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
             meta: { align: 'right' },
             header: () => null,
             cell: ({ row }) => (
-                <div className="flex justify-end gap-1">
+                <div
+                    // Above the row's stretched open-in-new-tab link.
+                    className="relative z-10 flex justify-end gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                >
                     <Button
                         variant="ghost"
                         size="icon"
@@ -157,6 +161,11 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
                     searchPlaceholder="Search wallets…"
                     emptyMessage="No wallets yet."
                     pageSize={50}
+                    // A wallet opens its transactions with the running balance.
+                    onRowClick={(w) =>
+                        router.visit(`/transactions?balance=${w.id}&all=1`)
+                    }
+                    rowHref={(w) => `/transactions?balance=${w.id}&all=1`}
                     action={
                         <Button
                             onClick={openCreate}

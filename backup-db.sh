@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Dump the app's MySQL database to a gzipped, timestamped file outside the app
 # folder. Run by deploy.sh before anything changes, and daily from cron.
-# Fails loudly (non-zero exit) if the dump is missing or empty.
+# Fails loudly (non-zero exit) if the dump is missing or empty. Also archives the
+# uploaded agreement files (they are not in the database).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -37,5 +38,16 @@ if ! gzip -dc "$FILE" | tail -n 1 | grep -q "Dump completed"; then
 fi
 chmod 600 "$FILE"
 
+# Uploaded agreement files live outside the database: archive them alongside it.
+FILES_DIR=storage/app/private/agreements
+if [ -d "$FILES_DIR" ] && [ -n "$(ls -A "$FILES_DIR" 2>/dev/null)" ]; then
+    ARCHIVE="$BACKUP_DIR/${DB}-files-$(date +%Y%m%d-%H%M%S).tar.gz"
+    tar -czf "$ARCHIVE" -C storage/app/private agreements
+    tar -tzf "$ARCHIVE" >/dev/null || { echo "Backup FAILED: $ARCHIVE is unreadable" >&2; exit 1; }
+    chmod 600 "$ARCHIVE"
+    echo "Files OK: $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
+fi
+
 find "$BACKUP_DIR" -name '*.sql.gz' -mtime +"$KEEP_DAYS" -delete
+find "$BACKUP_DIR" -name '*-files-*.tar.gz' -mtime +"$KEEP_DAYS" -delete
 echo "Backup OK: $FILE ($(du -h "$FILE" | cut -f1))"
