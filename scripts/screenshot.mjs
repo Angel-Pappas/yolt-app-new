@@ -51,7 +51,7 @@ try {
     const context = await browser.newContext({
         viewport: mobile
             ? { width: 390, height: 844 }
-            : { width: 1440, height: 900 },
+            : { width: Number(process.env.SHOT_WIDTH ?? 1440), height: 900 },
         deviceScaleFactor: 1,
         colorScheme: dark ? 'dark' : 'light',
         storageState: existsSync(AUTH) ? AUTH : undefined,

@@ -341,7 +341,7 @@ export function TransactionsTable({
                 const t = row.original;
                 return (
                     <div
-                        className="relative z-10 flex justify-end gap-1"
+                        className="relative z-10 flex items-center justify-end"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <DescriptionButton
