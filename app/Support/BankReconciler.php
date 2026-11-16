@@ -37,6 +37,12 @@ final class BankReconciler
     private const RECONCILED_WINDOW = 3;
 
     /**
+     * Days either side for a row that only names its entity (different amount) — a
+     * salary that changed is paid on its day; a week off is another payment.
+     */
+    private const NAMED_WINDOW = 3;
+
+    /**
      * Store a parsed statement's lines (those not imported before) and the balance
      * it shows. A line seen before keeps its decision; only its place in the day is
      * refreshed, in case the bank added later movements to that day.
@@ -108,6 +114,9 @@ final class BankReconciler
             $proposal = self::chooseMatch($line, $candidates);
             if ($proposal !== null) {
                 $used[$proposal['transaction_id']] = true;
+            } elseif (array_filter($candidates, fn (array $c): bool => $c['exact']) !== []) {
+                // Rows with this very amount exist but none stands out: the person
+                // picks — adding a new one would likely duplicate.
             } elseif ($wallet->takesBankFees() && BankText::isBankCharge($line->text)) {
                 $proposal = ['kind' => 'fee'];
             } else {
@@ -165,9 +174,13 @@ final class BankReconciler
             $exact = abs(self::cash($t) - $amount) < 0.005;
             $named = $t->entity !== null ? BankText::nameScore($t->entity->name, $line->text) : 0;
 
-            $fits = $t->is_reconciled
-                ? $exact && $days <= self::RECONCILED_WINDOW
-                : $days <= self::OPEN_WINDOW && ($exact || $named > 0);
+            $ratio = $amount > 0 ? self::cash($t) / $amount : 0.0;
+            $fits = match (true) {
+                $t->is_reconciled => $exact && $days <= self::RECONCILED_WINDOW,
+                $exact => $days <= self::OPEN_WINDOW,
+                // Named only: close in date and of a similar size.
+                default => $named > 0 && $days <= self::NAMED_WINDOW && $ratio >= 0.5 && $ratio <= 2,
+            };
             if (! $fits) {
                 continue;
             }
@@ -186,8 +199,9 @@ final class BankReconciler
 
     /**
      * The match to suggest, if one is clear: the only same-amount row, or the one
-     * that also names its entity or sits on the same day; failing an amount, the only
-     * unreconciled row naming its entity.
+     * that stands out by naming its entity, sitting on the same day, or being already
+     * reconciled (the one typed in by hand, next to its automatic duplicate); failing
+     * an amount, the only unreconciled row naming its entity.
      *
      * @param  list<array{transaction: Transaction, exact: bool}>  $candidates
      * @return array{kind: 'match', transaction_id: int}|null
@@ -202,12 +216,13 @@ final class BankReconciler
             $rank = fn (array $c): array => [
                 $c['transaction']->entity !== null ? BankText::nameScore($c['transaction']->entity->name, $line->text) : 0,
                 $c['transaction']->date->isSameDay($line->date) ? 1 : 0,
+                $c['transaction']->is_reconciled ? 1 : 0,
             ];
             $ranks = array_map($rank, $exact);
             $best = max($ranks);
             $top = array_keys($ranks, $best, true);
 
-            return count($top) === 1 && $best !== [0, 0]
+            return count($top) === 1 && $best !== [0, 0, 0]
                 ? ['kind' => 'match', 'transaction_id' => $exact[$top[0]]['transaction']->id]
                 : null;
         }
@@ -397,5 +412,32 @@ final class BankReconciler
     private static function isPayroll(Transaction $t): bool
     {
         return AmountLines::isPayrollCategory($t->category_id);
+    }
+
+    /**
+     * Rows the bank doesn't show: the wallet's unreconciled rows (that count) dated
+     * within the statement's span — typically an automatic row left next to the one
+     * typed by hand, or a payment that didn't happen.
+     *
+     * @return array{count: int, from: string, to: string}|null
+     */
+    public static function notInBank(Wallet $wallet): ?array
+    {
+        $from = BankLine::query()->where('wallet_id', $wallet->id)->min('date');
+        if ($from === null || $wallet->statement_date === null) {
+            return null;
+        }
+        $from = Carbon::parse($from)->toDateString();
+        $to = $wallet->statement_date->toDateString();
+
+        $count = Transaction::query()
+            ->counted()
+            ->where('is_reconciled', false)
+            ->where(fn ($q) => $q->where('wallet_id', $wallet->id)->orWhere('to_wallet_id', $wallet->id))
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $to)
+            ->count();
+
+        return ['count' => $count, 'from' => $from, 'to' => $to];
     }
 }

@@ -368,3 +368,48 @@ test('the page compares the bank balance with the app’s checked balance on tha
 test('guests cannot reach the bank import', function () {
     $this->get('/bank-import')->assertRedirect('/login');
 });
+
+test('a row that only shares a name is not matched a week away or at a very different amount', function () {
+    $wallet = feeWallet();
+    $angelos = Entity::factory()->create(['name' => 'Σπυράτος Άγγελος', 'type' => 'contractor']);
+    Transaction::factory()->create(['type' => 'expense', 'wallet_id' => $wallet->id, 'entity_id' => $angelos->id, 'date' => '2026-10-30', 'net' => 3000]);
+    $dividend = bankLine($wallet, '2026-10-23', -4000, 'ΣΠΥΡΑΤΟΣ ΜΕΡΙΣΜΑ');
+    $sameDay = bankLine($wallet, '2026-10-30', -9000, 'ΣΠΥΡΑΤΟΣ');
+
+    $s = BankReconciler::suggestions($wallet, collect([$dividend, $sameDay]));
+    expect($s[$dividend->id]['candidates'])->toBe([])
+        ->and($s[$sameDay->id]['candidates'])->toBe([]);
+});
+
+test('next to its automatic duplicate, the row typed and reconciled by hand is the match', function () {
+    $wallet = feeWallet();
+    $ploi = Entity::factory()->create(['name' => 'Ploi', 'type' => 'supplier']);
+    Transaction::factory()->create(['type' => 'expense', 'wallet_id' => $wallet->id, 'entity_id' => $ploi->id, 'date' => '2026-10-07', 'net' => 30, 'source' => 'recurrence']);
+    $typed = Transaction::factory()->create(['type' => 'expense', 'wallet_id' => $wallet->id, 'entity_id' => $ploi->id, 'date' => '2026-10-07', 'net' => 30, 'is_reconciled' => true]);
+    $line = bankLine($wallet, '2026-10-07', -30, 'ΜΟL*ΡLΟΙ ΙΟ');
+
+    $s = BankReconciler::suggestions($wallet, collect([$line]));
+    expect($s[$line->id]['proposal'])->toBe(['kind' => 'match', 'transaction_id' => $typed->id]);
+});
+
+test('when rows with the very amount exist but none stands out, nothing new is suggested', function () {
+    $wallet = feeWallet();
+    $hetzner = Entity::factory()->create(['name' => 'Hetzner', 'type' => 'supplier']);
+    Transaction::factory()->count(2)->create(['type' => 'expense', 'wallet_id' => $wallet->id, 'entity_id' => $hetzner->id, 'date' => '2026-10-21', 'net' => 50]);
+    $line = bankLine($wallet, '2026-10-21', -50, 'ΗΕΤΖΝΕR ΟΝLΙΝΕ GΜΒΗ');
+
+    $s = BankReconciler::suggestions($wallet, collect([$line]));
+    expect($s[$line->id]['proposal'])->toBeNull();
+});
+
+test('the rows in the app the bank does not show are counted over the statement span', function () {
+    $wallet = feeWallet();
+    $wallet->forceFill(['statement_balance' => 0, 'statement_date' => '2026-10-31'])->save();
+    bankLine($wallet, '2026-10-01', -10);
+    Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-10-15']);
+    Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-10-16', 'is_reconciled' => true]);
+    Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-11-05']);
+    Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-10-17', 'is_excluded' => true]);
+
+    expect(BankReconciler::notInBank($wallet))->toBe(['count' => 1, 'from' => '2026-10-01', 'to' => '2026-10-31']);
+});

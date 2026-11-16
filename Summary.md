@@ -197,8 +197,11 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   **Apply** (or several at once via the checkboxes):
     - **Confirm** a row the app already has: same wallet and direction and the same
       cash amount (unreconciled within 15 days, or already reconciled within 3), or
-      the one unreconciled row whose entity the bank text names (amount changed).
-      Two equal candidates = no guess; a row is never suggested for two lines.
+      the one unreconciled row whose entity the bank text names, within 3 days and of
+      a similar size (an amount that changed). Among equal amounts the one naming the
+      entity, on the same day or already reconciled (typed by hand next to its
+      automatic duplicate) wins; still equal = no guess, and nothing new is suggested
+      either. A row is never suggested for two lines.
     - **Add as bank fee** for the bank's own charges (ΕΞΟΔΑ …, ΕΞΔ…).
     - **Add new** like the row the same bank text became last time, or like the
       latest row of the entity the text names. Money back from a supplier becomes an
@@ -210,6 +213,9 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   (the invoice date follows only while it still equals the date), **moving exactly
   the bank's amount** (`TransactionWriter::toCash`: VAT lines rescaled, last cent in
   the VAT; payroll moves its net; a transfer takes it) and placed in the bank's order.
+- **"N in the app, not at the bank"** links to the wallet's unreconciled rows within
+  the statement's dates (Transactions, balance view) — leftover automatic duplicates
+  or payments that didn't happen, to delete or move.
 - Done lines show (green) with **Show all**, with **Undo** (the line waits again; the
   transaction stays — delete it from its list if it shouldn't exist). Deleting the
   transaction a line became also puts the line back.

@@ -75,6 +75,7 @@ type WalletInfo = {
     statement_balance: string | null;
     statement_date: string | null;
     app_balance: number | null;
+    not_in_bank: { count: number; from: string; to: string } | null;
 };
 
 type Props = {
@@ -519,6 +520,17 @@ export default function BankImportIndex({ wallets, wallet, lines }: Props) {
                                     No statement uploaded for this wallet yet.
                                 </span>
                             )}
+                            {wallet?.not_in_bank &&
+                                wallet.not_in_bank.count > 0 && (
+                                    <Link
+                                        className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+                                        href={`/transactions?balance=${wallet.id}&unreconciled=1&from=${wallet.not_in_bank.from}&to=${wallet.not_in_bank.to}`}
+                                        title="Unreconciled rows of this wallet in the statement's dates — a leftover automatic row next to one typed by hand, or a payment that hasn't happened"
+                                    >
+                                        {wallet.not_in_bank.count} in the app,
+                                        not at the bank →
+                                    </Link>
+                                )}
                             {pendingCount > 0 && showAll && (
                                 <span className="text-muted-foreground">
                                     {pendingCount} to do

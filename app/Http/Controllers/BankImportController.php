@@ -63,6 +63,7 @@ class BankImportController extends Controller
                 'statement_date' => $wallet->statement_date?->toDateString(),
                 // The app's checked balance on the statement's day — equal to the
                 // bank's once every line up to then is done.
+                'not_in_bank' => BankReconciler::notInBank($wallet),
                 'app_balance' => $wallet->statement_date !== null
                     ? (WalletBalances::all($wallet->statement_date)[$wallet->id] ?? (float) $wallet->starting_balance)
                     : null,
