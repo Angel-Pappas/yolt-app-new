@@ -161,7 +161,9 @@ class TransactionController extends Controller
             'bank_fee' => ['nullable', 'numeric', 'gt:0'],
         ]);
         $line = isset($extra['bank_line_id']) ? BankLine::query()->findOrFail((int) $extra['bank_line_id']) : null;
-        if ($line !== null && ! $line->isPending()) {
+        // A line already paired takes a further row only while its rows don't add
+        // up to it yet (the missing part of one bank line that is several rows).
+        if ($line !== null && ! $line->isPending() && abs($line->pairedCash() - abs((float) $line->amount)) < 0.005) {
             throw ValidationException::withMessages(['bank_line_id' => __('That bank line is already done.')]);
         }
 
@@ -169,11 +171,17 @@ class TransactionController extends Controller
             $transaction = new Transaction;
             $transaction->user_id = $request->user()->id;
             TransactionWriter::persist($transaction, $data);
+            $fee = isset($extra['bank_fee'])
+                ? $this->addBankFee($transaction, round((float) $extra['bank_fee'], 2), $request->user()->id)
+                : null;
             if ($line !== null) {
-                BankReconciler::link($line, $transaction);
-            }
-            if (isset($extra['bank_fee'])) {
-                $this->addBankFee($transaction, round((float) $extra['bank_fee'], 2), $request->user()->id);
+                // From a bank line: the new row is that line — together with its bank
+                // fee when one was added (the bank books them as one line).
+                match (true) {
+                    ! $line->isPending() => BankReconciler::pair($line, $transaction),
+                    $fee !== null => BankReconciler::accept($line, [$transaction, $fee]),
+                    default => BankReconciler::link($line, $transaction),
+                };
             }
             TaxSync::run();
         });
@@ -188,11 +196,11 @@ class TransactionController extends Controller
      * to the entity and category the wallet's fees go to. Ignored for a wallet that
      * has none set.
      */
-    private function addBankFee(Transaction $payment, float $fee, int $userId): void
+    private function addBankFee(Transaction $payment, float $fee, int $userId): ?Transaction
     {
         $wallet = Wallet::query()->find($payment->wallet_id);
         if ($wallet === null || ! $wallet->takesBankFees()) {
-            return;
+            return null;
         }
 
         $row = new Transaction;
@@ -208,6 +216,8 @@ class TransactionController extends Controller
             'amount_mode' => 'total',
             'lines' => [['amount' => $fee, 'vat_rate_id' => null]],
         ]);
+
+        return $row;
     }
 
     public function update(Request $request, Transaction $transaction): RedirectResponse

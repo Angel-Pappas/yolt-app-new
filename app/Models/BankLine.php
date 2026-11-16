@@ -2,21 +2,23 @@
 
 namespace App\Models;
 
+use App\Support\BankReconciler;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
- * One line of an imported bank statement. It is done once linked to the transaction
- * it confirmed or became; until then the Bank import page shows it as missing from
- * the app (or paired with the row the app thinks it is).
+ * One line of an imported bank statement. It is done once paired with the app's
+ * row(s) it is — usually one, sometimes several that add up to it (a repayment and
+ * its cost booked as one line); until then the Bank import page shows it as missing
+ * from the app (or next to the row(s) the app thinks it is).
  *
  * @property int $id
  * @property int|null $user_id
  * @property int $wallet_id
- * @property int|null $transaction_id
  * @property Carbon $date
  * @property int $position
  * @property string $text
@@ -24,7 +26,7 @@ use Illuminate\Support\Carbon;
  * @property string $reference
  * @property string $fingerprint
  */
-#[Fillable(['wallet_id', 'transaction_id', 'date', 'position', 'text', 'amount', 'reference', 'fingerprint'])]
+#[Fillable(['wallet_id', 'date', 'position', 'text', 'amount', 'reference', 'fingerprint'])]
 class BankLine extends Model
 {
     protected function casts(): array
@@ -37,20 +39,20 @@ class BankLine extends Model
     }
 
     /**
-     * Lines not linked to a live transaction yet (deleting the transaction a line
-     * became puts the line back).
+     * Lines not paired with any live row yet (deleting the row a line became puts
+     * the line back).
      *
      * @param  Builder<BankLine>  $query
      */
     public function scopePending(Builder $query): void
     {
-        $query->whereDoesntHave('transaction');
+        $query->whereDoesntHave('transactions');
     }
 
-    /** Whether the line is still unlinked (see {@see scopePending()}). */
+    /** Whether the line is still unpaired (see {@see scopePending()}). */
     public function isPending(): bool
     {
-        return $this->transaction === null;
+        return $this->transactions->isEmpty();
     }
 
     /** @return BelongsTo<Wallet, $this> */
@@ -59,9 +61,19 @@ class BankLine extends Model
         return $this->belongsTo(Wallet::class);
     }
 
-    /** @return BelongsTo<Transaction, $this> */
-    public function transaction(): BelongsTo
+    /**
+     * The app's rows this line is, in the order they were paired.
+     *
+     * @return HasMany<Transaction, $this>
+     */
+    public function transactions(): HasMany
     {
-        return $this->belongsTo(Transaction::class);
+        return $this->hasMany(Transaction::class)->orderBy('id');
+    }
+
+    /** What the line's rows move together, as a positive amount. */
+    public function pairedCash(): float
+    {
+        return round($this->transactions->sum(fn (Transaction $t): float => BankReconciler::cash($t)), 2);
     }
 }

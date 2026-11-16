@@ -63,12 +63,15 @@ type Row = {
     key: string;
     status: Status;
     line: { id: number; date: string; text: string; amount: number } | null;
+    /** A further row of the bank line above (one line, several rows). */
+    part_of: number | null;
     transaction: AppRow | null;
     /** The pair is confirmed (not just the app's guess). */
     linked: boolean;
     /** What the app row has that the bank doesn't. */
     differences: {
         date?: string;
+        /** What the line's row(s) move together, where it isn't the bank's. */
         amount?: number;
         unconfirmed?: true;
         unreconciled?: true;
@@ -142,14 +145,18 @@ function Money({ value, className }: { value: number; className?: string }) {
 }
 
 /** What the app has (or would add) for a row, in words. */
-function AppText({ row }: { row: Row }) {
+function AppText({ row, size }: { row: Row; size: number }) {
     const t = row.transaction;
     if (t) {
-        const note = row.differences.unconfirmed
-            ? 'Not confirmed yet'
-            : row.differences.unreconciled
-              ? 'Paired, but no longer marked reconciled'
-              : null;
+        const d = row.differences;
+        const notes = [
+            d.unconfirmed ? 'Not confirmed yet' : null,
+            d.unreconciled ? 'Paired, but no longer marked reconciled' : null,
+            size > 1 && d.amount !== undefined
+                ? `The ${size} rows add up to ${formatAmount(d.amount)}`
+                : null,
+        ].filter(Boolean);
+        const note = notes.length > 0 ? notes.join(' · ') : null;
         return (
             <div className="min-w-0 [overflow-wrap:anywhere] whitespace-normal">
                 <Link
@@ -215,7 +222,19 @@ export default function BankImportIndex({
         bank_only: 0,
         app_only: 0,
     };
-    rows.forEach((r) => counts[r.status]++);
+    // Pairs are counted, not rows: a line with several rows is one.
+    rows.forEach((r) => r.part_of === null && counts[r.status]++);
+
+    // The app rows of each bank line (one, or several the bank booked as one).
+    const lineRows = new Map<number, AppRow[]>();
+    rows.forEach((r) => {
+        const id = r.line?.id ?? r.part_of;
+        if (id != null && r.transaction) {
+            lineRows.set(id, [...(lineRows.get(id) ?? []), r.transaction]);
+        }
+    });
+    const sizeOf = (r: Row) =>
+        lineRows.get(r.line?.id ?? r.part_of ?? 0)?.length ?? 0;
 
     const show = (params: Record<string, string | number>) =>
         router.get(
@@ -240,19 +259,19 @@ export default function BankImportIndex({
         );
     }
 
-    const post = (url: string, data: Record<string, number> = {}) =>
+    const post = (url: string, data: Record<string, number | number[]> = {}) =>
         router.post(url, data, { preserveScroll: true, preserveState: true });
 
     const pair = (lineId: number, transactionId: number) =>
         post(`/bank-lines/${lineId}/match`, { transaction_id: transactionId });
 
-    function openAdd(row: Row, withTemplate: boolean) {
+    function openAdd(row: Row, withTemplate: boolean, amount?: number) {
         if (!wallet || !row.line) return;
         setAddKey((k) => k + 1);
         setAdding({
             id: row.line.id,
             date: row.line.date,
-            amount: row.line.amount,
+            amount: amount ?? row.line.amount,
             text: row.line.text,
             wallet_id: wallet.id,
             template:
@@ -275,8 +294,9 @@ export default function BankImportIndex({
     // Drag an app row (by its grip) onto a bank line's row to pair them: every
     // cell of a row with a bank line accepts the drop.
     function zone(row: Row, content: ReactNode, className?: string) {
-        const line = row.line;
-        const accepts = line !== null && dragging !== null;
+        // A further row of a line stands for its line too.
+        const lineId = row.line?.id ?? row.part_of;
+        const accepts = lineId != null && dragging !== null;
         return (
             <div
                 className={cn('-my-2 py-2', className)}
@@ -284,7 +304,7 @@ export default function BankImportIndex({
                     accepts
                         ? (e: DragEvent) => {
                               e.preventDefault();
-                              setDropOn(line.id);
+                              setDropOn(lineId);
                           }
                         : undefined
                 }
@@ -298,7 +318,7 @@ export default function BankImportIndex({
                               setDropOn(null);
                               setDragging(null);
                               if (id && id !== row.transaction?.id) {
-                                  pair(line.id, id);
+                                  pair(lineId, id);
                               }
                           }
                         : undefined
@@ -335,14 +355,37 @@ export default function BankImportIndex({
     function actions(row: Row) {
         const t = row.transaction;
         const line = row.line;
+        const size = sizeOf(row);
+        const lineIds = (lineRows.get(line?.id ?? 0) ?? []).map((x) => x.id);
+        // Several rows that don't add up stay amber until a row is added or taken
+        // out — accepting can't fix that (each keeps its own amount).
+        const canAccept =
+            row.status === 'differs' &&
+            line !== null &&
+            t !== null &&
+            !(row.linked && size > 1 && row.differences.amount !== undefined);
+        const owed =
+            line && row.linked && row.differences.amount !== undefined
+                ? Math.round(
+                      (Math.abs(line.amount) - row.differences.amount) * 100,
+                  ) / 100
+                : 0;
         let primary: ReactNode = null;
-        if (row.status === 'differs' && line && t) {
+        if (canAccept && line) {
             primary = (
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => pair(line.id, t.id)}
-                    title="Give the app row the bank's date and amount, and mark it reconciled"
+                    onClick={() =>
+                        post(`/bank-lines/${line.id}/accept`, {
+                            transaction_ids: lineIds,
+                        })
+                    }
+                    title={
+                        size > 1
+                            ? `Pair these ${size} rows with the bank line, on its day, and mark them reconciled`
+                            : "Give the app row the bank's date and amount, and mark it reconciled"
+                    }
                 >
                     <Check className="size-4" />
                     Accept
@@ -405,8 +448,8 @@ export default function BankImportIndex({
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuSubContent className="w-80">
                                     <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
-                                        Rows not at the bank · takes the bank's
-                                        date and amount
+                                        Rows not at the bank · joins the line's
+                                        rows while they don't add up to it
                                     </DropdownMenuLabel>
                                     {options.map((o) => (
                                         <DropdownMenuItem
@@ -432,6 +475,19 @@ export default function BankImportIndex({
                                 Add a new row for this line…
                             </DropdownMenuItem>
                         )}
+                        {line && owed > 0 && (
+                            <DropdownMenuItem
+                                onSelect={() =>
+                                    openAdd(
+                                        row,
+                                        false,
+                                        Math.sign(line.amount) * owed,
+                                    )
+                                }
+                            >
+                                Add a row for the missing {formatAmount(owed)}…
+                            </DropdownMenuItem>
+                        )}
                         {line &&
                             !row.linked &&
                             wallet?.takes_fees &&
@@ -445,16 +501,34 @@ export default function BankImportIndex({
                                     Add as a bank fee
                                 </DropdownMenuItem>
                             )}
-                        {line && row.linked && (
+                        {row.linked && t && (line || row.part_of) && (
                             <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    onSelect={() =>
-                                        post(`/bank-lines/${line.id}/unlink`)
-                                    }
-                                >
-                                    Unpair
-                                </DropdownMenuItem>
+                                {size > 1 && (
+                                    <DropdownMenuItem
+                                        onSelect={() =>
+                                            post(
+                                                `/bank-lines/${line?.id ?? row.part_of}/unlink`,
+                                                { transaction_id: t.id },
+                                            )
+                                        }
+                                    >
+                                        Take this row out of the bank line
+                                    </DropdownMenuItem>
+                                )}
+                                {line && (
+                                    <DropdownMenuItem
+                                        onSelect={() =>
+                                            post(
+                                                `/bank-lines/${line.id}/unlink`,
+                                            )
+                                        }
+                                    >
+                                        {size > 1
+                                            ? 'Unpair all its rows'
+                                            : 'Unpair'}
+                                    </DropdownMenuItem>
+                                )}
                             </>
                         )}
                         {row.status === 'app_only' && t && (
@@ -549,7 +623,13 @@ export default function BankImportIndex({
             cell: ({ row }) =>
                 zone(
                     row.original,
-                    row.original.line?.text,
+                    row.original.part_of !== null ? (
+                        <span className="text-muted-foreground text-xs">
+                            ↳ same bank line
+                        </span>
+                    ) : (
+                        row.original.line?.text
+                    ),
                     'break-words whitespace-normal',
                 ),
         },
@@ -596,7 +676,10 @@ export default function BankImportIndex({
                 <ColumnHeader column={column} title="In the app" />
             ),
             cell: ({ row }) =>
-                zone(row.original, <AppText row={row.original} />),
+                zone(
+                    row.original,
+                    <AppText row={row.original} size={sizeOf(row.original)} />,
+                ),
         },
         {
             id: 'app_amount',
@@ -623,6 +706,13 @@ export default function BankImportIndex({
             ),
             cell: ({ row }) => {
                 const l = row.original.line;
+                if (row.original.part_of !== null) {
+                    return (
+                        <span className="text-muted-foreground text-xs">
+                            ↳ same bank line
+                        </span>
+                    );
+                }
                 return l ? (
                     <div className="space-y-0.5 [overflow-wrap:anywhere] whitespace-normal">
                         <div className="text-muted-foreground text-xs">
@@ -643,7 +733,7 @@ export default function BankImportIndex({
             cell: ({ row }) => (
                 <div className="space-y-0.5 [overflow-wrap:anywhere] whitespace-normal">
                     <div className="text-xs">{appDate(row.original)}</div>
-                    <AppText row={row.original} />
+                    <AppText row={row.original} size={sizeOf(row.original)} />
                     <div>{appAmount(row.original)}</div>
                     <div className="pt-1 [&>div]:justify-start">
                         {actions(row.original)}
@@ -691,7 +781,7 @@ export default function BankImportIndex({
                             : 'No statement uploaded yet — upload the bank’s CSV export.'
                     }
                     rowClassName={(r) =>
-                        r.line && dropOn === r.line.id
+                        dropOn !== null && (r.line?.id ?? r.part_of) === dropOn
                             ? 'bg-primary/10 outline-primary outline-2 -outline-offset-2'
                             : undefined
                     }

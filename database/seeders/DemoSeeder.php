@@ -195,6 +195,16 @@ class DemoSeeder extends Seeder
                 'text' => $text, 'amount' => $amount, 'reference' => (string) $n, 'fingerprint' => hash('sha256', "demo-{$n}"),
             ]);
         }
+        // One line the app has as two rows: a transfer and its cost.
+        $day = $from->copy()->addDays(15)->toDateString();
+        $revolut = Wallet::query()->where('name', 'Revolut')->firstOrFail();
+        foreach ([['type' => 'transfer', 'to_wallet_id' => $revolut->id, 'net' => 1000, 'description' => 'Top-up'], ['type' => 'expense', 'entity_id' => $bank->fee_entity_id, 'category_id' => $bank->fee_category_id, 'net' => 2.50, 'description' => '']] as $row) {
+            Transaction::query()->create([...$row, 'wallet_id' => $bank->id, 'date' => $day, 'invoice_date' => $day, 'vat_amount' => 0, 'user_id' => $user->id]);
+        }
+        BankLine::query()->create([
+            'wallet_id' => $bank->id, 'date' => $day, 'position' => ($positions[$day] ?? 0) + 1,
+            'text' => 'ΧΟΡ989003070512345', 'amount' => -1002.50, 'reference' => 'two', 'fingerprint' => hash('sha256', 'demo-two'),
+        ]);
         $bank->forceFill(['statement_balance' => 14321.09, 'statement_date' => $to->toDateString()])->save();
         BankReconciler::settle($bank, $user->id);
     }

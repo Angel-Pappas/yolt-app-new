@@ -12,11 +12,11 @@ use Illuminate\Support\Collection;
 /**
  * Bank statement lines against the app's transactions. Importing stores each new
  * line once and settles what is certain: a line with exactly one row of the same
- * amount on the same day is paired with it, and the bank's own charges become fee
- * rows. Every other line gets a suggestion for the Bank import page. Pairing a line
- * (or adding a row for it) leaves the row reconciled, dated on the day the money
- * showed at the bank, moving exactly the bank's amount, and placed in the bank's
- * order within that day.
+ * amount on the same day (or rows on that day adding up to it) is paired, and the
+ * bank's own charges become fee rows. Every other line gets a suggestion for the Bank
+ * import page. A line is paired with one row or several (`transactions.bank_line_id`);
+ * a paired row is reconciled, dated on the day the money showed at the bank, and
+ * placed in the bank's order within that day.
  *
  * Suggestions, in order of preference:
  * - **match** an existing row of the wallet going the same way with the same amount
@@ -24,10 +24,13 @@ use Illuminate\Support\Collection;
  *   before the import), or the one unreconciled row whose entity's name is in the
  *   bank text (a salary that changed). Two equal candidates = no guess.
  * - **fee**: the bank's own charge (ΕΞΟΔΑ …) on a wallet that knows where fees go.
+ * - **group**: two or three rows within 3 days that add up to the line exactly — the
+ *   bank booked them as one (a repayment and its cost). Only a combination that stands
+ *   out: the one on the line's day, or the only one.
  * - **like**: a new row copied from the last time this bank text was seen, or from
  *   the latest row of the one entity whose name is in the text.
  *
- * @phpstan-type Proposal array{kind: 'match', transaction_id: int}|array{kind: 'fee'}|array{kind: 'like', transaction_id: int}
+ * @phpstan-type Proposal array{kind: 'match', transaction_id: int}|array{kind: 'group', transaction_ids: list<int>}|array{kind: 'fee'}|array{kind: 'like', transaction_id: int}
  */
 final class BankReconciler
 {
@@ -63,9 +66,7 @@ final class BankReconciler
             if ($known !== null) {
                 if ($known->position !== $line['position']) {
                     $known->update(['position' => $line['position']]);
-                    if ($known->transaction_id !== null) {
-                        Transaction::query()->whereKey($known->transaction_id)->update(['bank_position' => $line['position']]);
-                    }
+                    Transaction::query()->where('bank_line_id', $known->id)->update(['bank_position' => $line['position']]);
                 }
 
                 continue;
@@ -91,8 +92,9 @@ final class BankReconciler
 
     /**
      * Settle a wallet's waiting lines that need no decision: a suggested row with the
-     * line's very amount on the line's very day is paired, and the bank's own charge
-     * becomes a fee row. Returns how many lines were settled.
+     * line's very amount on the line's very day (or suggested rows on that day adding
+     * up to it) is paired, and the bank's own charge becomes a fee row. Returns how
+     * many lines were settled.
      */
     public static function settle(Wallet $wallet, ?int $userId): int
     {
@@ -108,6 +110,15 @@ final class BankReconciler
             if ($proposal['kind'] === 'fee') {
                 self::addFee($line, $wallet, $userId);
                 $settled++;
+
+                continue;
+            }
+            if ($proposal['kind'] === 'group') {
+                $rows = Transaction::query()->findMany($proposal['transaction_ids']);
+                if ($rows->every(fn (Transaction $t): bool => $t->date->isSameDay($line->date))) {
+                    self::accept($line, $rows->values()->all());
+                    $settled++;
+                }
 
                 continue;
             }
@@ -143,22 +154,42 @@ final class BankReconciler
         $used = [];
         $out = [];
 
+        // First every line's own row, so a row that is exactly one line's is never
+        // used up as part of another line's group.
         foreach ($lines as $line) {
             $candidates = self::candidates($wallet, $line, $pool, $used);
             $proposal = self::chooseMatch($line, $candidates);
             if ($proposal !== null) {
                 $used[$proposal['transaction_id']] = true;
-            } elseif (array_filter($candidates, fn (array $c): bool => $c['exact']) !== []) {
+            }
+            $out[$line->id] = ['candidates' => $candidates, 'proposal' => $proposal];
+        }
+
+        foreach ($lines as $line) {
+            if ($out[$line->id]['proposal'] !== null
                 // Rows with this very amount exist but none stands out: the person
                 // picks — adding a new one would likely duplicate.
-            } elseif ($wallet->takesBankFees() && BankText::isBankCharge($line->text)) {
-                $proposal = ['kind' => 'fee'];
-            } else {
-                $template = self::template($line, $history, $entities);
-                $proposal = $template !== null ? ['kind' => 'like', 'transaction_id' => $template->id] : null;
+                || array_filter($out[$line->id]['candidates'], fn (array $c): bool => $c['exact']) !== []) {
+                continue;
             }
+            if ($wallet->takesBankFees() && BankText::isBankCharge($line->text)) {
+                $out[$line->id]['proposal'] = ['kind' => 'fee'];
 
-            $out[$line->id] = ['candidates' => $candidates, 'proposal' => $proposal];
+                continue;
+            }
+            $group = self::group($wallet, $line, $pool, $used);
+            if ($group !== null) {
+                foreach ($group as $id) {
+                    $used[$id] = true;
+                }
+                $out[$line->id]['proposal'] = ['kind' => 'group', 'transaction_ids' => $group];
+
+                continue;
+            }
+            $template = self::template($line, $history, $entities);
+            if ($template !== null) {
+                $out[$line->id]['proposal'] = ['kind' => 'like', 'transaction_id' => $template->id];
+            }
         }
 
         return $out;
@@ -181,7 +212,7 @@ final class BankReconciler
             ->where(fn ($q) => $q->where('wallet_id', $wallet->id)->orWhere('to_wallet_id', $wallet->id))
             ->whereDate('date', '>=', $from->toDateString())
             ->whereDate('date', '<=', $to->toDateString())
-            ->whereNotIn('id', BankLine::query()->whereNotNull('transaction_id')->select('transaction_id'))
+            ->whereNull('bank_line_id')
             ->inBankOrder()
             ->get();
     }
@@ -232,6 +263,56 @@ final class BankReconciler
     }
 
     /**
+     * Two or three rows that add up to the line exactly, all going its way within 3
+     * days of it: the combination on the line's own day if only one is, else the only
+     * combination there is.
+     *
+     * @param  Collection<int, Transaction>  $pool
+     * @param  array<int, true>  $used
+     * @return list<int>|null
+     */
+    private static function group(Wallet $wallet, BankLine $line, Collection $pool, array $used): ?array
+    {
+        $target = (int) round(abs((float) $line->amount) * 100);
+        $incoming = (float) $line->amount > 0;
+        $rows = $pool
+            ->filter(fn (Transaction $t): bool => ! isset($used[$t->id])
+                && self::sameDirection($t, $wallet->id, $incoming)
+                && abs($t->date->diffInDays($line->date)) <= self::RECONCILED_WINDOW)
+            ->map(fn (Transaction $t): array => ['t' => $t, 'cents' => (int) round(self::cash($t) * 100)])
+            ->filter(fn (array $r): bool => $r['cents'] > 0 && $r['cents'] < $target)
+            ->sortBy(fn (array $r): int => (int) abs($r['t']->date->diffInDays($line->date)))
+            ->take(40)
+            ->values()
+            ->all();
+
+        $found = [];
+        $n = count($rows);
+        for ($i = 0; $i < $n; $i++) {
+            for ($j = $i + 1; $j < $n; $j++) {
+                $two = $rows[$i]['cents'] + $rows[$j]['cents'];
+                if ($two === $target) {
+                    $found[] = [$rows[$i]['t'], $rows[$j]['t']];
+                }
+                for ($k = $j + 1; $k < $n && $two < $target; $k++) {
+                    if ($two + $rows[$k]['cents'] === $target) {
+                        $found[] = [$rows[$i]['t'], $rows[$j]['t'], $rows[$k]['t']];
+                    }
+                }
+            }
+        }
+
+        $sameDay = array_values(array_filter($found, fn (array $combo): bool => array_all($combo, fn (Transaction $t): bool => $t->date->isSameDay($line->date))));
+        $pick = match (true) {
+            count($sameDay) === 1 => $sameDay[0],
+            $sameDay === [] && count($found) === 1 => $found[0],
+            default => null,
+        };
+
+        return $pick === null ? null : array_map(fn (Transaction $t): int => $t->id, $pick);
+    }
+
+    /**
      * The match to suggest, if one is clear: the only same-amount row, or the one
      * that stands out by naming its entity, sitting on the same day, or being already
      * reconciled (the one typed in by hand, next to its automatic duplicate); failing
@@ -279,15 +360,16 @@ final class BankReconciler
         $out = [];
         BankLine::query()
             ->where('wallet_id', $wallet->id)
-            ->whereHas('transaction')
-            ->with('transaction.vatLines', 'transaction.withheldLines')
+            ->whereHas('transactions')
+            ->with('transactions.vatLines', 'transactions.withheldLines')
             ->orderByDesc('date')->orderByDesc('position')
             ->limit(2000)
             ->get()
             ->each(function (BankLine $l) use (&$out): void {
                 $key = BankText::key($l->text);
-                if ($key !== '' && $l->transaction !== null && count($out[$key] ?? []) < 5) {
-                    $out[$key][] = $l->transaction;
+                // A line that was several rows says nothing about what one row is.
+                if ($key !== '' && $l->transactions->count() === 1 && count($out[$key] ?? []) < 5) {
+                    $out[$key][] = $l->transactions->first();
                 }
             });
 
@@ -336,31 +418,79 @@ final class BankReconciler
     }
 
     /**
-     * Confirm an existing row with a statement line: dated on the bank's day (the
-     * invoice date follows while it still equals the date), moving the bank's
-     * amount, reconciled, switched on, and placed in the bank's order.
+     * Make a row the line's only one, like the bank: dated on the bank's day, moving
+     * the bank's amount, reconciled, switched on, in the bank's order. The line's
+     * other rows are let go.
      */
     public static function link(BankLine $line, Transaction $transaction): void
+    {
+        self::release($line, except: [$transaction->id]);
+        TransactionWriter::toCash($transaction, abs((float) $line->amount));
+        self::attach($line, $transaction);
+    }
+
+    /**
+     * Pair the line with exactly these rows: one is made like the bank ({@see link()});
+     * several keep their own amounts (they add up to the line).
+     *
+     * @param  array<int, Transaction>  $transactions
+     */
+    public static function accept(BankLine $line, array $transactions): void
+    {
+        $transactions = array_values($transactions);
+        if (count($transactions) === 1) {
+            self::link($line, $transactions[0]);
+
+            return;
+        }
+        self::release($line, except: array_map(fn (Transaction $t): int => $t->id, $transactions));
+        foreach ($transactions as $t) {
+            self::attach($line, $t);
+        }
+    }
+
+    /**
+     * Pair a row with the line by hand (dragged onto it, or chosen): it joins the
+     * line's rows while they don't add up to the line yet, else it takes their place.
+     * Its amount stays its own — if it differs, the page says so.
+     */
+    public static function pair(BankLine $line, Transaction $transaction): void
+    {
+        $others = $line->transactions()->whereKeyNot($transaction->id)->get();
+        $owed = abs((float) $line->amount) - $others->sum(fn (Transaction $t): float => self::cash($t));
+        if ($others->isEmpty() || abs($owed) < 0.005) {
+            self::release($line, except: [$transaction->id]);
+        }
+        self::attach($line, $transaction);
+    }
+
+    /**
+     * Let go of a line's rows (all, or one); they stay as they are, reconciled.
+     *
+     * @param  list<int>  $except
+     */
+    public static function release(BankLine $line, ?Transaction $only = null, array $except = []): void
+    {
+        Transaction::query()->where('bank_line_id', $line->id)
+            ->when($only !== null, fn ($q) => $q->whereKey($only?->id))
+            ->whereNotIn('id', $except)
+            ->update(['bank_line_id' => null, 'bank_position' => null]);
+        $line->unsetRelation('transactions');
+    }
+
+    /** Pair a row with the line as it is: on the bank's day, reconciled, in its place. */
+    private static function attach(BankLine $line, Transaction $transaction): void
     {
         if ($transaction->invoice_date->isSameDay($transaction->date)) {
             $transaction->invoice_date = $line->date;
         }
         $transaction->date = $line->date;
-        TransactionWriter::toCash($transaction, abs((float) $line->amount));
         $transaction->is_reconciled = true;
         $transaction->is_excluded = false;
         $transaction->bank_position = $line->position;
+        $transaction->bank_line_id = $line->id;
         $transaction->save();
-
-        // A pair is one line and one row: whatever either was paired with before
-        // is let go.
-        BankLine::query()->where('transaction_id', $transaction->id)->whereKeyNot($line->id)
-            ->update(['transaction_id' => null]);
-        if ($line->transaction_id !== null && $line->transaction_id !== $transaction->id) {
-            Transaction::query()->whereKey($line->transaction_id)->update(['bank_position' => null]);
-        }
-        $line->transaction_id = $transaction->id;
-        $line->save();
+        $line->unsetRelation('transactions');
     }
 
     /** Add the line as the bank's own charge, to the wallet's fee entity and category. */

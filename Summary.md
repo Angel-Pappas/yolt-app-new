@@ -190,7 +190,11 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
 - **The bank and the app side by side** for a wallet and a period (Angel's design,
   2026-11-17): the left half is the bank statement, the right half the app's rows,
   paired on one line each, in the bank's order (`App\Support\BankComparison`). An
-  empty side means it exists only on the other. Each line has a verdict:
+  empty side means it exists only on the other. **One bank line can be several app
+  rows** (`transactions.bank_line_id`): Alpha books e.g. a credit-line repayment and
+  its cost as one −25.003,78 line, while the app has the €25.000 transfer and the €3,78
+  fee — the further rows show just under the line ("↳ same bank line"), each keeping
+  its own amount. Each line has a verdict:
     - ✓ **Match**: paired, same day, same amount, reconciled — nothing to do.
     - ⚠ **Differs**: the app thinks it is the same movement, but the app row's date
       or amount (shown in amber) differs, or the pair isn't confirmed yet. **Accept**
@@ -202,8 +206,11 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
       paid yet — open it or delete it from ⋯.
 - **Pair by hand:** drag an app row (by its grip) onto a bank line, or ⋯ ▸ **Pair
   with another row** (the app-only rows going the same way, closest amount first).
-  A pair is one line and one row: whatever either was paired with is let go. ⋯ ▸
-  **Unpair** undoes one (the row stays reconciled). Ticking several lines and **Accept
+  The row keeps its own amount and takes the line's day; it **joins** the line's rows
+  while they don't add up to the line yet, otherwise it **replaces** them. ⋯ ▸ **Add a
+  row for the missing X** opens the add form for the rest; **Take this row out** /
+  **Unpair** undo (the rows stay reconciled). Accept on a single row also gives it the
+  bank's amount. Ticking several lines and **Accept
   N suggestions** accepts the pairs and adds the missing rows as suggested.
 - **Period:** from/to dates with This month · Last month. It opens from the start of
   the month of the earliest unpaired line (or the statement's month) to the
@@ -213,17 +220,21 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   fingerprint of date, reference, text and amount), so overlapping exports are safe;
   the date used is the **booking date** (the day the money shows at the bank). The
   upload **settles what needs no decision** (`BankReconciler::settle`): a line whose
-  suggested row has its very amount on its very day is paired, and the bank's own
-  charges (ΕΞΟΔΑ …, ΕΞΔ…) are added as fee rows. The closing balance is kept on the
+  suggested row has its very amount on its very day (or suggested rows on that day
+  adding up to it) is paired, and the bank's own charges (ΕΞΟΔΑ …, ΕΞΔ…) are added as
+  fee rows. The closing balance is kept on the
   wallet and compared with the app's checked balance on that day.
 - **How the app guesses** (`App\Support\BankReconciler::suggestions`): same wallet and
   direction and the same cash amount (unreconciled within 15 days, or already
   reconciled within 3), or the one unreconciled row whose entity the bank text names,
   within 3 days and of a similar size. Among equal amounts the one naming the entity,
-  on the same day or already reconciled wins; still equal = no guess. A row is never
+  on the same day or already reconciled wins; still equal = no guess. Failing one row,
+  **two or three rows within 3 days that add up to the line exactly** (the
+  combination on the line's day if only one is, else the only one). A row is never
   guessed for two lines. A missing row looks like what the same bank text became last
   time, or the latest row of the entity the text names (a refund becomes income from
-  the supplier; payroll is never copied).
+  the supplier; payroll is never copied). The add form from a bank line has the
+  **Bank fee** field too: the row and its fee then make the line together.
 - **Pairing** leaves the row **reconciled, dated on the bank's day** (the invoice date
   follows only while it still equals the date), **moving exactly the bank's amount**
   (`TransactionWriter::toCash`: VAT lines rescaled, last cent in the VAT; payroll

@@ -63,7 +63,11 @@ class BankImportController extends Controller
                 $proposal = $row['proposal'];
 
                 return [
-                    'key' => $line !== null ? "line-{$line->id}" : "app-{$row['transaction']?->id}",
+                    'key' => match (true) {
+                        $line !== null => "line-{$line->id}",
+                        $row['part_of'] !== null => "line-{$row['part_of']->id}-{$row['transaction']?->id}",
+                        default => "app-{$row['transaction']?->id}",
+                    },
                     'status' => $row['status'],
                     'line' => $line === null ? null : [
                         'id' => $line->id,
@@ -71,6 +75,8 @@ class BankImportController extends Controller
                         'text' => $line->text,
                         'amount' => (float) $line->amount,
                     ],
+                    // A further row of the line above (one bank line, several rows).
+                    'part_of' => $row['part_of']?->id,
                     'transaction' => $row['transaction'] !== null ? self::summary($row['transaction']) : null,
                     'linked' => $row['linked'],
                     'differences' => (object) $row['differences'],
@@ -146,9 +152,9 @@ class BankImportController extends Controller
     }
 
     /**
-     * Pair the line with a row (accepting the app's guess, or one chosen or dragged
-     * by hand): the row takes the bank's date and amount. Either side's earlier
-     * partner is let go.
+     * Pair a row with the line by hand (dragged onto it, or chosen from ⋯): it joins
+     * the line's rows while they don't add up to the line yet, else takes their
+     * place, keeping its own amount ({@see BankReconciler::pair()}).
      */
     public function match(Request $request, BankLine $line): RedirectResponse
     {
@@ -156,11 +162,30 @@ class BankImportController extends Controller
         $transaction = Transaction::query()->findOrFail((int) $data['transaction_id']);
 
         DB::transaction(function () use ($line, $transaction) {
-            BankReconciler::link($line, $transaction);
+            BankReconciler::pair($line, $transaction);
             TaxSync::run();
         });
 
-        return $this->done(__('Paired — the row now has the bank\'s date and amount.'));
+        return $this->done(__('Paired.'));
+    }
+
+    /**
+     * Accept a pair: the line's rows become exactly these, on the bank's day — one row
+     * also takes the bank's amount; several keep theirs (they add up to the line).
+     */
+    public function accept(Request $request, BankLine $line): RedirectResponse
+    {
+        $data = $request->validate([
+            'transaction_ids' => ['required', 'array', 'min:1', 'max:10'],
+            'transaction_ids.*' => ['integer', 'exists:transactions,id'],
+        ]);
+
+        DB::transaction(function () use ($line, $data) {
+            BankReconciler::accept($line, Transaction::query()->findMany($data['transaction_ids'])->values()->all());
+            TaxSync::run();
+        });
+
+        return $this->done(__('Accepted — the app now matches the bank.'));
     }
 
     /** Add the line as a bank fee. */
@@ -217,6 +242,7 @@ class BankImportController extends Controller
                     }
                     match ($proposal['kind']) {
                         'match' => BankReconciler::link($line, Transaction::query()->findOrFail($proposal['transaction_id'])),
+                        'group' => BankReconciler::accept($line, Transaction::query()->findMany($proposal['transaction_ids'])->values()->all()),
                         'fee' => BankReconciler::addFee($line, $wallet, $request->user()->id),
                         'like' => BankReconciler::addLike($line, Transaction::query()->with('vatLines', 'withheldLines')->findOrFail($proposal['transaction_id']), $request->user()->id),
                     };
@@ -232,15 +258,14 @@ class BankImportController extends Controller
     }
 
     /**
-     * Undo a pair: the line and the row show apart again. The row stays as it is
-     * (reconciled); delete it if it shouldn't exist.
+     * Undo a pair — the whole line, or one row of it. The rows stay as they are
+     * (reconciled); delete one if it shouldn't exist.
      */
-    public function unlink(BankLine $line): RedirectResponse
+    public function unlink(Request $request, BankLine $line): RedirectResponse
     {
-        if ($line->transaction_id !== null) {
-            Transaction::query()->whereKey($line->transaction_id)->update(['bank_position' => null]);
-        }
-        $line->update(['transaction_id' => null]);
+        $data = $request->validate(['transaction_id' => ['nullable', 'integer']]);
+        $only = isset($data['transaction_id']) ? Transaction::query()->find((int) $data['transaction_id']) : null;
+        BankReconciler::release($line, $only);
 
         return back();
     }

@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $user_id
  * @property Carbon $date
  * @property int|null $bank_position
+ * @property int|null $bank_line_id
  * @property Carbon $invoice_date
  * @property string $description
  * @property string $type
@@ -150,6 +151,16 @@ class Transaction extends Model
             'invoice_month' => 'integer',
             'bank_position' => 'integer',
         ];
+    }
+
+    /**
+     * The bank statement line this row is (part of), if paired.
+     *
+     * @return BelongsTo<BankLine, $this>
+     */
+    public function bankLine(): BelongsTo
+    {
+        return $this->belongsTo(BankLine::class);
     }
 
     /** @return BelongsTo<Wallet, $this> */

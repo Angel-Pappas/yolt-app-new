@@ -354,13 +354,12 @@ export function TransactionFormDialog({
 
     const transferAmount = parseAmount(form.data.net);
 
-    // A new row on a wallet that takes bank fees can add the bank's fee with it
-    // (not from a bank line: there the fee is a line of its own).
-    const feePresets =
-        !editing && !bankLine
-            ? (wallets.find((w) => String(w.id) === form.data.wallet_id)
-                  ?.fee_presets ?? null)
-            : null;
+    // A new row on a wallet that takes bank fees can add the bank's fee with it —
+    // from a bank line too, when the bank booked the payment and its fee as one line.
+    const feePresets = !editing
+        ? (wallets.find((w) => String(w.id) === form.data.wallet_id)
+              ?.fee_presets ?? null)
+        : null;
 
     // Payroll for an employee can be calculated from the gross. On by default for a
     // new entry; an existing one keeps its saved figures until asked.
@@ -546,7 +545,7 @@ export function TransactionFormDialog({
                             </DialogTitle>
                             <DialogDescription>
                                 {bankLine
-                                    ? `${bankLine.text} · ${formatAmount(bankLine.amount)} — saved as reconciled, at the bank's amount.`
+                                    ? `${bankLine.text} · ${formatAmount(bankLine.amount)} — saved as reconciled. With a bank fee, the row and the fee together make this line.`
                                     : 'Income and expenses carry VAT (and optional withholding); a transfer moves money between wallets.'}
                             </DialogDescription>
                         </DialogHeader>

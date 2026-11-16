@@ -12,6 +12,14 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-17** — **One bank line can be several app rows.** Angel pointed at the
+  −25.003,78 line of 01/10 shown as missing: the app has it, as two rows — the €25.000
+  transfer back to Αλληλόχρεος and the €3,78 bank cost — which Alpha books as one line.
+  The pairing moved from the line to the rows (`transactions.bank_line_id`, a line has
+  many rows); the app now also looks for two or three rows within 3 days that add up to
+  a line exactly (only a combination that stands out; on the line's own day it pairs
+  them on upload). Rows paired by hand keep their own amount and join a line until they
+  add up to it, and adding from a bank line can include its bank fee.
 - **2026-11-17** — **Bank import becomes the bank and the app side by side.** Angel
   tried the first version on October's statement and couldn't read it: each line
   showed only the bank's text (meaningless in exports) and an "Apply" that didn't say
