@@ -243,62 +243,69 @@ function RuleSetForm({ set, canDelete }: { set: RuleSet; canDelete: boolean }) {
                     × salaries per year), by income bracket and number of
                     dependent children.
                 </p>
-                <div className="grid grid-cols-[minmax(7rem,1fr)_repeat(5,minmax(4.5rem,1fr))_2.25rem] items-center gap-2 text-sm">
-                    <div className="text-muted-foreground">Income up to</div>
-                    {CHILDREN.map((c) => (
-                        <div
-                            key={c}
-                            className="text-muted-foreground text-right"
-                        >
-                            {c}
+                {/* Six columns of rates don't fit a phone: the table scrolls inside
+                    its own box there instead of pushing the page sideways. */}
+                <div className="-mx-1 overflow-x-auto px-1">
+                    <div className="grid min-w-[34rem] grid-cols-[minmax(7rem,1fr)_repeat(5,minmax(4.5rem,1fr))_2.25rem] items-center gap-2 text-sm">
+                        <div className="text-muted-foreground">
+                            Income up to
                         </div>
-                    ))}
-                    <div />
-                    {tax.brackets.map((bracket, i) => (
-                        <div key={i} className="contents">
-                            <Num
-                                label={`Bracket ${i + 1} limit`}
-                                className="[&>label]:sr-only [&>p]:hidden"
-                                suffix="€"
-                                value={bracket.up_to}
-                                onChange={(v) =>
-                                    setData((x) => {
-                                        x.payroll_tax.brackets[i].up_to = v;
-                                        return x;
-                                    })
-                                }
-                            />
-                            {bracket.rates.map((rate, c) => (
+                        {CHILDREN.map((c) => (
+                            <div
+                                key={c}
+                                className="text-muted-foreground text-right"
+                            >
+                                {c}
+                            </div>
+                        ))}
+                        <div />
+                        {tax.brackets.map((bracket, i) => (
+                            <div key={i} className="contents">
                                 <Num
-                                    key={c}
-                                    suffix="%"
-                                    value={rate}
+                                    label={`Bracket ${i + 1} limit`}
+                                    className="[&>label]:sr-only [&>p]:hidden"
+                                    suffix="€"
+                                    value={bracket.up_to}
                                     onChange={(v) =>
                                         setData((x) => {
-                                            x.payroll_tax.brackets[i].rates[c] =
-                                                v;
+                                            x.payroll_tax.brackets[i].up_to = v;
                                             return x;
                                         })
                                     }
                                 />
-                            ))}
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Remove bracket"
-                                disabled={tax.brackets.length === 1}
-                                onClick={() =>
-                                    setData((x) => {
-                                        x.payroll_tax.brackets.splice(i, 1);
-                                        return x;
-                                    })
-                                }
-                            >
-                                <X className="size-4" />
-                            </Button>
-                        </div>
-                    ))}
+                                {bracket.rates.map((rate, c) => (
+                                    <Num
+                                        key={c}
+                                        suffix="%"
+                                        value={rate}
+                                        onChange={(v) =>
+                                            setData((x) => {
+                                                x.payroll_tax.brackets[i].rates[
+                                                    c
+                                                ] = v;
+                                                return x;
+                                            })
+                                        }
+                                    />
+                                ))}
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label="Remove bracket"
+                                    disabled={tax.brackets.length === 1}
+                                    onClick={() =>
+                                        setData((x) => {
+                                            x.payroll_tax.brackets.splice(i, 1);
+                                            return x;
+                                        })
+                                    }
+                                >
+                                    <X className="size-4" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
                 </div>
                 <p className="text-muted-foreground text-xs">
                     Leave the last bracket's limit empty: it covers everything

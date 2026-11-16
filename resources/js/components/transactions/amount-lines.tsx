@@ -352,7 +352,14 @@ export function PayrollFields({
         onChangeRef.current = onChange;
     });
     useEffect(() => {
-        if (!calculated || !date || !Number.isFinite(Number(gross))) return;
+        // Nothing typed yet: nothing to calculate (an empty amount isn't 0).
+        if (
+            !calculated ||
+            !date ||
+            gross.trim() === '' ||
+            !Number.isFinite(Number(gross))
+        )
+            return;
         let stale = false;
         const timer = setTimeout(() => {
             const query = new URLSearchParams({ gross, date });

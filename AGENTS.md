@@ -253,6 +253,16 @@ php artisan test                # Pest
   `~/.cache/ms-playwright` — bumping it means a new browser download
   (`npx playwright-core install chromium`).
 
+## UI audit (dev checkout only)
+
+- `pnpm run audit` (or `pnpm run audit /transactions /wallets`) — visits every page at
+  a laptop (1280×720) and a phone (390×844) size on the demo data, opens every form,
+  row menu, filter and picker it can reach, and lists what a person would trip over
+  (past the screen, cut off, unreachable, a list that won't scroll, a form a stray
+  click closes, JS errors, failed requests), with a screenshot each in
+  `storage/screenshots/audit/`. Needs `pnpm run build`; it changes demo data
+  (reseed after). Run it after any UI change, and add a new page to its list.
+
 ## Ship a change (one command)
 
 From the dev checkout: `./ship.sh "Commit subject" ["optional body"]` — runs the full

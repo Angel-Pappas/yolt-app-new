@@ -72,7 +72,7 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
         <th
             data-slot="table-head"
             className={cn(
-                'text-muted-foreground h-10 px-3 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0',
+                'text-muted-foreground h-10 px-1.5 text-left align-middle leading-tight font-medium [&:has([role=checkbox])]:pr-0',
                 className,
             )}
             {...props}
@@ -80,12 +80,14 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
     );
 }
 
+/** A body cell. Icon buttons in a row (its actions) are compact, so a row's
+ *  buttons fit beside its data on a laptop screen. */
 function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
     return (
         <td
             data-slot="table-cell"
             className={cn(
-                'p-3 align-middle [&:has([role=checkbox])]:pr-0',
+                'px-1.5 py-3 align-middle [&:has([role=checkbox])]:pr-0 [&_[data-slot=button][data-size=icon]]:size-7',
                 className,
             )}
             {...props}

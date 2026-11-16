@@ -12,6 +12,27 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-17** — **UI audit: nothing cut off, every list scrolls, every button
+  reachable.** Angel hit a payroll add form taller than his screen (title and buttons
+  cut off) right after a picker list that wouldn't scroll, and asked for every such
+  thing to be found and fixed everywhere. Added `pnpm run audit`
+  (`scripts/audit.mjs`): it visits every page at 1280×720 (a laptop) and 390×844 (a
+  phone), opens every Add/edit form, row menu, filter and picker it can reach (and
+  picks Payroll where offered), and reports anything past the screen, cut off,
+  unreachable sideways, a list the wheel can't scroll, a form a stray click closes,
+  JS errors and failed requests. Fixed what it found:
+    - **Dialogs** never grow past the screen: they scroll inside, with the buttons
+      pinned to the bottom (`ui/dialog.tsx`, for every dialog). A dialog holding a form
+      no longer closes on a click beside it (typed data was lost); Cancel, ✕ and Esc do.
+    - **Tables fit a 1280px laptop**: Transactions, Income, One-offs, Recurring,
+      Projects, Projection and De minimis hid their last columns (the row buttons)
+      sideways. Cells are a little tighter, headers may wrap onto two lines, the filter
+      funnel is smaller, and icon buttons in a row are compact (`ui/table.tsx`,
+      `ui/button.tsx` now marks its size).
+    - Tax rules on a phone pushed the page sideways (the six-column FMY table now
+      scrolls in its own box); the payroll calculation no longer asks the server about
+      an empty amount (a failed request on an employee's page).
+      Left as is, by design: on a phone, wide tables scroll sideways inside their box.
 - **2026-11-17** — **Pickers in a dialog scroll with the mouse wheel.** Angel couldn't
   scroll the Category list in the add form. The searchable picker (`Combobox`) draws
   its list outside the dialog, and an open dialog blocks wheel/touch scrolling outside

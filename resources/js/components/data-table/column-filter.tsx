@@ -107,7 +107,7 @@ export function ColumnFilter<TData, TValue>({
                     variant="ghost"
                     size="icon"
                     className={cn(
-                        'size-6 shrink-0',
+                        'size-5 shrink-0',
                         active
                             ? 'text-primary'
                             : 'text-muted-foreground/60 hover:text-foreground',
@@ -116,7 +116,7 @@ export function ColumnFilter<TData, TValue>({
                     aria-pressed={active}
                 >
                     <Filter
-                        className={cn('size-3.5', active && 'fill-current')}
+                        className={cn('size-3', active && 'fill-current')}
                     />
                 </Button>
             </PopoverTrigger>
