@@ -45,7 +45,7 @@ the dated what/why in `History.md`. Docs map:
   in the wallets, income due this month and overdue, taxes to pay this month, past
   rows not yet reconciled, the year ahead (graph + lowest balance), agreements ending
   soon. Every figure links to its page.
-- Sidebar: Home · **Finance** (Projection, Transactions, Wallets, Income, Projects,
+- Sidebar: Home · **Finance** (Projection, Transactions, Wallets, Bank import, Income, Projects,
   Recurring, One-offs, Agreements, De minimis) · **Entities**
   (Customers, Suppliers, Contractors, Employees, Shareholders, **State** = the Taxes
   area) · Configuration. Inside `/configuration/*` the sidebar
@@ -107,7 +107,13 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   reset), **Add + Same** (keep open, keep everything but amounts). Entity and Category
   have a **+** to create one in place (auto-selected). The entity picker shows the
   types that fit (income → customers + shareholders; expense → suppliers, contractors,
-  employees, state, shareholders) with a **Show all** toggle.
+  employees, state, shareholders) with a **Show all** toggle. On a wallet that takes
+  bank fees (Wallets ▸ "Bank fees go to"), a **Bank fee** field (quick picks = the
+  wallet's most frequent fees in the last year) adds the fee as its own expense to
+  that entity and category, same day.
+- **Order within a day** follows the bank: rows a statement line confirmed sit in the
+  statement's order (`bank_position`), then the rest in the order they were added
+  (`Transaction::scopeInBankOrder()`, used by every list and the balance view).
 - **List:** columns Type (coloured arrow) · Date · Invoice date · Wallet · Category ·
   Entity · Net · VAT · Total · row actions. Clicking a row opens the edit dialog
   (middle-click opens it in a new tab via `?edit=<id>`). Row actions: **ⓘ**
@@ -179,9 +185,42 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   (real numbers and dates, `1.234,56 €`) or **Markdown**, both with the official
   table's Greek headings and a Σύνολο row (`App\Support\DeMinimisExport`).
 
+## Bank import (`/bank-import`)
+
+- Upload a wallet's statement — **Alpha Bank CSV** (web banking ▸ Κινήσεις ▸ export
+  CSV; `App\Support\AlphaStatement`). Each line is stored once (`bank_lines`, by a
+  fingerprint of date, reference, text and amount), so overlapping exports are safe;
+  the date used is the **booking date** (the day the money shows at the bank), never
+  the value date. The statement's closing balance is kept on the wallet and compared,
+  above the list, with the app's checked balance (reconciled, up to that day).
+- Each waiting line gets a suggestion (`App\Support\BankReconciler`), applied with
+  **Apply** (or several at once via the checkboxes):
+    - **Confirm** a row the app already has: same wallet and direction and the same
+      cash amount (unreconciled within 15 days, or already reconciled within 3), or
+      the one unreconciled row whose entity the bank text names (amount changed).
+      Two equal candidates = no guess; a row is never suggested for two lines.
+    - **Add as bank fee** for the bank's own charges (ΕΞΟΔΑ …, ΕΞΔ…).
+    - **Add new** like the row the same bank text became last time, or like the
+      latest row of the entity the text names. Money back from a supplier becomes an
+      income from it (no category). Payroll is never copied.
+- The ⋯ menu chooses by hand: **Confirm a row** (nearby candidates, amount shown in
+  amber when it differs), **Add new…** (the transaction form, filled from the line),
+  **Add as bank fee**, **Set aside** (handled another way).
+- Whatever is chosen, the transaction ends **reconciled, dated on the bank's day**
+  (the invoice date follows only while it still equals the date), **moving exactly
+  the bank's amount** (`TransactionWriter::toCash`: VAT lines rescaled, last cent in
+  the VAT; payroll moves its net; a transfer takes it) and placed in the bank's order.
+- Done lines show (green) with **Show all**, with **Undo** (the line waits again; the
+  transaction stays — delete it from its list if it shouldn't exist). Deleting the
+  transaction a line became also puts the line back.
+- Bank text is compared folded (`App\Support\BankText`): the bank mixes Greek and
+  Latin look-alike capitals and appends changing codes, so "FΑCΕΒΚ *WRJΖΝΕ6ΕV4" and
+  "FACEBK *CPDCMC6EV4" read the same ("FACEBK").
+
 ## Wallets (`/wallets`)
 
-- Name + starting balance. The **Wallets page balance counts only rows that are
+- Name + starting balance, and for a bank account **where its fees go** (entity +
+  expense category) — used by the form's Bank fee field and the Bank import. The **Wallets page balance counts only rows that are
   reconciled AND dated ≤ today** (owner decision 2026-10-01: unverified or future rows
   aren't real yet). The Transactions balance view counts **every** row, so each row's
   effect shows. Balances are always computed live, never stored

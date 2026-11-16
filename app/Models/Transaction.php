@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int|null $user_id
  * @property Carbon $date
+ * @property int|null $bank_position
  * @property Carbon $invoice_date
  * @property string $description
  * @property string $type
@@ -43,6 +44,7 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'date',
+    'bank_position',
     'invoice_date',
     'description',
     'type',
@@ -96,6 +98,21 @@ class Transaction extends Model
     }
 
     /**
+     * Date order, and within a day the bank statement's order: rows a statement has
+     * confirmed first, in the bank's sequence, then the rest in the order they were
+     * added.
+     *
+     * @param  Builder<Transaction>  $query
+     */
+    public function scopeInBankOrder(Builder $query): void
+    {
+        $query->orderBy('date')
+            ->orderByRaw('bank_position is null')
+            ->orderBy('bank_position')
+            ->orderBy('id');
+    }
+
+    /**
      * Eager-load everything the shared transactions table needs to display a row and
      * seed its edit modal — the single definition of that shape, used everywhere a
      * list of transactions is rendered.
@@ -131,6 +148,7 @@ class Transaction extends Model
             'is_excluded' => 'boolean',
             'invoice_not_required' => 'boolean',
             'invoice_month' => 'integer',
+            'bank_position' => 'integer',
         ];
     }
 

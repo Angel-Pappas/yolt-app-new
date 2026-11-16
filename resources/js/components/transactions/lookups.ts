@@ -1,6 +1,11 @@
 import { usePage } from '@inertiajs/react';
 
-export type WalletOption = { id: number; name: string };
+export type WalletOption = {
+    id: number;
+    name: string;
+    /** Set when the wallet takes bank fees: its most frequent fee amounts. */
+    fee_presets?: string[] | null;
+};
 export type EntityOption = { id: number; name: string; type: string };
 export type CategoryOption = { id: number; name: string; type: string };
 export type ProjectOption = { id: number; name: string; entity_id: number };

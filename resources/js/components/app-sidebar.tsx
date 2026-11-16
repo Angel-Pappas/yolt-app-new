@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    FileUp,
     ArrowLeft,
     ArrowLeftRight,
     ChartNoAxesCombined,
@@ -44,6 +45,7 @@ const financeNavItems: NavItem[] = [
     { title: 'Projection', href: '/projection', icon: ChartNoAxesCombined },
     { title: 'Transactions', href: '/transactions', icon: ArrowLeftRight },
     { title: 'Wallets', href: '/wallets', icon: Wallet },
+    { title: 'Bank import', href: '/bank-import', icon: FileUp },
     { title: 'Income', href: '/income', icon: TrendingUp },
     { title: 'Projects', href: '/projects', icon: FolderKanban },
     { title: 'Recurring', href: '/recurring', icon: Repeat },

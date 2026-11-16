@@ -5,7 +5,9 @@ import { type FormEvent, useState } from 'react';
 import { ColumnHeader } from '@/components/data-table/column-header';
 import { DataTable } from '@/components/data-table/data-table';
 import InputError from '@/components/input-error';
+import { useFinanceLookups } from '@/components/transactions/lookups';
 import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/ui/combobox';
 import {
     Dialog,
     DialogContent,
@@ -25,17 +27,27 @@ type Wallet = {
     name: string;
     starting_balance: string;
     balance: number;
+    fee_entity_id: number | null;
+    fee_category_id: number | null;
+};
+
+const EMPTY = {
+    name: '',
+    starting_balance: '0',
+    fee_entity_id: '',
+    fee_category_id: '',
 };
 
 export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<Wallet | null>(null);
 
-    const form = useForm({ name: '', starting_balance: '0' });
+    const { entities, categories } = useFinanceLookups();
+    const form = useForm(EMPTY);
 
     function openCreate() {
         setEditing(null);
-        form.setData({ name: '', starting_balance: '0' });
+        form.setData(EMPTY);
         form.clearErrors();
         setOpen(true);
     }
@@ -45,6 +57,12 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
         form.setData({
             name: wallet.name,
             starting_balance: wallet.starting_balance,
+            fee_entity_id: wallet.fee_entity_id
+                ? String(wallet.fee_entity_id)
+                : '',
+            fee_category_id: wallet.fee_category_id
+                ? String(wallet.fee_category_id)
+                : '',
         });
         form.clearErrors();
         setOpen(true);
@@ -57,6 +75,8 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
         form.transform((data) => ({
             ...data,
             starting_balance: normalizeAmount(String(data.starting_balance)),
+            fee_entity_id: data.fee_entity_id || null,
+            fee_category_id: data.fee_category_id || null,
         }));
 
         const options = {
@@ -220,6 +240,56 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
                                 />
                                 <InputError
                                     message={form.errors.starting_balance}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="fee_entity_id">
+                                    Bank fees go to
+                                </Label>
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    <Combobox
+                                        id="fee_entity_id"
+                                        value={form.data.fee_entity_id}
+                                        onChange={(v) =>
+                                            form.setData('fee_entity_id', v)
+                                        }
+                                        options={entities.map((e) => ({
+                                            value: String(e.id),
+                                            label: e.name,
+                                        }))}
+                                        placeholder="Entity"
+                                        searchPlaceholder="Search entities…"
+                                        emptyText="No entities found."
+                                        allowNone
+                                    />
+                                    <Combobox
+                                        id="fee_category_id"
+                                        value={form.data.fee_category_id}
+                                        onChange={(v) =>
+                                            form.setData('fee_category_id', v)
+                                        }
+                                        options={categories
+                                            .filter((c) => c.type === 'expense')
+                                            .map((c) => ({
+                                                value: String(c.id),
+                                                label: c.name,
+                                            }))}
+                                        placeholder="Category"
+                                        searchPlaceholder="Search categories…"
+                                        emptyText="No categories found."
+                                        allowNone
+                                    />
+                                </div>
+                                <p className="text-muted-foreground text-xs">
+                                    For a bank account: lets you add the bank's
+                                    fee with a payment, and the Bank import add
+                                    fee lines in one click.
+                                </p>
+                                <InputError
+                                    message={
+                                        form.errors.fee_entity_id ??
+                                        form.errors.fee_category_id
+                                    }
                                 />
                             </div>
                         </div>

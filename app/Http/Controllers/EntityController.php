@@ -66,8 +66,7 @@ class EntityController extends Controller
         $transactions = Transaction::query()
             ->withListData()
             ->where('entity_id', $entity->id)
-            ->orderBy('date')
-            ->orderBy('id')
+            ->inBankOrder()
             ->get();
 
         // Where the back link goes: the entity's own list, or the tax pages for the

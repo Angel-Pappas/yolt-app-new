@@ -44,8 +44,7 @@ class ProjectController extends Controller
         $transactions = Transaction::query()
             ->withListData()
             ->where('project_id', $project->id)
-            ->orderBy('date')
-            ->orderBy('id')
+            ->inBankOrder()
             ->get();
 
         return Inertia::render('projects/show', [

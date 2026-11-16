@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AgreementController;
+use App\Http\Controllers\BankImportController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DeMinimisAidController;
 use App\Http\Controllers\EntityController;
@@ -75,6 +76,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('de-minimis', [DeMinimisAidController::class, 'store'])->name('de-minimis.store');
     Route::patch('de-minimis/{deMinimisAid}', [DeMinimisAidController::class, 'update'])->name('de-minimis.update');
     Route::delete('de-minimis/{deMinimisAid}', [DeMinimisAidController::class, 'destroy'])->name('de-minimis.destroy');
+
+    Route::get('bank-import', [BankImportController::class, 'index'])->name('bank-import.index');
+    Route::post('bank-import', [BankImportController::class, 'store'])->name('bank-import.store');
+    Route::post('bank-lines/apply', [BankImportController::class, 'apply'])->name('bank-lines.apply');
+    Route::post('bank-lines/{line}/match', [BankImportController::class, 'match'])->name('bank-lines.match');
+    Route::post('bank-lines/{line}/fee', [BankImportController::class, 'fee'])->name('bank-lines.fee');
+    Route::post('bank-lines/{line}/like', [BankImportController::class, 'like'])->name('bank-lines.like');
+    Route::patch('bank-lines/{line}/dismiss', [BankImportController::class, 'dismiss'])->name('bank-lines.dismiss');
+    Route::post('bank-lines/{line}/unlink', [BankImportController::class, 'unlink'])->name('bank-lines.unlink');
 
     Route::get('wallets', [WalletController::class, 'index'])->name('wallets.index');
     Route::post('wallets', [WalletController::class, 'store'])->name('wallets.store');

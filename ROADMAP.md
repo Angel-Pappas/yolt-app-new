@@ -44,6 +44,9 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 - [x] Agreements with files and renewal warning (2026-11-12).
 - [x] Lists remember their setup; every row that opens something opens in a new tab
       (2026-11-12).
+- [x] Finance ▸ Bank import (Alpha Bank CSV): each statement line confirms or adds a
+      row, with suggestions; rows follow the bank's order within a day; Bank fee on
+      the add form (2026-11-16).
 - [x] Way of working: design principles, fast screenshots on demo data, one-command
       ship, frontend unit tests, deploy safety check.
 

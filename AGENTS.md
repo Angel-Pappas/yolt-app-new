@@ -161,15 +161,18 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
   use `CrudResource`.
 - **Transactions** (`TransactionController`): `validateTransaction()` (rules branch
   on type — income/expense carry a `lines[]` array; transfer needs `to_wallet_id`
-  `different` from `wallet_id`), `persist()` (fills fields + rewrites VAT lines
-  wholesale; nulls the other shape's fields on a type change), and
+  `different` from `wallet_id`), `App\Support\TransactionWriter` — `persist()`
+  (fills fields + rewrites VAT lines wholesale; nulls the other shape's fields on a
+  type change), `rescaleLines()` / `toCash()` (a saved row to a new amount), shared by
+  the form, Reconcile and the Bank import — and
   `App\Support\AmountLines::resolve()` (**VAT is always computed server-side from
   the rate's current % — never trusted from the client**; the one resolver shared
   with `RecurrenceGenerator`, so generated rows match typed ones). Form:
   `transaction-form-dialog.tsx` (create + edit; the list remounts it via a `key`
   bump for a fresh form). Its amount area (VAT lines, W toggle, Net/Total, summary,
   payroll fields) is `components/transactions/amount-lines.tsx`, shared with the
-  recurrence form — change it there, not per form.
+  recurrence form — change it there, not per form. Lists of transactions are ordered
+  with `->inBankOrder()` (date, then the bank statement's order within the day).
 - **Recurrences:** one form, `components/recurrences/recurrence-form-dialog.tsx`, used
   by the entity page's panel (entity fixed) and Finance ▸ Recurring (`entity={null}`
   shows an entity picker). What a new recurrence starts as comes from

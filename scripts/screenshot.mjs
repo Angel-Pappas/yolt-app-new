@@ -3,7 +3,7 @@
 //
 //   pnpm run shots /transactions "/transactions?balance=1"   [--mobile] [--dark]
 //   pnpm run shots /recurring --click=Contractors   (click buttons by name first;
-//   repeat --click for several, in order)
+//   repeat --click for several, in order; menu items work too)
 //
 // Starts `php artisan serve` on a spare port if needed, logs in as the demo user
 // (session cached in storage/screenshots/.auth.json), and writes one PNG per path
@@ -73,7 +73,13 @@ try {
         await page.goto(`${BASE}${path}`);
         await page.waitForLoadState('networkidle');
         for (const click of clicks) {
-            await page.getByRole('button', { name: click }).first().click();
+            // A button, or an item of an open menu (e.g. "More choices" then
+            // "Add new…").
+            await page
+                .getByRole('button', { name: click })
+                .or(page.getByRole('menuitem', { name: click }))
+                .first()
+                .click();
             await page.waitForLoadState('networkidle');
         }
         const slug =

@@ -12,6 +12,20 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-16** — **Bank import, bank order, bank fee.** Angel's month close starts
+  at the bank statement, line by line, and adding rows while automatic ones already
+  exist was clunky: a row added by hand sorted after the automatic one of the same day
+  whatever the bank said, and the add dialog hid the list, so duplicates were easy.
+  Now Finance ▸ **Bank import** reads the Alpha Bank CSV and, line by line, confirms
+  the row the app already has (salaries, subscriptions, taxes) or adds the new one —
+  suggesting which, from the amount, the name in the bank text and what the same text
+  became before — leaving every row reconciled, on the bank's day and amount, in the
+  bank's order. Angel's decisions: the date is the day the money shows at the bank
+  (not the card's purchase date); refunds are income from the supplier; bank fees stay
+  their own rows (Alpha Bank · Bank Expenses), with a **Bank fee** field on the add form
+  for a wallet that takes them. Only Alpha has a statement (Cash, Register, Bacon are
+  typed by hand). The save/rescale code moved from `TransactionController` to
+  `App\Support\TransactionWriter` so the form, Reconcile and the import share it.
 - **2026-11-12** — **The "next" build begins (branch `next`, copy site).** Angel asked
   for the whole remaining scope to be built in one go on a copy he can test, without
   touching the live app: a second site `yolt-next.pappas.yoltobots.click`

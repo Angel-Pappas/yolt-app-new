@@ -20,8 +20,7 @@ class IncomeController extends Controller
             'transactions' => Transaction::query()
                 ->withListData()
                 ->where('type', 'income')
-                ->orderBy('date')
-                ->orderBy('id')
+                ->inBankOrder()
                 ->get(),
         ]);
     }

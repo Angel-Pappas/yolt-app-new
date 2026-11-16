@@ -81,6 +81,71 @@ export type EditableTransaction = {
     project_id?: number | null;
 };
 
+/** What a new row copies when added from a bank line (see the Bank import page). */
+export type BankLineTemplate = {
+    type: string;
+    wallet_id: number;
+    to_wallet_id: number | null;
+    entity_id: number | null;
+    category_id: number | null;
+    vat_rate_id: number | null;
+    withheld_rate_id: number | null;
+};
+
+/** A bank statement line the new transaction will confirm. */
+export type BankLinePrefill = {
+    id: number;
+    date: string;
+    /** Signed: money in is positive. */
+    amount: number;
+    text: string;
+    wallet_id: number;
+    template: BankLineTemplate | null;
+};
+
+/** The form's starting values for a bank line: its day, wallet and amount, shaped
+ *  like the row it resembles when there is one. */
+function bankLineDefaults(line: BankLinePrefill) {
+    const incoming = line.amount > 0;
+    const amount = String(Math.abs(line.amount));
+    const t = line.template;
+    const type =
+        t?.type === 'transfer' ? 'transfer' : incoming ? 'income' : 'expense';
+    const other =
+        t?.type === 'transfer'
+            ? t.wallet_id === line.wallet_id
+                ? t.to_wallet_id
+                : t.wallet_id
+            : null;
+    return {
+        type,
+        date: line.date,
+        invoice_date: line.date,
+        entity_id: t?.entity_id ? String(t.entity_id) : '',
+        category_id:
+            t?.category_id && t.type === type ? String(t.category_id) : '',
+        wallet_id: String(
+            type === 'transfer' && incoming && other ? other : line.wallet_id,
+        ),
+        to_wallet_id:
+            type === 'transfer'
+                ? String(incoming ? line.wallet_id : (other ?? ''))
+                : '',
+        net: amount,
+        amount_mode: 'total' as AmountMode,
+        lines: [
+            {
+                amount,
+                vat_rate_id: t?.vat_rate_id ? String(t.vat_rate_id) : '',
+                withheld: t?.withheld_rate_id != null,
+                withheld_rate_id: t?.withheld_rate_id
+                    ? String(t.withheld_rate_id)
+                    : '',
+            },
+        ],
+    };
+}
+
 type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -91,6 +156,8 @@ type Props = {
     income?: boolean;
     /** Adding from a project's page: an income installment of that project. */
     project?: { id: number; entity_id: number } | null;
+    /** Adding from the Bank import page: the new row confirms this line. */
+    bankLine?: BankLinePrefill | null;
 };
 
 function today(): string {
@@ -104,6 +171,7 @@ export function TransactionFormDialog({
     oneOff = false,
     income = false,
     project = null,
+    bankLine = null,
 }: Props) {
     // Lookups come from the globally-shared source, so this form works wherever it's
     // opened without each page having to pass them.
@@ -165,6 +233,7 @@ export function TransactionFormDialog({
                   project_id: editing.project_id
                       ? String(editing.project_id)
                       : '',
+                  bank_fee: '',
               }
             : {
                   type: income || project ? 'income' : 'expense',
@@ -183,6 +252,8 @@ export function TransactionFormDialog({
                   lines: [emptyAmountLine()],
                   income_status: 'agreed' as IncomeStatus,
                   project_id: project ? String(project.id) : '',
+                  bank_fee: '',
+                  ...(bankLine ? bankLineDefaults(bankLine) : {}),
               },
     );
 
@@ -282,6 +353,14 @@ export function TransactionFormDialog({
         !isTransfer && selectedCategory?.name === PAYROLL_CATEGORY;
 
     const transferAmount = parseAmount(form.data.net);
+
+    // A new row on a wallet that takes bank fees can add the bank's fee with it
+    // (not from a bank line: there the fee is a line of its own).
+    const feePresets =
+        !editing && !bankLine
+            ? (wallets.find((w) => String(w.id) === form.data.wallet_id)
+                  ?.fee_presets ?? null)
+            : null;
 
     // Payroll for an employee can be calculated from the gross. On by default for a
     // new entry; an existing one keeps its saved figures until asked.
@@ -407,7 +486,13 @@ export function TransactionFormDialog({
     function doSubmit(mode: 'close' | 'new' | 'same') {
         // A new one-off carries the tag; an edit never sends it, so it's kept.
         const tag = oneOff && !editing ? { is_one_off: true } : {};
-        form.transform((data) => ({ ...payload(data), ...tag }));
+        const extra = {
+            ...(bankLine ? { bank_line_id: bankLine.id } : {}),
+            ...(feePresets
+                ? { bank_fee: optionalAmount(form.data.bank_fee) }
+                : {}),
+        };
+        form.transform((data) => ({ ...payload(data), ...tag, ...extra }));
 
         if (editing) {
             form.patch(`/transactions/${editing.id}`, {
@@ -440,6 +525,7 @@ export function TransactionFormDialog({
                     form.setData('fmy', '');
                     form.setData('efka_employee', '');
                     form.setData('efka_employer', '');
+                    form.setData('bank_fee', '');
                 }
             },
         });
@@ -454,12 +540,14 @@ export function TransactionFormDialog({
                             <DialogTitle>
                                 {editing
                                     ? 'Edit transaction'
-                                    : 'Add transaction'}
+                                    : bankLine
+                                      ? 'Add from the bank'
+                                      : 'Add transaction'}
                             </DialogTitle>
                             <DialogDescription>
-                                Income and expenses carry VAT (and optional
-                                withholding); a transfer moves money between
-                                wallets.
+                                {bankLine
+                                    ? `${bankLine.text} · ${formatAmount(bankLine.amount)} — saved as reconciled, at the bank's amount.`
+                                    : 'Income and expenses carry VAT (and optional withholding); a transfer moves money between wallets.'}
                             </DialogDescription>
                         </DialogHeader>
 
@@ -789,6 +877,63 @@ export function TransactionFormDialog({
                                 </div>
                             )}
 
+                            {feePresets && (
+                                <div className="grid gap-2 sm:col-span-2">
+                                    <Label htmlFor="bank_fee">
+                                        Bank fee (added as its own expense)
+                                    </Label>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {feePresets.map((fee) => {
+                                            const on =
+                                                normalizeAmount(
+                                                    form.data.bank_fee,
+                                                ) === fee;
+                                            return (
+                                                <Button
+                                                    key={fee}
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    aria-pressed={on}
+                                                    className={
+                                                        on
+                                                            ? 'text-primary border-primary'
+                                                            : undefined
+                                                    }
+                                                    onClick={() =>
+                                                        form.setData(
+                                                            'bank_fee',
+                                                            on
+                                                                ? ''
+                                                                : fee.replace(
+                                                                      '.',
+                                                                      ',',
+                                                                  ),
+                                                        )
+                                                    }
+                                                >
+                                                    {formatAmount(fee)}
+                                                </Button>
+                                            );
+                                        })}
+                                        <AmountInput
+                                            id="bank_fee"
+                                            className="w-28"
+                                            value={form.data.bank_fee}
+                                            onChange={(v) =>
+                                                form.setData('bank_fee', v)
+                                            }
+                                            placeholder={
+                                                feePresets.length > 0
+                                                    ? 'Other'
+                                                    : undefined
+                                            }
+                                        />
+                                    </div>
+                                    <InputError message={errors['bank_fee']} />
+                                </div>
+                            )}
+
                             <div className="grid gap-2 sm:col-span-2">
                                 <Label htmlFor="description">Description</Label>
                                 <Input
@@ -835,12 +980,12 @@ export function TransactionFormDialog({
                             >
                                 Cancel
                             </Button>
-                            {editing ? (
+                            {editing || bankLine ? (
                                 <Button
                                     type="submit"
                                     disabled={form.processing}
                                 >
-                                    Save
+                                    {editing ? 'Save' : 'Add'}
                                 </Button>
                             ) : (
                                 <>

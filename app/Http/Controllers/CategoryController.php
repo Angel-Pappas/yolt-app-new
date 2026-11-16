@@ -40,8 +40,7 @@ class CategoryController extends Controller
         $transactions = Transaction::query()
             ->withListData()
             ->where('category_id', $category->id)
-            ->orderBy('date')
-            ->orderBy('id')
+            ->inBankOrder()
             ->get();
 
         return Inertia::render('categories/show', [
