@@ -12,6 +12,11 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-17** — **Pickers in a dialog scroll with the mouse wheel.** Angel couldn't
+  scroll the Category list in the add form. The searchable picker (`Combobox`) draws
+  its list outside the dialog, and an open dialog blocks wheel/touch scrolling outside
+  itself; the picker's popover is now modal, so it allows scrolling in its own list
+  (checked with a wheel test in a browser, before and after).
 - **2026-11-17** — **One bank line can be several app rows.** Angel pointed at the
   −25.003,78 line of 01/10 shown as missing: the app has it, as two rows — the €25.000
   transfer back to Αλληλόχρεος and the €3,78 bank cost — which Alpha books as one line.
