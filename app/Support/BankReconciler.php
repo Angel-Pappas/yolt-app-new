@@ -262,8 +262,9 @@ final class BankReconciler
 
     /**
      * The row to copy for a new line: the last row this bank text became, if its
-     * recent rows all went to the same entity the same way; else the latest row of
-     * the one entity whose name is in the text. Payroll is never copied (its amounts
+     * recent rows all went to the same entity the same way; else the latest row (up
+     * to the line's day, reconciled first) of the one entity whose name is in the
+     * text. Payroll is never copied (its amounts
      * need the payroll fields).
      *
      * @param  array<string, list<Transaction>>  $history
@@ -289,10 +290,12 @@ final class BankReconciler
             return null;
         }
 
+        // What really happened before this line beats a projected row.
         $latest = Transaction::query()
             ->where('entity_id', $top->keys()->first())
             ->where('type', '!=', 'transfer')
-            ->orderByDesc('date')->orderByDesc('id')
+            ->whereDate('date', '<=', $line->date->toDateString())
+            ->orderByDesc('is_reconciled')->orderByDesc('date')->orderByDesc('id')
             ->first();
 
         return $latest !== null && ! self::isPayroll($latest) ? $latest : null;
