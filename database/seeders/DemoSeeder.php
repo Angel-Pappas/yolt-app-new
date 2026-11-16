@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Agreement;
+use App\Models\BankLine;
 use App\Models\Category;
 use App\Models\Entity;
 use App\Models\LeaveEntry;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
+use App\Support\BankReconciler;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -52,7 +54,8 @@ class DemoSeeder extends Seeder
             ->map(fn ($n) => Entity::create(['name' => $n, 'type' => 'supplier']));
         $customers = collect(['Dagmar-Koutsoumpidis', 'Γεωργαλάς Κωνσταντίνος', 'Acme Hellas'])
             ->map(fn ($n) => Entity::create(['name' => $n, 'type' => 'customer']));
-        Entity::create(['name' => 'Alpha Bank', 'type' => 'supplier']);
+        $alpha = Entity::create(['name' => 'Alpha Bank', 'type' => 'supplier']);
+        $bank->update(['fee_entity_id' => $alpha->id, 'fee_category_id' => $expense['Bank Expenses']->id]);
 
         mt_srand(42);
         $start = Carbon::now()->startOfMonth()->subMonths(2);
@@ -152,6 +155,48 @@ class DemoSeeder extends Seeder
                 ]);
             }
         }
+
+        $this->bankStatement($bank, $user);
+    }
+
+    /**
+     * Last month's Alpha Bank statement, imported: most lines are the app's rows, a
+     * few were booked two days later than the app has them, a few rows never reached
+     * the bank, and a few lines are missing from the app (a fee among them). The sure
+     * pairs settle as an upload would.
+     */
+    private function bankStatement(Wallet $bank, User $user): void
+    {
+        $from = Carbon::now()->subMonthNoOverflow()->startOfMonth();
+        $to = $from->copy()->endOfMonth();
+        $rows = Transaction::query()->counted()->where('wallet_id', $bank->id)
+            ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
+            ->with('vatLines', 'withheldLines')->orderBy('date')->orderBy('id')->get();
+
+        $lines = [];
+        foreach ($rows->values() as $i => $t) {
+            if ($i % 7 === 6) {
+                continue; // never reached the bank
+            }
+            $cash = BankReconciler::cash($t);
+            $date = $i % 5 === 4 ? $t->date->copy()->addDays(2) : $t->date;
+            $lines[] = [$date->toDateString(), mb_strtoupper($t->entity->name ?? 'ΜΕΤΑΦΟΡΑ'), $t->type === 'income' || $t->to_wallet_id === $bank->id ? $cash : -$cash];
+        }
+        $lines[] = [$from->copy()->addDays(9)->toDateString(), 'ΕΞΟΔΑ ΕΝΤΟΛΗΣ', -1.30];
+        $lines[] = [$from->copy()->addDays(12)->toDateString(), 'FΑCΕΒΚ *Q7Z2', -45.00];
+        $lines[] = [$from->copy()->addDays(20)->toDateString(), 'ΧΟΡ989003070526587', 500.00];
+        usort($lines, fn (array $a, array $b): int => $a[0] <=> $b[0]);
+
+        $positions = [];
+        foreach ($lines as $n => [$date, $text, $amount]) {
+            $positions[$date] = ($positions[$date] ?? 0) + 1;
+            BankLine::query()->create([
+                'wallet_id' => $bank->id, 'date' => $date, 'position' => $positions[$date],
+                'text' => $text, 'amount' => $amount, 'reference' => (string) $n, 'fingerprint' => hash('sha256', "demo-{$n}"),
+            ]);
+        }
+        $bank->forceFill(['statement_balance' => 14321.09, 'statement_date' => $to->toDateString()])->save();
+        BankReconciler::settle($bank, $user->id);
     }
 
     /**

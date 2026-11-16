@@ -187,41 +187,52 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
 
 ## Bank import (`/bank-import`)
 
-- Upload a wallet's statement — **Alpha Bank CSV** (web banking ▸ Κινήσεις ▸ export
-  CSV; `App\Support\AlphaStatement`). Each line is stored once (`bank_lines`, by a
+- **The bank and the app side by side** for a wallet and a period (Angel's design,
+  2026-11-17): the left half is the bank statement, the right half the app's rows,
+  paired on one line each, in the bank's order (`App\Support\BankComparison`). An
+  empty side means it exists only on the other. Each line has a verdict:
+    - ✓ **Match**: paired, same day, same amount, reconciled — nothing to do.
+    - ⚠ **Differs**: the app thinks it is the same movement, but the app row's date
+      or amount (shown in amber) differs, or the pair isn't confirmed yet. **Accept**
+      makes the row like the bank.
+    - ✕ **Missing from the app** (bank only): **Add** opens the add form filled from
+      the line (shaped like the row it looks like, when there is one); a bank charge
+      has **Add fee**.
+    - ✕ **Not at the bank** (app only): a leftover automatic row, or something not
+      paid yet — open it or delete it from ⋯.
+- **Pair by hand:** drag an app row (by its grip) onto a bank line, or ⋯ ▸ **Pair
+  with another row** (the app-only rows going the same way, closest amount first).
+  A pair is one line and one row: whatever either was paired with is let go. ⋯ ▸
+  **Unpair** undoes one (the row stays reconciled). Ticking several lines and **Accept
+  N suggestions** accepts the pairs and adds the missing rows as suggested.
+- **Period:** from/to dates with This month · Last month. It opens from the start of
+  the month of the earliest unpaired line (or the statement's month) to the
+  statement's day. App rows shown: the wallet's counted rows dated in the period.
+- **Upload** a statement — **Alpha Bank CSV** (web banking ▸ Κινήσεις ▸ export CSV;
+  `App\Support\AlphaStatement`). Each line is stored once (`bank_lines`, by a
   fingerprint of date, reference, text and amount), so overlapping exports are safe;
-  the date used is the **booking date** (the day the money shows at the bank), never
-  the value date. The statement's closing balance is kept on the wallet and compared,
-  above the list, with the app's checked balance (reconciled, up to that day).
-- Each waiting line gets a suggestion (`App\Support\BankReconciler`), applied with
-  **Apply** (or several at once via the checkboxes):
-    - **Confirm** a row the app already has: same wallet and direction and the same
-      cash amount (unreconciled within 15 days, or already reconciled within 3), or
-      the one unreconciled row whose entity the bank text names, within 3 days and of
-      a similar size (an amount that changed). Among equal amounts the one naming the
-      entity, on the same day or already reconciled (typed by hand next to its
-      automatic duplicate) wins; still equal = no guess, and nothing new is suggested
-      either. A row is never suggested for two lines.
-    - **Add as bank fee** for the bank's own charges (ΕΞΟΔΑ …, ΕΞΔ…).
-    - **Add new** like the row the same bank text became last time, or like the
-      latest row of the entity the text names. Money back from a supplier becomes an
-      income from it (no category). Payroll is never copied.
-- The ⋯ menu chooses by hand: **Confirm a row** (nearby candidates, amount shown in
-  amber when it differs), **Add new…** (the transaction form, filled from the line),
-  **Add as bank fee**, **Set aside** (handled another way).
-- Whatever is chosen, the transaction ends **reconciled, dated on the bank's day**
-  (the invoice date follows only while it still equals the date), **moving exactly
-  the bank's amount** (`TransactionWriter::toCash`: VAT lines rescaled, last cent in
-  the VAT; payroll moves its net; a transfer takes it) and placed in the bank's order.
-- **"N in the app, not at the bank"** links to the wallet's unreconciled rows within
-  the statement's dates (Transactions, balance view) — leftover automatic duplicates
-  or payments that didn't happen, to delete or move.
-- Done lines show (green) with **Show all**, with **Undo** (the line waits again; the
-  transaction stays — delete it from its list if it shouldn't exist). Deleting the
-  transaction a line became also puts the line back.
+  the date used is the **booking date** (the day the money shows at the bank). The
+  upload **settles what needs no decision** (`BankReconciler::settle`): a line whose
+  suggested row has its very amount on its very day is paired, and the bank's own
+  charges (ΕΞΟΔΑ …, ΕΞΔ…) are added as fee rows. The closing balance is kept on the
+  wallet and compared with the app's checked balance on that day.
+- **How the app guesses** (`App\Support\BankReconciler::suggestions`): same wallet and
+  direction and the same cash amount (unreconciled within 15 days, or already
+  reconciled within 3), or the one unreconciled row whose entity the bank text names,
+  within 3 days and of a similar size. Among equal amounts the one naming the entity,
+  on the same day or already reconciled wins; still equal = no guess. A row is never
+  guessed for two lines. A missing row looks like what the same bank text became last
+  time, or the latest row of the entity the text names (a refund becomes income from
+  the supplier; payroll is never copied).
+- **Pairing** leaves the row **reconciled, dated on the bank's day** (the invoice date
+  follows only while it still equals the date), **moving exactly the bank's amount**
+  (`TransactionWriter::toCash`: VAT lines rescaled, last cent in the VAT; payroll
+  moves its net; a transfer takes it) and placed in the bank's order. Deleting a
+  paired row puts its line back to missing.
 - Bank text is compared folded (`App\Support\BankText`): the bank mixes Greek and
   Latin look-alike capitals and appends changing codes, so "FΑCΕΒΚ *WRJΖΝΕ6ΕV4" and
   "FACEBK *CPDCMC6EV4" read the same ("FACEBK").
+- On a phone each side is one stacked cell, with the buttons under the app side.
 
 ## Wallets (`/wallets`)
 

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Support\AlphaStatement;
+use App\Support\BankComparison;
 use App\Support\BankReconciler;
 use App\Support\BankText;
 use App\Support\WalletBalances;
@@ -321,15 +322,10 @@ test('deleting the transaction a line became puts the line back to do', function
         ->and($line->refresh()->isPending())->toBeTrue();
 });
 
-test('a line can be set aside and brought back, and a link undone', function () {
+test('a pair can be undone', function () {
     $wallet = feeWallet();
     $user = User::factory()->create();
     $line = bankLine($wallet, '2026-10-30', -10);
-
-    $this->actingAs($user)->patch("/bank-lines/{$line->id}/dismiss", ['dismissed' => true]);
-    expect($line->refresh()->is_dismissed)->toBeTrue();
-    $this->actingAs($user)->patch("/bank-lines/{$line->id}/dismiss", ['dismissed' => false]);
-    expect($line->refresh()->is_dismissed)->toBeFalse();
 
     $row = Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-10-30', 'net' => 10]);
     BankReconciler::link($line, $row);
@@ -339,15 +335,24 @@ test('a line can be set aside and brought back, and a link undone', function () 
         ->and($row->is_reconciled)->toBeTrue();
 });
 
-test('a done line cannot be matched again', function () {
+test('pairing by hand lets go of what either side was paired with before', function () {
     $wallet = feeWallet();
-    $row = Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-10-30', 'net' => 10]);
-    $other = Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-10-30', 'net' => 10]);
-    $line = bankLine($wallet, '2026-10-30', -10);
+    $row = Transaction::factory()->create(['type' => 'expense', 'wallet_id' => $wallet->id, 'date' => '2026-10-30', 'net' => 10, 'vat_amount' => 0]);
+    $other = Transaction::factory()->create(['type' => 'expense', 'wallet_id' => $wallet->id, 'date' => '2026-10-28', 'net' => 12, 'vat_amount' => 0]);
+    $line = bankLine($wallet, '2026-10-30', -10, 'A', 1);
+    $second = bankLine($wallet, '2026-10-30', -12, 'B', 2);
     BankReconciler::link($line, $row);
+    BankReconciler::link($second, $other);
+    $user = User::factory()->create();
 
-    $this->actingAs(User::factory()->create())->post("/bank-lines/{$line->id}/match", ['transaction_id' => $other->id])
-        ->assertSessionHasErrors('line');
+    // Drag `other` onto the first line: it takes that line's day, place and amount.
+    $this->actingAs($user)->post("/bank-lines/{$line->id}/match", ['transaction_id' => $other->id])->assertRedirect();
+
+    expect($line->refresh()->transaction_id)->toBe($other->id)
+        ->and($second->refresh()->transaction_id)->toBeNull()
+        ->and($row->refresh()->bank_position)->toBeNull()
+        ->and($other->refresh()->bank_position)->toBe(1)
+        ->and(WalletBalances::cashTotal($other))->toBe(10.0);
 });
 
 test('the page compares the bank balance with the app’s checked balance on that day', function () {
@@ -362,7 +367,11 @@ test('the page compares the bank balance with the app’s checked balance on tha
         ->assertInertia(fn ($page) => $page->component('bank-import/index')
             ->where('wallet.app_balance', -10)
             ->where('wallet.statement_balance', '90.00')
-            ->has('lines', 1));
+            // From the month of the earliest unpaired line to the statement's day.
+            ->where('period', ['from' => '2026-11-01', 'to' => '2026-11-16'])
+            ->has('rows', 1)
+            ->where('rows.0.status', 'differs')
+            ->where('rows.0.differences.unconfirmed', true));
 });
 
 test('guests cannot reach the bank import', function () {
@@ -402,14 +411,59 @@ test('when rows with the very amount exist but none stands out, nothing new is s
     expect($s[$line->id]['proposal'])->toBeNull();
 });
 
-test('the rows in the app the bank does not show are counted over the statement span', function () {
+test('the bank and the app side by side: match, differs, missing from either side, in bank order', function () {
     $wallet = feeWallet();
-    $wallet->forceFill(['statement_balance' => 0, 'statement_date' => '2026-10-31'])->save();
-    bankLine($wallet, '2026-10-01', -10);
-    Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-10-15']);
-    Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-10-16', 'is_reconciled' => true]);
-    Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-11-05']);
-    Transaction::factory()->create(['wallet_id' => $wallet->id, 'date' => '2026-10-17', 'is_excluded' => true]);
+    $row = fn (string $date, float $net, array $more = []) => Transaction::factory()->create(['type' => 'expense', 'wallet_id' => $wallet->id, 'date' => $date, 'invoice_date' => $date, 'net' => $net, 'vat_amount' => 0, ...$more]);
 
-    expect(BankReconciler::notInBank($wallet))->toBe(['count' => 1, 'from' => '2026-10-01', 'to' => '2026-10-31']);
+    $paired = $row('2026-10-05', 10);
+    $pairedLine = bankLine($wallet, '2026-10-05', -10, 'PAIRED', 2);
+    BankReconciler::link($pairedLine, $paired);
+    $early = $row('2026-10-03', 20);
+    $guessLine = bankLine($wallet, '2026-10-05', -20, 'GUESS', 1);
+    $missingLine = bankLine($wallet, '2026-10-07', -30, 'MISSING');
+    $appOnly = $row('2026-10-05', 40, ['description' => 'Never paid']);
+    $row('2026-10-09', 50, ['is_excluded' => true]);
+    $row('2026-11-02', 60);
+
+    $rows = BankComparison::rows($wallet, '2026-10-01', '2026-10-31');
+
+    expect(array_map(fn (array $r): array => [$r['status'], $r['line']?->id, $r['transaction']?->id], $rows))->toBe([
+        ['differs', $guessLine->id, $early->id],
+        ['match', $pairedLine->id, $paired->id],
+        ['app_only', null, $appOnly->id],
+        ['bank_only', $missingLine->id, null],
+    ])
+        ->and($rows[0]['differences'])->toBe(['date' => '2026-10-03', 'unconfirmed' => true])
+        ->and($rows[0]['linked'])->toBeFalse()
+        ->and($rows[1]['differences'])->toBe([]);
+});
+
+test('a paired row edited since shows what differs from the bank', function () {
+    $wallet = feeWallet();
+    $t = Transaction::factory()->create(['type' => 'expense', 'wallet_id' => $wallet->id, 'date' => '2026-10-05', 'net' => 10, 'vat_amount' => 0]);
+    $line = bankLine($wallet, '2026-10-05', -10);
+    BankReconciler::link($line, $t);
+    $t->update(['net' => 11, 'is_reconciled' => false]);
+
+    expect(BankComparison::differences($line->refresh(), $t->refresh(), true))->toBe(['amount' => 11.0, 'unreconciled' => true]);
+});
+
+test('an upload pairs same-day same-amount rows and adds the bank fees by itself, and nothing else', function () {
+    $user = User::factory()->create();
+    $wallet = feeWallet();
+    $sameDay = Transaction::factory()->create(['type' => 'expense', 'wallet_id' => $wallet->id, 'date' => '2026-11-10', 'net' => 131.97, 'vat_amount' => 0]);
+    $twoDaysOff = Transaction::factory()->create(['type' => 'expense', 'wallet_id' => $wallet->id, 'date' => '2026-11-09', 'net' => 50, 'vat_amount' => 0]);
+    $csv = alphaCsv([
+        [3, '12/11/2026', 'ΕΞΟΔΑ ΕΝΤΟΛΗΣ', 'R2', '4,00', 'Χ'],
+        [2, '11/11/2026', 'ΗΕΤΖΝΕR', 'R3', '50,00', 'Χ'],
+        [1, '10/11/2026', 'SΤRΙΡΕ-Ζ.ΑΙ', 'R1', '131,97', 'Χ'],
+    ]);
+
+    $this->actingAs($user)->post('/bank-import', ['wallet_id' => $wallet->id, 'file' => UploadedFile::fake()->createWithContent('t.csv', $csv)]);
+
+    expect(BankLine::query()->where('text', 'SΤRΙΡΕ-Ζ.ΑΙ')->value('transaction_id'))->toBe($sameDay->id)
+        ->and($sameDay->refresh()->is_reconciled)->toBeTrue()
+        ->and(BankLine::query()->where('text', 'ΗΕΤΖΝΕR')->value('transaction_id'))->toBeNull()
+        ->and($twoDaysOff->refresh()->is_reconciled)->toBeFalse()
+        ->and(Transaction::query()->where('entity_id', $wallet->fee_entity_id)->where('net', 4)->where('is_reconciled', true)->exists())->toBeTrue();
 });

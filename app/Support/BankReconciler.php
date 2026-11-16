@@ -11,9 +11,10 @@ use Illuminate\Support\Collection;
 
 /**
  * Bank statement lines against the app's transactions. Importing stores each new
- * line once; then every waiting line gets a suggestion, and applying a suggestion
- * (or choosing by hand) either confirms an existing transaction or adds a new one —
- * in both cases the transaction ends up reconciled, dated on the day the money
+ * line once and settles what is certain: a line with exactly one row of the same
+ * amount on the same day is paired with it, and the bank's own charges become fee
+ * rows. Every other line gets a suggestion for the Bank import page. Pairing a line
+ * (or adding a row for it) leaves the row reconciled, dated on the day the money
  * showed at the bank, moving exactly the bank's amount, and placed in the bank's
  * order within that day.
  *
@@ -86,6 +87,39 @@ final class BankReconciler
         }
 
         return ['added' => $added, 'known' => count($statement['lines']) - $added];
+    }
+
+    /**
+     * Settle a wallet's waiting lines that need no decision: a suggested row with the
+     * line's very amount on the line's very day is paired, and the bank's own charge
+     * becomes a fee row. Returns how many lines were settled.
+     */
+    public static function settle(Wallet $wallet, ?int $userId): int
+    {
+        $lines = BankLine::query()->where('wallet_id', $wallet->id)->pending()->get();
+        $suggestions = self::suggestions($wallet, $lines);
+        $settled = 0;
+
+        foreach ($lines as $line) {
+            $proposal = $suggestions[$line->id]['proposal'] ?? null;
+            if ($proposal === null || $proposal['kind'] === 'like') {
+                continue;
+            }
+            if ($proposal['kind'] === 'fee') {
+                self::addFee($line, $wallet, $userId);
+                $settled++;
+
+                continue;
+            }
+            $match = collect($suggestions[$line->id]['candidates'])
+                ->first(fn (array $c): bool => $c['transaction']->id === $proposal['transaction_id']);
+            if ($match !== null && $match['exact'] && $match['transaction']->date->isSameDay($line->date)) {
+                self::link($line, $match['transaction']);
+                $settled++;
+            }
+        }
+
+        return $settled;
     }
 
     /**
@@ -318,8 +352,14 @@ final class BankReconciler
         $transaction->bank_position = $line->position;
         $transaction->save();
 
+        // A pair is one line and one row: whatever either was paired with before
+        // is let go.
+        BankLine::query()->where('transaction_id', $transaction->id)->whereKeyNot($line->id)
+            ->update(['transaction_id' => null]);
+        if ($line->transaction_id !== null && $line->transaction_id !== $transaction->id) {
+            Transaction::query()->whereKey($line->transaction_id)->update(['bank_position' => null]);
+        }
         $line->transaction_id = $transaction->id;
-        $line->is_dismissed = false;
         $line->save();
     }
 
@@ -396,7 +436,7 @@ final class BankReconciler
     }
 
     /** The cash a row moves, as a positive amount. */
-    private static function cash(Transaction $t): float
+    public static function cash(Transaction $t): float
     {
         return round($t->type === 'transfer' ? (float) $t->net : WalletBalances::cashTotal($t), 2);
     }
@@ -415,32 +455,5 @@ final class BankReconciler
     private static function isPayroll(Transaction $t): bool
     {
         return AmountLines::isPayrollCategory($t->category_id);
-    }
-
-    /**
-     * Rows the bank doesn't show: the wallet's unreconciled rows (that count) dated
-     * within the statement's span — typically an automatic row left next to the one
-     * typed by hand, or a payment that didn't happen.
-     *
-     * @return array{count: int, from: string, to: string}|null
-     */
-    public static function notInBank(Wallet $wallet): ?array
-    {
-        $from = BankLine::query()->where('wallet_id', $wallet->id)->min('date');
-        if ($from === null || $wallet->statement_date === null) {
-            return null;
-        }
-        $from = Carbon::parse($from)->toDateString();
-        $to = $wallet->statement_date->toDateString();
-
-        $count = Transaction::query()
-            ->counted()
-            ->where('is_reconciled', false)
-            ->where(fn ($q) => $q->where('wallet_id', $wallet->id)->orWhere('to_wallet_id', $wallet->id))
-            ->whereDate('date', '>=', $from)
-            ->whereDate('date', '<=', $to)
-            ->count();
-
-        return ['count' => $count, 'from' => $from, 'to' => $to];
     }
 }

@@ -12,6 +12,20 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-17** — **Bank import becomes the bank and the app side by side.** Angel
+  tried the first version on October's statement and couldn't read it: each line
+  showed only the bank's text (meaningless in exports) and an "Apply" that didn't say
+  what it did, and he was asked to act even on lines the app already had on the same
+  day at the same amount. His design: two lists next to each other, each row pairing
+  a bank line with its app row (a side left empty when it exists only on the other),
+  with a verdict per row — match, the same but something differs, missing — and drag
+  to fix the pairing. Agreed with him: green = same date and amount exactly (anything
+  else is amber, and accepting moves the app row to the bank's day); every pair counts
+  as reconciled; app rows shown for the same dates. Sure pairs (same amount, same day)
+  and bank fees now settle on upload, so only real decisions are left. Dragging pairs
+  rows rather than reordering them, since a paired row takes the bank's place by
+  itself. "Set aside" was dropped (column removed): every bank line is in the app or
+  missing from it. The demo data now has a statement for screenshots.
 - **2026-11-16** — **Bank import, bank order, bank fee.** Angel's month close starts
   at the bank statement, line by line, and adding rows while automatic ones already
   exist was clunky: a row added by hand sorted after the automatic one of the same day

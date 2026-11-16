@@ -83,7 +83,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('bank-lines/{line}/match', [BankImportController::class, 'match'])->name('bank-lines.match');
     Route::post('bank-lines/{line}/fee', [BankImportController::class, 'fee'])->name('bank-lines.fee');
     Route::post('bank-lines/{line}/like', [BankImportController::class, 'like'])->name('bank-lines.like');
-    Route::patch('bank-lines/{line}/dismiss', [BankImportController::class, 'dismiss'])->name('bank-lines.dismiss');
     Route::post('bank-lines/{line}/unlink', [BankImportController::class, 'unlink'])->name('bank-lines.unlink');
 
     Route::get('wallets', [WalletController::class, 'index'])->name('wallets.index');

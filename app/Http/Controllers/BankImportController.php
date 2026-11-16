@@ -6,27 +6,27 @@ use App\Models\BankLine;
 use App\Models\Transaction;
 use App\Models\Wallet;
 use App\Support\AlphaStatement;
+use App\Support\BankComparison;
 use App\Support\BankReconciler;
 use App\Support\TaxSync;
 use App\Support\WalletBalances;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Finance ▸ Bank import: upload a wallet's bank statement (Alpha Bank CSV), then go
- * through its lines — each one confirms a row the app already has or becomes a new
- * one, so the wallet ends up matching the bank line by line and in the bank's order.
- * The work itself is in {@see BankReconciler}.
+ * Finance ▸ Bank import: upload a wallet's bank statement (Alpha Bank CSV), then see
+ * the bank and the app side by side for a period — each statement line next to the
+ * row it is, with a verdict (match, differs, missing on one side). Sure pairs and the
+ * bank's fees are settled on upload; the rest is accepted, added or paired by hand.
+ * The work itself is in {@see BankReconciler} and {@see BankComparison}.
  */
 class BankImportController extends Controller
 {
-    /** How far back finished lines are listed (waiting ones always are). */
-    private const DONE_DAYS = 400;
-
     public function index(Request $request): Response
     {
         $wallets = Wallet::query()->orderBy('name')->get();
@@ -35,22 +35,12 @@ class BankImportController extends Controller
             ?? $wallets->first(fn (Wallet $w) => $w->takesBankFees())
             ?? $wallets->first();
 
-        $lines = collect();
-        $suggestions = [];
-        if ($wallet !== null) {
-            $lines = BankLine::query()
-                ->where('wallet_id', $wallet->id)
-                ->where(fn ($q) => $q->whereDate('date', '>=', now()->subDays(self::DONE_DAYS)->toDateString())
-                    ->orWhere(fn ($p) => $p->pending()))
-                ->with('transaction.entity:id,name', 'transaction.category:id,name')
-                ->orderBy('date')->orderBy('position')
-                ->get();
-            $suggestions = BankReconciler::suggestions($wallet, $lines->filter(fn (BankLine $l) => $l->isPending()));
-        }
+        [$from, $to] = $this->period($request, $wallet);
+        $rows = $wallet !== null ? BankComparison::rows($wallet, $from, $to) : [];
 
         $templates = Transaction::query()
             ->with('entity:id,name', 'category:id,name', 'vatLines', 'withheldLines', 'toWallet:id,name')
-            ->findMany(collect($suggestions)->pluck('proposal')->filter(fn ($p) => ($p['kind'] ?? null) === 'like')->pluck('transaction_id'))
+            ->findMany(collect($rows)->pluck('proposal')->filter(fn ($p) => ($p['kind'] ?? null) === 'like')->pluck('transaction_id'))
             ->keyBy('id');
 
         return Inertia::render('bank-import/index', [
@@ -62,38 +52,61 @@ class BankImportController extends Controller
                 'statement_balance' => $wallet->statement_balance,
                 'statement_date' => $wallet->statement_date?->toDateString(),
                 // The app's checked balance on the statement's day — equal to the
-                // bank's once every line up to then is done.
-                'not_in_bank' => BankReconciler::notInBank($wallet),
+                // bank's once every line up to then is paired.
                 'app_balance' => $wallet->statement_date !== null
                     ? (WalletBalances::all($wallet->statement_date)[$wallet->id] ?? (float) $wallet->starting_balance)
                     : null,
             ],
-            'lines' => $lines->map(function (BankLine $line) use ($suggestions, $templates): array {
-                $s = $suggestions[$line->id] ?? null;
-                $proposal = $s['proposal'] ?? null;
+            'period' => ['from' => $from, 'to' => $to],
+            'rows' => array_map(function (array $row) use ($templates): array {
+                $line = $row['line'];
+                $proposal = $row['proposal'];
 
                 return [
-                    'id' => $line->id,
-                    'date' => $line->date->toDateString(),
-                    'position' => $line->position,
-                    'text' => $line->text,
-                    'amount' => (float) $line->amount,
-                    'status' => $line->isPending() ? 'pending' : ($line->transaction !== null ? 'linked' : 'dismissed'),
-                    'transaction' => $line->transaction !== null ? self::summary($line->transaction) : null,
-                    'candidates' => array_map(
-                        fn (array $c): array => [...self::summary($c['transaction']), 'exact' => $c['exact']],
-                        $s['candidates'] ?? [],
-                    ),
+                    'key' => $line !== null ? "line-{$line->id}" : "app-{$row['transaction']?->id}",
+                    'status' => $row['status'],
+                    'line' => $line === null ? null : [
+                        'id' => $line->id,
+                        'date' => $line->date->toDateString(),
+                        'text' => $line->text,
+                        'amount' => (float) $line->amount,
+                    ],
+                    'transaction' => $row['transaction'] !== null ? self::summary($row['transaction']) : null,
+                    'linked' => $row['linked'],
+                    'differences' => (object) $row['differences'],
                     'proposal' => $proposal === null ? null : [
                         'kind' => $proposal['kind'],
-                        'transaction_id' => $proposal['transaction_id'] ?? null,
                         'template' => $proposal['kind'] === 'like' && $templates->has($proposal['transaction_id'])
                             ? self::template($templates[$proposal['transaction_id']])
                             : null,
                     ],
                 ];
-            })->values(),
+            }, $rows),
         ]);
+    }
+
+    /**
+     * The dates shown: as asked, else from the start of the month of the earliest
+     * unpaired line (or of the statement's month) to the statement's day.
+     *
+     * @return array{string, string}
+     */
+    private function period(Request $request, ?Wallet $wallet): array
+    {
+        $end = $wallet->statement_date ?? now();
+        $earliest = $wallet === null ? null
+            : BankLine::query()->where('wallet_id', $wallet->id)->pending()->min('date');
+        $start = $earliest !== null ? Carbon::parse($earliest) : $end->copy();
+
+        $from = $this->date($request->input('from')) ?? $start->copy()->startOfMonth()->toDateString();
+        $to = $this->date($request->input('to')) ?? $end->toDateString();
+
+        return $from <= $to ? [$from, $to] : [$to, $from];
+    }
+
+    private function date(mixed $value): ?string
+    {
+        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 && strtotime($value) !== false ? $value : null;
     }
 
     /** Upload a statement: store its new lines and the balance it shows. */
@@ -111,33 +124,43 @@ class BankImportController extends Controller
             throw ValidationException::withMessages(['file' => $e->getMessage()]);
         }
 
-        $result = DB::transaction(fn () => BankReconciler::import($wallet, $statement, $request->user()->id));
+        $result = DB::transaction(function () use ($wallet, $statement, $request): array {
+            $result = BankReconciler::import($wallet, $statement, $request->user()->id);
+            $result['settled'] = BankReconciler::settle($wallet, $request->user()->id);
+            TaxSync::run();
+
+            return $result;
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => trans_choice(
-            '{0} No new lines (:known already imported).|{1} 1 new line (:known already imported).|[2,*] :count new lines (:known already imported).',
+            '{0} No new lines|{1} 1 new line|[2,*] :count new lines',
             $result['added'],
-            ['count' => $result['added'], 'known' => $result['known']],
+            ['count' => $result['added']],
+        ).' · '.trans_choice(
+            '{0} nothing paired by itself.|{1} 1 paired by itself.|[2,*] :count paired by itself.',
+            $result['settled'],
+            ['count' => $result['settled']],
         )]);
 
         return redirect()->route('bank-import.index', ['wallet' => $wallet->id]);
     }
 
-    /** Confirm an existing transaction with the line. */
+    /**
+     * Pair the line with a row (accepting the app's guess, or one chosen or dragged
+     * by hand): the row takes the bank's date and amount. Either side's earlier
+     * partner is let go.
+     */
     public function match(Request $request, BankLine $line): RedirectResponse
     {
         $data = $request->validate(['transaction_id' => ['required', 'integer', 'exists:transactions,id']]);
-        $this->ensurePending($line);
         $transaction = Transaction::query()->findOrFail((int) $data['transaction_id']);
-        if (BankLine::query()->where('transaction_id', $transaction->id)->exists()) {
-            throw ValidationException::withMessages(['transaction_id' => __('That transaction is already confirmed by another bank line.')]);
-        }
 
         DB::transaction(function () use ($line, $transaction) {
             BankReconciler::link($line, $transaction);
             TaxSync::run();
         });
 
-        return $this->done(__('Transaction confirmed.'));
+        return $this->done(__('Paired — the row now has the bank\'s date and amount.'));
     }
 
     /** Add the line as a bank fee. */
@@ -208,28 +231,16 @@ class BankImportController extends Controller
         return $this->done(trans_choice(':count line done.|:count lines done.', $applied, ['count' => $applied]));
     }
 
-    /** Set a line aside (handled another way), or bring it back. */
-    public function dismiss(Request $request, BankLine $line): RedirectResponse
-    {
-        $data = $request->validate(['dismissed' => ['required', 'boolean']]);
-        if ($data['dismissed']) {
-            $this->ensurePending($line);
-        }
-        $line->update(['is_dismissed' => (bool) $data['dismissed']]);
-
-        return back();
-    }
-
     /**
-     * Undo a line's link: it waits again. The transaction stays as it is
-     * (reconciled); delete it from its own list if it shouldn't exist.
+     * Undo a pair: the line and the row show apart again. The row stays as it is
+     * (reconciled); delete it if it shouldn't exist.
      */
     public function unlink(BankLine $line): RedirectResponse
     {
         if ($line->transaction_id !== null) {
             Transaction::query()->whereKey($line->transaction_id)->update(['bank_position' => null]);
         }
-        $line->update(['transaction_id' => null, 'is_dismissed' => false]);
+        $line->update(['transaction_id' => null]);
 
         return back();
     }
@@ -259,6 +270,7 @@ class BankImportController extends Controller
             'id' => $t->id,
             'date' => $t->date->toDateString(),
             'type' => $t->type,
+            'to_wallet_id' => $t->to_wallet_id,
             'entity' => $t->entity?->name,
             'category' => $t->category?->name,
             'description' => $t->description,

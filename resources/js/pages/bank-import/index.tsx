@@ -1,11 +1,27 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Check, CircleAlert, Ellipsis, Undo2, Upload } from 'lucide-react';
-import { type ChangeEvent, useRef, useState } from 'react';
+import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
+import {
+    Check,
+    CircleAlert,
+    CircleCheck,
+    CircleX,
+    Ellipsis,
+    GripVertical,
+    Plus,
+    Upload,
+} from 'lucide-react';
+import {
+    type ChangeEvent,
+    type DragEvent,
+    type ReactNode,
+    useRef,
+    useState,
+} from 'react';
 import { ColumnHeader } from '@/components/data-table/column-header';
-import { DataTable, DONE_ROW_CLASS } from '@/components/data-table/data-table';
-import { ShowAllToggle } from '@/components/data-table/show-all-toggle';
+import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
+import { DateField } from '@/components/ui/date-field';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -24,7 +40,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { useStoredState } from '@/hooks/use-stored-state';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+    type AppRow,
+    pairOptions,
+    signedCash,
+    whoAndWhat,
+} from '@/lib/bank-import';
 import { formatAmount, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import {
@@ -33,39 +55,29 @@ import {
     TransactionFormDialog,
 } from '@/pages/transactions/transaction-form-dialog';
 
-type Summary = {
-    id: number;
-    date: string;
-    type: string;
-    entity: string | null;
-    category: string | null;
-    description: string;
-    amount: number;
-    is_reconciled: boolean;
-};
+type Template = AppRow & BankLineTemplate;
 
-type Candidate = Summary & { exact: boolean };
+type Status = 'match' | 'differs' | 'bank_only' | 'app_only';
 
-type Template = Summary &
-    BankLineTemplate & {
-        to_wallet: string | null;
+type Row = {
+    key: string;
+    status: Status;
+    line: { id: number; date: string; text: string; amount: number } | null;
+    transaction: AppRow | null;
+    /** The pair is confirmed (not just the app's guess). */
+    linked: boolean;
+    /** What the app row has that the bank doesn't. */
+    differences: {
+        date?: string;
+        amount?: number;
+        unconfirmed?: true;
+        unreconciled?: true;
     };
-
-type Proposal =
-    | { kind: 'match'; transaction_id: number; template: null }
-    | { kind: 'fee'; transaction_id: null; template: null }
-    | { kind: 'like'; transaction_id: number; template: Template | null };
-
-type Line = {
-    id: number;
-    date: string;
-    position: number;
-    text: string;
-    amount: number;
-    status: 'pending' | 'linked' | 'dismissed';
-    transaction: Summary | null;
-    candidates: Candidate[];
-    proposal: Proposal | null;
+    /** How to add the row a bank-only line is missing. */
+    proposal:
+        | { kind: 'fee'; template: null }
+        | { kind: 'like'; template: Template | null }
+        | null;
 };
 
 type WalletInfo = {
@@ -75,70 +87,142 @@ type WalletInfo = {
     statement_balance: string | null;
     statement_date: string | null;
     app_balance: number | null;
-    not_in_bank: { count: number; from: string; to: string } | null;
 };
 
 type Props = {
     wallets: { id: number; name: string }[];
     wallet: WalletInfo | null;
-    lines: Line[];
+    period: { from: string; to: string };
+    rows: Row[];
 };
 
-/** "Κώνστας Γιώργος · Contractors" — who and what a row is. */
-function label(t: Summary | Template): string {
-    const who =
-        t.type === 'transfer'
-            ? `Transfer${'to_wallet' in t && t.to_wallet ? ` ↔ ${t.to_wallet}` : ''}`
-            : (t.entity ?? 'No entity');
-    return t.category ? `${who} · ${t.category}` : who;
+const STATUS: Record<
+    Status,
+    { label: string; icon: typeof CircleCheck; className: string }
+> = {
+    match: {
+        label: 'Match',
+        icon: CircleCheck,
+        className: 'text-emerald-600 dark:text-emerald-400',
+    },
+    differs: {
+        label: 'Differs',
+        icon: CircleAlert,
+        className: 'text-amber-600 dark:text-amber-400',
+    },
+    bank_only: {
+        label: 'Missing from the app',
+        icon: CircleX,
+        className: 'text-red-600 dark:text-red-400',
+    },
+    app_only: {
+        label: 'Not at the bank',
+        icon: CircleX,
+        className: 'text-red-600 dark:text-red-400',
+    },
+};
+
+const DIFFERS = 'text-amber-700 dark:text-amber-400';
+
+const iso = (d: Date) => format(d, 'yyyy-MM-dd');
+
+function Money({ value, className }: { value: number; className?: string }) {
+    return (
+        <span
+            className={cn(
+                'font-medium whitespace-nowrap tabular-nums',
+                value > 0 && 'text-emerald-700 dark:text-emerald-400',
+                className,
+            )}
+        >
+            {value > 0 ? '+' : '−'}
+            {formatAmount(Math.abs(value))}
+        </span>
+    );
 }
 
-/** What applying a line's suggestion will do, in words. */
-function proposalText(line: Line): string | null {
-    const p = line.proposal;
-    if (!p) return null;
-    if (p.kind === 'fee') return 'Add as bank fee';
-    if (p.kind === 'like') {
-        const t = p.template;
-        if (!t) return 'Add new';
-        // Money back from a supplier: an income from it, without its category.
-        const flips =
-            t.type !== 'transfer' && (t.type === 'income') !== line.amount > 0;
-        return flips
-            ? `Add new: income from ${t.entity ?? 'no entity'}`
-            : `Add new: ${label(t)}`;
-    }
-    const t = line.candidates.find((c) => c.id === p.transaction_id);
-    if (!t) return 'Confirm a row';
-    // Only what differs from the line itself: its date, and the amount the row
-    // will change to.
-    const parts = [`Confirm ${label(t)}`];
-    if (t.date !== line.date) parts.push(`of ${formatDate(t.date)}`);
-    if (Math.abs(t.amount - Math.abs(line.amount)) >= 0.005) {
-        parts.push(
-            `· ${formatAmount(t.amount)} → ${formatAmount(Math.abs(line.amount))}`,
+/** What the app has (or would add) for a row, in words. */
+function AppText({ row }: { row: Row }) {
+    const t = row.transaction;
+    if (t) {
+        const note = row.differences.unconfirmed
+            ? 'Not confirmed yet'
+            : row.differences.unreconciled
+              ? 'Paired, but no longer marked reconciled'
+              : null;
+        return (
+            <div className="min-w-0 [overflow-wrap:anywhere] whitespace-normal">
+                <Link
+                    href={`/transactions?edit=${t.id}`}
+                    className="relative z-10 hover:underline"
+                >
+                    {t.description || whoAndWhat(t)}
+                </Link>
+                {t.description && (
+                    <div className="text-muted-foreground text-xs">
+                        {whoAndWhat(t)}
+                    </div>
+                )}
+                {note && <div className={cn('text-xs', DIFFERS)}>{note}</div>}
+            </div>
         );
     }
-    return parts.join(' ');
+    if (row.status !== 'bank_only') return null;
+    const p = row.proposal;
+    const guess =
+        p?.kind === 'fee'
+            ? 'a bank fee'
+            : p?.template
+              ? whoAndWhat(p.template)
+              : null;
+    return (
+        <span className="text-muted-foreground italic">
+            {guess ? `Missing — looks like ${guess}` : 'Missing'}
+        </span>
+    );
 }
 
 /**
- * Finance ▸ Bank import. Upload a wallet's statement (Alpha Bank CSV); each line then
- * waits here until it confirms a row the app already has, becomes a new one, or is
- * set aside. The app suggests what each line is; apply one, select several and apply
- * them together, or choose by hand from the ⋯ menu. Done lines show (green) with
- * "Show all". The check above the list compares the bank's closing balance with the
- * app's checked balance on that day.
+ * Finance ▸ Bank import: the bank and the app side by side for a period. The left
+ * half is the wallet's bank statement (upload Alpha's CSV export), the right half
+ * the app's rows, paired line by line in the bank's order: ✓ match, ⚠ the app thinks
+ * it's the same but something differs (Accept makes the row like the bank), ✕ only
+ * on one side (Add the missing row, or check the row the bank doesn't have). Drag an
+ * app row onto a bank line to pair them by hand.
  */
-export default function BankImportIndex({ wallets, wallet, lines }: Props) {
-    const [showAll, setShowAll] = useStoredState('bank-import-show-all', false);
+export default function BankImportIndex({
+    wallets,
+    wallet,
+    period,
+    rows,
+}: Props) {
+    const isMobile = useIsMobile();
     const [adding, setAdding] = useState<BankLinePrefill | null>(null);
     const [addKey, setAddKey] = useState(0);
     const fileInput = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
+    const [dragging, setDragging] = useState<number | null>(null);
+    const [dropOn, setDropOn] = useState<number | null>(null);
 
-    const rows = showAll ? lines : lines.filter((l) => l.status === 'pending');
-    const pendingCount = lines.filter((l) => l.status === 'pending').length;
+    const walletId = wallet?.id ?? 0;
+    const appOnly = rows
+        .filter((r) => r.status === 'app_only')
+        .map((r) => r.transaction)
+        .filter((t): t is AppRow => t !== null);
+    const counts: Record<Status, number> = {
+        match: 0,
+        differs: 0,
+        bank_only: 0,
+        app_only: 0,
+    };
+    rows.forEach((r) => counts[r.status]++);
+
+    const show = (params: Record<string, string | number>) =>
+        router.get(
+            '/bank-import',
+            { wallet: walletId, from: period.from, to: period.to, ...params },
+            { preserveScroll: true, replace: true },
+        );
 
     function upload(e: ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
@@ -159,233 +243,413 @@ export default function BankImportIndex({ wallets, wallet, lines }: Props) {
     const post = (url: string, data: Record<string, number> = {}) =>
         router.post(url, data, { preserveScroll: true, preserveState: true });
 
-    function apply(line: Line) {
-        const p = line.proposal;
-        if (!p) return;
-        if (p.kind === 'match') {
-            post(`/bank-lines/${line.id}/match`, {
-                transaction_id: p.transaction_id,
-            });
-        } else if (p.kind === 'fee') {
-            post(`/bank-lines/${line.id}/fee`);
-        } else {
-            post(`/bank-lines/${line.id}/like`, {
-                transaction_id: p.transaction_id,
-            });
-        }
-    }
+    const pair = (lineId: number, transactionId: number) =>
+        post(`/bank-lines/${lineId}/match`, { transaction_id: transactionId });
 
-    function openAdd(line: Line) {
-        if (!wallet) return;
+    function openAdd(row: Row, withTemplate: boolean) {
+        if (!wallet || !row.line) return;
         setAddKey((k) => k + 1);
         setAdding({
-            id: line.id,
-            date: line.date,
-            amount: line.amount,
-            text: line.text,
+            id: row.line.id,
+            date: row.line.date,
+            amount: row.line.amount,
+            text: row.line.text,
             wallet_id: wallet.id,
             template:
-                line.proposal?.kind === 'like' ? line.proposal.template : null,
+                withTemplate && row.proposal?.kind === 'like'
+                    ? row.proposal.template
+                    : null,
         });
     }
 
-    const columns: ColumnDef<Line>[] = [
+    function remove(t: AppRow) {
+        if (
+            window.confirm(
+                `Delete “${t.description || whoAndWhat(t)}” of ${formatDate(t.date)}?`,
+            )
+        ) {
+            router.delete(`/transactions/${t.id}`, { preserveScroll: true });
+        }
+    }
+
+    // Drag an app row (by its grip) onto a bank line's row to pair them: every
+    // cell of a row with a bank line accepts the drop.
+    function zone(row: Row, content: ReactNode, className?: string) {
+        const line = row.line;
+        const accepts = line !== null && dragging !== null;
+        return (
+            <div
+                className={cn('-my-2 py-2', className)}
+                onDragOver={
+                    accepts
+                        ? (e: DragEvent) => {
+                              e.preventDefault();
+                              setDropOn(line.id);
+                          }
+                        : undefined
+                }
+                onDrop={
+                    accepts
+                        ? (e: DragEvent) => {
+                              e.preventDefault();
+                              const id = Number(
+                                  e.dataTransfer.getData('text/plain'),
+                              );
+                              setDropOn(null);
+                              setDragging(null);
+                              if (id && id !== row.transaction?.id) {
+                                  pair(line.id, id);
+                              }
+                          }
+                        : undefined
+                }
+            >
+                {content}
+            </div>
+        );
+    }
+
+    function grip(row: Row) {
+        const t = row.transaction;
+        if (!t || isMobile) return null;
+        return (
+            <span
+                draggable
+                onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', String(t.id));
+                    e.dataTransfer.effectAllowed = 'move';
+                    setDragging(t.id);
+                }}
+                onDragEnd={() => {
+                    setDragging(null);
+                    setDropOn(null);
+                }}
+                title="Drag onto a bank line to pair it with this row"
+                className="text-muted-foreground hover:text-foreground relative z-10 -ml-1 cursor-grab"
+            >
+                <GripVertical className="size-4" />
+            </span>
+        );
+    }
+
+    function actions(row: Row) {
+        const t = row.transaction;
+        const line = row.line;
+        let primary: ReactNode = null;
+        if (row.status === 'differs' && line && t) {
+            primary = (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => pair(line.id, t.id)}
+                    title="Give the app row the bank's date and amount, and mark it reconciled"
+                >
+                    <Check className="size-4" />
+                    Accept
+                </Button>
+            );
+        } else if (row.status === 'bank_only' && line) {
+            primary =
+                row.proposal?.kind === 'fee' ? (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => post(`/bank-lines/${line.id}/fee`)}
+                        title="Add it as a bank fee row"
+                    >
+                        <Plus className="size-4" />
+                        Add fee
+                    </Button>
+                ) : (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openAdd(row, true)}
+                        title="Open the add form, filled from this line"
+                    >
+                        <Plus className="size-4" />
+                        Add
+                    </Button>
+                );
+        }
+
+        const options = line ? pairOptions(line, appOnly, walletId) : [];
+
+        return (
+            <div className="flex justify-end gap-1">
+                {primary}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="More choices"
+                        >
+                            <Ellipsis className="size-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                        {t && (
+                            <DropdownMenuItem asChild>
+                                <Link href={`/transactions?edit=${t.id}`}>
+                                    Open the app row
+                                </Link>
+                            </DropdownMenuItem>
+                        )}
+                        {line && row.status !== 'match' && (
+                            <DropdownMenuSub>
+                                <DropdownMenuSubTrigger
+                                    disabled={options.length === 0}
+                                >
+                                    Pair with another row
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="w-80">
+                                    <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+                                        Rows not at the bank · takes the bank's
+                                        date and amount
+                                    </DropdownMenuLabel>
+                                    {options.map((o) => (
+                                        <DropdownMenuItem
+                                            key={o.id}
+                                            onSelect={() => pair(line.id, o.id)}
+                                        >
+                                            <span className="min-w-0 flex-1 truncate">
+                                                {formatDate(o.date)}{' '}
+                                                {o.description || whoAndWhat(o)}
+                                            </span>
+                                            <span className="tabular-nums">
+                                                {formatAmount(o.amount)}
+                                            </span>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                        )}
+                        {line && !row.linked && (
+                            <DropdownMenuItem
+                                onSelect={() => openAdd(row, false)}
+                            >
+                                Add a new row for this line…
+                            </DropdownMenuItem>
+                        )}
+                        {line &&
+                            !row.linked &&
+                            wallet?.takes_fees &&
+                            line.amount < 0 &&
+                            row.proposal?.kind !== 'fee' && (
+                                <DropdownMenuItem
+                                    onSelect={() =>
+                                        post(`/bank-lines/${line.id}/fee`)
+                                    }
+                                >
+                                    Add as a bank fee
+                                </DropdownMenuItem>
+                            )}
+                        {line && row.linked && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    onSelect={() =>
+                                        post(`/bank-lines/${line.id}/unlink`)
+                                    }
+                                >
+                                    Unpair
+                                </DropdownMenuItem>
+                            </>
+                        )}
+                        {row.status === 'app_only' && t && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    variant="destructive"
+                                    onSelect={() => remove(t)}
+                                >
+                                    Delete the app row
+                                </DropdownMenuItem>
+                            </>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+        );
+    }
+
+    const appDate = (r: Row) =>
+        r.transaction ? (
+            <span
+                className={cn(
+                    'whitespace-nowrap',
+                    r.differences.date && DIFFERS,
+                )}
+            >
+                {formatDate(r.transaction.date)}
+            </span>
+        ) : null;
+
+    const appAmount = (r: Row) =>
+        r.transaction ? (
+            <Money
+                value={signedCash(r.transaction, walletId)}
+                className={cn(r.differences.amount !== undefined && DIFFERS)}
+            />
+        ) : null;
+
+    const statusColumn: ColumnDef<Row> = {
+        id: 'status',
+        accessorFn: (r) => STATUS[r.status].label,
+        meta: { filter: { type: 'select' } },
+        enableSorting: false,
+        header: ({ column }) => <ColumnHeader column={column} title="" />,
+        cell: ({ row }) => {
+            const s = STATUS[row.original.status];
+            const Icon = s.icon;
+            return zone(
+                row.original,
+                <span title={s.label}>
+                    <Icon
+                        className={cn('size-4', s.className)}
+                        aria-label={s.label}
+                    />
+                </span>,
+            );
+        },
+    };
+
+    const actionsColumn: ColumnDef<Row> = {
+        id: 'actions',
+        enableSorting: false,
+        meta: { align: 'right' },
+        header: () => null,
+        cell: ({ row }) => zone(row.original, actions(row.original)),
+    };
+
+    const desktopColumns: ColumnDef<Row>[] = [
+        statusColumn,
         {
-            accessorKey: 'date',
+            id: 'bank_date',
+            accessorFn: (r) => r.line?.date ?? '',
             meta: { filter: { type: 'date' } },
             header: ({ column }) => (
-                <ColumnHeader column={column} title="Date" />
+                <ColumnHeader column={column} title="Bank date" />
             ),
-            cell: ({ row }) => formatDate(row.original.date),
+            cell: ({ row }) =>
+                zone(
+                    row.original,
+                    row.original.line ? formatDate(row.original.line.date) : '',
+                    'whitespace-nowrap',
+                ),
         },
         {
-            accessorKey: 'text',
+            id: 'bank_text',
+            accessorFn: (r) => r.line?.text ?? '',
             meta: { filter: { type: 'text' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="Bank text" />
             ),
-            cell: ({ row }) => (
-                <span className="break-words">{row.original.text}</span>
-            ),
+            cell: ({ row }) =>
+                zone(
+                    row.original,
+                    row.original.line?.text,
+                    'break-words whitespace-normal',
+                ),
         },
         {
-            accessorKey: 'amount',
+            id: 'bank_amount',
+            accessorFn: (r) => r.line?.amount ?? null,
             meta: { align: 'right', filter: { type: 'number' } },
             header: ({ column }) => (
-                <ColumnHeader column={column} title="Amount" align="right" />
+                <ColumnHeader column={column} title="Bank" align="right" />
             ),
-            cell: ({ row }) => (
-                <span
-                    className={cn(
-                        'font-medium whitespace-nowrap',
-                        row.original.amount > 0 &&
-                            'text-emerald-700 dark:text-emerald-400',
-                    )}
-                >
-                    {row.original.amount > 0 ? '+' : '−'}
-                    {formatAmount(Math.abs(row.original.amount))}
-                </span>
-            ),
+            cell: ({ row }) =>
+                zone(
+                    row.original,
+                    row.original.line && (
+                        <Money value={row.original.line.amount} />
+                    ),
+                ),
         },
         {
-            id: 'app',
-            accessorFn: (l) =>
-                l.transaction ? label(l.transaction) : (proposalText(l) ?? ''),
+            id: 'app_date',
+            accessorFn: (r) => r.transaction?.date ?? '',
+            meta: { filter: { type: 'date' } },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="App date" />
+            ),
+            cell: ({ row }) =>
+                zone(
+                    row.original,
+                    <div className="flex items-center gap-1.5">
+                        {grip(row.original)}
+                        {appDate(row.original)}
+                    </div>,
+                    'border-l pl-3',
+                ),
+        },
+        {
+            id: 'app_text',
+            accessorFn: (r) =>
+                r.transaction
+                    ? `${r.transaction.description} ${whoAndWhat(r.transaction)}`
+                    : '',
             meta: { filter: { type: 'text' } },
             header: ({ column }) => (
                 <ColumnHeader column={column} title="In the app" />
             ),
+            cell: ({ row }) =>
+                zone(row.original, <AppText row={row.original} />),
+        },
+        {
+            id: 'app_amount',
+            accessorFn: (r) =>
+                r.transaction ? signedCash(r.transaction, walletId) : null,
+            meta: { align: 'right', filter: { type: 'number' } },
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="App" align="right" />
+            ),
+            cell: ({ row }) => zone(row.original, appAmount(row.original)),
+        },
+        actionsColumn,
+    ];
+
+    // On a phone each side is one stacked cell (date, text, amount), the row's
+    // buttons under the app side, and no selection — so nothing is pushed off-screen.
+    const mobileColumns: ColumnDef<Row>[] = [
+        statusColumn,
+        {
+            id: 'bank',
+            accessorFn: (r) => r.line?.text ?? '',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="Bank" />
+            ),
             cell: ({ row }) => {
-                const l = row.original;
-                if (l.status === 'linked' && l.transaction) {
-                    return (
-                        <Link
-                            href={`/transactions?edit=${l.transaction.id}`}
-                            className="relative z-10 hover:underline"
-                        >
-                            {label(l.transaction)}
-                        </Link>
-                    );
-                }
-                if (l.status === 'dismissed') {
-                    return <span className="italic">Set aside</span>;
-                }
-                const text = proposalText(l);
-                return text ? (
-                    <span className="text-muted-foreground">{text}</span>
-                ) : (
-                    <span className="text-muted-foreground inline-flex items-center gap-1">
-                        <CircleAlert className="size-3.5 text-amber-600" />
-                        Choose from ⋯
-                    </span>
-                );
+                const l = row.original.line;
+                return l ? (
+                    <div className="space-y-0.5 [overflow-wrap:anywhere] whitespace-normal">
+                        <div className="text-muted-foreground text-xs">
+                            {formatDate(l.date)}
+                        </div>
+                        <div>{l.text}</div>
+                        <Money value={l.amount} />
+                    </div>
+                ) : null;
             },
         },
         {
-            id: 'actions',
-            enableSorting: false,
-            meta: { align: 'right' },
-            header: () => null,
-            cell: ({ row }) => {
-                const l = row.original;
-                if (l.status !== 'pending') {
-                    return (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Undo — the line waits again (the transaction stays)"
-                            aria-label="Undo"
-                            onClick={() =>
-                                l.status === 'linked'
-                                    ? post(`/bank-lines/${l.id}/unlink`)
-                                    : router.patch(
-                                          `/bank-lines/${l.id}/dismiss`,
-                                          { dismissed: false },
-                                          { preserveScroll: true },
-                                      )
-                            }
-                        >
-                            <Undo2 className="size-4" />
-                        </Button>
-                    );
-                }
-                return (
-                    <div className="flex justify-end gap-1">
-                        {l.proposal && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => apply(l)}
-                                title={proposalText(l) ?? undefined}
-                            >
-                                <Check className="size-4" />
-                                Apply
-                            </Button>
-                        )}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label="More choices"
-                                >
-                                    <Ellipsis className="size-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-72">
-                                {l.candidates.length > 0 ? (
-                                    <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger>
-                                            Confirm a row
-                                        </DropdownMenuSubTrigger>
-                                        <DropdownMenuSubContent className="w-80">
-                                            <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
-                                                Takes the bank's date and amount
-                                            </DropdownMenuLabel>
-                                            {l.candidates.map((c) => (
-                                                <DropdownMenuItem
-                                                    key={c.id}
-                                                    onSelect={() =>
-                                                        post(
-                                                            `/bank-lines/${l.id}/match`,
-                                                            {
-                                                                transaction_id:
-                                                                    c.id,
-                                                            },
-                                                        )
-                                                    }
-                                                >
-                                                    <span className="min-w-0 flex-1 truncate">
-                                                        {formatDate(c.date)}{' '}
-                                                        {label(c)}
-                                                    </span>
-                                                    <span
-                                                        className={cn(
-                                                            'tabular-nums',
-                                                            !c.exact &&
-                                                                'text-amber-600',
-                                                        )}
-                                                    >
-                                                        {formatAmount(c.amount)}
-                                                    </span>
-                                                </DropdownMenuItem>
-                                            ))}
-                                        </DropdownMenuSubContent>
-                                    </DropdownMenuSub>
-                                ) : (
-                                    <DropdownMenuItem disabled>
-                                        No row to confirm nearby
-                                    </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem onSelect={() => openAdd(l)}>
-                                    Add new…
-                                </DropdownMenuItem>
-                                {wallet?.takes_fees && l.amount < 0 && (
-                                    <DropdownMenuItem
-                                        onSelect={() =>
-                                            post(`/bank-lines/${l.id}/fee`)
-                                        }
-                                    >
-                                        Add as bank fee
-                                    </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    onSelect={() =>
-                                        router.patch(
-                                            `/bank-lines/${l.id}/dismiss`,
-                                            { dismissed: true },
-                                            { preserveScroll: true },
-                                        )
-                                    }
-                                >
-                                    Set aside (handled another way)
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+            id: 'app',
+            accessorFn: (r) => r.transaction?.description ?? '',
+            header: ({ column }) => (
+                <ColumnHeader column={column} title="In the app" />
+            ),
+            cell: ({ row }) => (
+                <div className="space-y-0.5 [overflow-wrap:anywhere] whitespace-normal">
+                    <div className="text-xs">{appDate(row.original)}</div>
+                    <AppText row={row.original} />
+                    <div>{appAmount(row.original)}</div>
+                    <div className="pt-1 [&>div]:justify-start">
+                        {actions(row.original)}
                     </div>
-                );
-            },
+                </div>
+            ),
         },
     ];
 
@@ -396,34 +660,59 @@ export default function BankImportIndex({ wallets, wallet, lines }: Props) {
               ) / 100
             : null;
 
+    const now = new Date();
+    const presets = [
+        {
+            label: 'This month',
+            from: iso(startOfMonth(now)),
+            to: iso(endOfMonth(now)),
+        },
+        {
+            label: 'Last month',
+            from: iso(startOfMonth(subMonths(now, 1))),
+            to: iso(endOfMonth(subMonths(now, 1))),
+        },
+    ];
+
     return (
         <>
             <Head title="Bank import" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <DataTable
-                    columns={columns}
+                    columns={isMobile ? mobileColumns : desktopColumns}
                     data={rows}
                     title="Bank import"
-                    stateKey={`bank-import-${wallet?.id ?? 0}`}
-                    searchPlaceholder="Search lines…"
+                    stateKey={`bank-import-${isMobile ? 'm' : 'd'}`}
+                    searchPlaceholder="Search…"
+                    pageSize={200}
                     emptyMessage={
-                        lines.length === 0
-                            ? 'No statement imported yet — upload the bank’s CSV export.'
-                            : 'Every line is done.'
+                        wallet?.statement_date
+                            ? 'Nothing at the bank or in the app in these dates.'
+                            : 'No statement uploaded yet — upload the bank’s CSV export.'
                     }
-                    rowClassName={(l) =>
-                        l.status === 'pending' ? undefined : DONE_ROW_CLASS
+                    rowClassName={(r) =>
+                        r.line && dropOn === r.line.id
+                            ? 'bg-primary/10 outline-primary outline-2 -outline-offset-2'
+                            : undefined
                     }
-                    enableSelection
-                    getRowId={(l) => String(l.id)}
+                    enableSelection={!isMobile}
+                    getRowId={(r) => r.key}
                     renderBulkActions={(selected, clear) => {
                         const ids = selected
-                            .filter((l) => l.status === 'pending' && l.proposal)
-                            .map((l) => l.id);
+                            .filter(
+                                (r) =>
+                                    r.line !== null &&
+                                    !r.linked &&
+                                    (r.status === 'differs' ||
+                                        r.proposal?.kind === 'fee' ||
+                                        r.proposal?.template != null),
+                            )
+                            .map((r) => r.line?.id ?? 0);
                         return (
                             <Button
                                 size="sm"
                                 disabled={ids.length === 0}
+                                title="Accept the app's pairs and add the missing rows as suggested"
                                 onClick={() =>
                                     router.post(
                                         '/bank-lines/apply',
@@ -436,7 +725,7 @@ export default function BankImportIndex({ wallets, wallet, lines }: Props) {
                                 }
                             >
                                 <Check className="size-4" />
-                                Apply {ids.length}{' '}
+                                Accept {ids.length}{' '}
                                 {ids.length === 1
                                     ? 'suggestion'
                                     : 'suggestions'}
@@ -491,52 +780,88 @@ export default function BankImportIndex({ wallets, wallet, lines }: Props) {
                         </>
                     }
                     controls={
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                            {wallet?.statement_date && balanceDiff !== null ? (
-                                <span
-                                    className={cn(
-                                        'inline-flex items-center gap-1.5',
-                                        balanceDiff === 0
-                                            ? 'text-emerald-700 dark:text-emerald-400'
-                                            : 'text-amber-700 dark:text-amber-400',
+                        <div className="flex flex-col gap-2 text-sm">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="w-40">
+                                    <DateField
+                                        value={period.from}
+                                        onChange={(v) => v && show({ from: v })}
+                                    />
+                                </div>
+                                <div className="w-40">
+                                    <DateField
+                                        value={period.to}
+                                        onChange={(v) => v && show({ to: v })}
+                                    />
+                                </div>
+                                {presets.map((p) => {
+                                    const on =
+                                        period.from === p.from &&
+                                        period.to === p.to;
+                                    return (
+                                        <Button
+                                            key={p.label}
+                                            variant="outline"
+                                            size="sm"
+                                            aria-pressed={on}
+                                            className={cn(
+                                                on &&
+                                                    'text-primary border-primary',
+                                            )}
+                                            onClick={() =>
+                                                show({ from: p.from, to: p.to })
+                                            }
+                                        >
+                                            {p.label}
+                                        </Button>
+                                    );
+                                })}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                {(Object.keys(STATUS) as Status[]).map((s) => {
+                                    const Icon = STATUS[s].icon;
+                                    return (
+                                        <span
+                                            key={s}
+                                            className="inline-flex items-center gap-1.5"
+                                        >
+                                            <Icon
+                                                className={cn(
+                                                    'size-4',
+                                                    STATUS[s].className,
+                                                )}
+                                            />
+                                            {counts[s]} {STATUS[s].label}
+                                        </span>
+                                    );
+                                })}
+                                {wallet?.statement_date &&
+                                    balanceDiff !== null && (
+                                        <span
+                                            className={cn(
+                                                'sm:ml-auto',
+                                                balanceDiff === 0
+                                                    ? 'text-emerald-700 dark:text-emerald-400'
+                                                    : 'text-muted-foreground',
+                                            )}
+                                        >
+                                            Balance on{' '}
+                                            {formatDate(wallet.statement_date)}:
+                                            bank{' '}
+                                            {formatAmount(
+                                                Number(
+                                                    wallet.statement_balance,
+                                                ),
+                                            )}{' '}
+                                            · app{' '}
+                                            {formatAmount(
+                                                wallet.app_balance ?? 0,
+                                            )}
+                                            {balanceDiff !== 0 &&
+                                                ` · off by ${formatAmount(Math.abs(balanceDiff))}`}
+                                        </span>
                                     )}
-                                >
-                                    {balanceDiff === 0 ? (
-                                        <Check className="size-4" />
-                                    ) : (
-                                        <CircleAlert className="size-4" />
-                                    )}
-                                    Bank {formatDate(wallet.statement_date)}:{' '}
-                                    {formatAmount(
-                                        Number(wallet.statement_balance),
-                                    )}{' '}
-                                    · App:{' '}
-                                    {formatAmount(wallet.app_balance ?? 0)}
-                                    {balanceDiff !== 0 &&
-                                        ` · difference ${formatAmount(Math.abs(balanceDiff))}`}
-                                </span>
-                            ) : (
-                                <span className="text-muted-foreground">
-                                    No statement uploaded for this wallet yet.
-                                </span>
-                            )}
-                            {wallet?.not_in_bank &&
-                                wallet.not_in_bank.count > 0 && (
-                                    <Link
-                                        className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
-                                        href={`/transactions?balance=${wallet.id}&unreconciled=1&from=${wallet.not_in_bank.from}&to=${wallet.not_in_bank.to}`}
-                                        title="Unreconciled rows of this wallet in the statement's dates — a leftover automatic row next to one typed by hand, or a payment that hasn't happened"
-                                    >
-                                        {wallet.not_in_bank.count} in the app,
-                                        not at the bank →
-                                    </Link>
-                                )}
-                            {pendingCount > 0 && showAll && (
-                                <span className="text-muted-foreground">
-                                    {pendingCount} to do
-                                </span>
-                            )}
-                            <ShowAllToggle on={showAll} onChange={setShowAll} />
+                            </div>
                         </div>
                     }
                 />
