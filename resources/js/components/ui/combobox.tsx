@@ -73,7 +73,10 @@ export function Combobox({
     }
 
     return (
-        <Popover open={open} onOpenChange={setOpen}>
+        // Modal: the list is portalled outside any dialog it sits in, and an open
+        // dialog blocks wheel/touch scrolling outside itself — a modal popover
+        // scroll-locks around its own content instead, so the list scrolls.
+        <Popover open={open} onOpenChange={setOpen} modal>
             <PopoverTrigger asChild>
                 <Button
                     id={id}
