@@ -54,7 +54,8 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 ## Next (suggested)
 
 Order agreed with Angel 2026-11-19: **the new layout first** (it gives the plan its
-final screens), then **the plan beside the books**. Income is still to be discussed (★).
+final screens), then **the plan beside the books**, with **income: customers, projects
+and payments** as its income part.
 
 - [ ] **New layout: Finance and Accounting** (agreed with Angel 2026-11-19; build
       first). Split by purpose: **Finance** is what Angel goes through with the CEO —
@@ -83,9 +84,8 @@ final screens), then **the plan beside the books**. Income is still to be discus
     - **Configuration** keeps working as now (the sidebar swaps to the setup lists +
       Back to app).
     - **Phone:** decent, not polished — tabs wrap; a proper mobile pass comes later.
-    - **★ Income** stays as it is for now; what the Income tab holds (recurring income,
-      project instalments, one-off income in one list?) is the next thing to discuss
-      with Angel, then this note is replaced by the decision.
+    - **Income** keeps today's page in the layout step; it becomes the payments view
+      described under "Income: customers, projects and payments" with the plan.
 - [ ] **The plan beside the books** (agreed with Angel 2026-11-19; build after the
       layout). Angel
       does the books about once a month; the 500+ generated future rows clog
@@ -135,6 +135,46 @@ final screens), then **the plan beside the books**. Income is still to be discus
       the plan calculation, Projection + Taxes moved onto it with identical numbers;
       (2) concluded dates + the not-yet-matched list; (3) the draft upload page; (4)
       clean-up of the old generated rows.
+- [ ] **Income: customers, projects and payments** (agreed with Angel 2026-11-19; the
+      income part of the plan above). Income is planned per **customer**; each payment
+      line is a planned item, matched at the bank like any other.
+    - **Projects** (Finance ▸ Projects): a name, a **customer (required — a dummy
+      customer when the real one isn't known yet)** and **deliverables**: one or more
+      rows of name + net amount (usually one; no status, not a project tracker). The
+      project's value = the sum of its deliverables.
+    - **The customer's page** has tabs: **Projects** (its projects with their values),
+      **Payments** (its payment plan) and **Recurring income** (rare; amount + date
+      range, which creates payment lines). Payments belong to the **customer, not to a
+      project** — one plan can cover two running projects. The customer shows how much
+      of its projects' net value its payment lines cover.
+    - **A payment line:** payment date, invoice date, **net · VAT · total**, VAT rate
+      from a dropdown (default **24%**, 0% for sales abroad; rates from Configuration),
+      type net or total. The amount is what the customer pays (VAT included in the
+      total); VAT is backed out like Total mode in Transactions.
+    - **Invoice date:** set freely (e.g. paid now, invoiced next month — confirmed by
+      Angel's accountant). While not issued, **changing the payment date sets the
+      invoice date to the same date**. Once marked **Issued**, it never moves with the
+      payment date (still editable by hand). Taxes count by invoice date, issued or
+      not, so projections include VAT on invoices still to issue.
+    - **Paid** and **Issued** are separate marks; a line matched in full at the bank is
+      marked **both**. A **partial** match leaves the rest open and asks for its new
+      date; a bank line can cover several payment lines (e.g. a 1.200 leftover + a
+      6.200 line = one 7.400 payment). Each real transaction gets its share of net and
+      VAT; the last piece takes the leftover cents, so the parts add up exactly.
+    - **No cancel — delete.** When amounts change, Angel edits amounts and deletes
+      lines no longer valid. A partly paid line can't be deleted: set its amount to
+      what was paid and it's done.
+    - **Recurring income:** creates real payment lines; changing it rebuilds only the
+      untouched lines (paid, issued or hand-edited ones stay).
+    - **Planning ▸ Income:** every **unpaid** payment line, by payment date, in
+      **green** (a happy colour — money owed to us); lines from **past months** carry a
+      **!** (chase the customer, move the date); issued ones say so. **Show all** adds
+      the paid ones (muted grey). A **By customer** view lists customers, each expanding
+      to all its lines, paid and unpaid (a new expandable list — Angel's meeting view).
+    - **Not on the Income tab:** transactions. Refunds in the Credits category and old
+      income rows never show there (today's 6 "open" incomes are real, reconciled
+      money: 4 Credits refunds + 2 customer payments; they disappear from it with this
+      change — nothing to migrate).
 - [ ] **Later — ask Angel how to make Bank import smarter** (his note, 2026-11-19):
       raise it once the plan above is live; don't start unasked.
 - [ ] **Users page onto the shared list view** — it's the last hand-rolled table
