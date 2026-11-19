@@ -20,8 +20,7 @@ class OneOffController extends Controller
             'transactions' => Transaction::query()
                 ->withListData()
                 ->where('is_one_off', true)
-                ->orderBy('date')
-                ->orderBy('id')
+                ->inBankOrder()
                 ->get(),
         ]);
     }

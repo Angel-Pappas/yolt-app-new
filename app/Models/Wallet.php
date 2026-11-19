@@ -7,14 +7,19 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
  * @property int|null $user_id
  * @property string $name
  * @property string $starting_balance
+ * @property int|null $fee_entity_id
+ * @property int|null $fee_category_id
+ * @property string|null $statement_balance
+ * @property Carbon|null $statement_date
  */
-#[Fillable(['name', 'starting_balance'])]
+#[Fillable(['name', 'starting_balance', 'fee_entity_id', 'fee_category_id'])]
 class Wallet extends Model
 {
     /** @use HasFactory<WalletFactory> */
@@ -24,6 +29,14 @@ class Wallet extends Model
     {
         return [
             'starting_balance' => 'decimal:2',
+            'statement_balance' => 'decimal:2',
+            'statement_date' => 'date',
         ];
+    }
+
+    /** Whether bank fees can be added for this wallet (it knows where they go). */
+    public function takesBankFees(): bool
+    {
+        return $this->fee_entity_id !== null && $this->fee_category_id !== null;
     }
 }

@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Transaction;
 use App\Models\Wallet;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -22,7 +23,9 @@ class WalletBalances
      * annotated with a `balance` attribute = the running balance after it (seeded
      * from the wallet's starting balance). Because a running balance depends on
      * every prior row, this always walks the wallet's full history; display
-     * filters are applied to the result afterwards, not to this walk.
+     * filters are applied to the result afterwards, not to this walk. Rows that
+     * don't count (switched off, or a dropped income) are kept in the list but leave
+     * the balance untouched.
      *
      * @return Collection<int, Transaction>
      */
@@ -33,14 +36,20 @@ class WalletBalances
         return Transaction::query()
             ->withListData()
             ->where(fn ($q) => $q->where('wallet_id', $walletId)->orWhere('to_wallet_id', $walletId))
-            ->orderBy('date')
-            ->orderBy('id')
+            ->inBankOrder()
             ->get()
             ->each(function (Transaction $t) use (&$running, $walletId): void {
                 $total = self::cashTotal($t);
                 // The balance just before this row — the balance view's
                 // "Starting balance" line reads it off the first row it shows.
                 $t->setAttribute('balance_before', round($running, 2));
+
+                // A switched-off (or dropped) row is listed but moves nothing.
+                if (! $t->counts()) {
+                    $t->setAttribute('balance', round($running, 2));
+
+                    return;
+                }
 
                 if ($t->type === 'income' && $t->wallet_id === $walletId) {
                     $running += $total;
@@ -82,9 +91,12 @@ class WalletBalances
      * hasn't happened yet even if it was reconciled early. The balance view
      * (`runningFor`) deliberately does the opposite and walks every row.
      *
+     * `$upTo` asks for the balance at the end of another day (the Bank import's
+     * check against a statement's closing balance).
+     *
      * @return array<int, float> wallet id => current balance
      */
-    public static function all(): array
+    public static function all(?CarbonInterface $upTo = null): array
     {
         $balances = [];
         foreach (Wallet::query()->get(['id', 'starting_balance']) as $wallet) {
@@ -92,8 +104,9 @@ class WalletBalances
         }
 
         Transaction::query()
+            ->counted()
             ->where('is_reconciled', true)
-            ->whereDate('date', '<=', Carbon::today()->toDateString())
+            ->whereDate('date', '<=', ($upTo ?? Carbon::today())->toDateString())
             ->get(['type', 'net', 'vat_amount', 'withheld_amount', 'fmy_amount', 'efka_employee_amount', 'wallet_id', 'to_wallet_id'])
             ->each(function (Transaction $t) use (&$balances): void {
                 $total = self::cashTotal($t);

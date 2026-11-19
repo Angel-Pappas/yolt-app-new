@@ -3,7 +3,7 @@
 //
 //   pnpm run shots /transactions "/transactions?balance=1"   [--mobile] [--dark]
 //   pnpm run shots /recurring --click=Contractors   (click buttons by name first;
-//   repeat --click for several, in order)
+//   repeat --click for several, in order; menu items work too)
 //
 // Starts `php artisan serve` on a spare port if needed, logs in as the demo user
 // (session cached in storage/screenshots/.auth.json), and writes one PNG per path
@@ -20,6 +20,8 @@ const AUTH = `${OUT}/.auth.json`;
 const args = process.argv.slice(2);
 const mobile = args.includes('--mobile');
 const dark = args.includes('--dark');
+// A tall window, to see the whole of a long page (an entity's page) in one shot.
+const tall = args.includes('--tall');
 const clicks = args
     .filter((a) => a.startsWith('--click='))
     .map((a) => a.slice(8));
@@ -50,8 +52,11 @@ const browser = await chromium.launch();
 try {
     const context = await browser.newContext({
         viewport: mobile
-            ? { width: 390, height: 844 }
-            : { width: Number(process.env.SHOT_WIDTH ?? 1440), height: 900 },
+            ? { width: 390, height: tall ? 3000 : 844 }
+            : {
+                  width: Number(process.env.SHOT_WIDTH ?? 1440),
+                  height: tall ? 2600 : 900,
+              },
         deviceScaleFactor: 1,
         colorScheme: dark ? 'dark' : 'light',
         storageState: existsSync(AUTH) ? AUTH : undefined,
@@ -71,7 +76,13 @@ try {
         await page.goto(`${BASE}${path}`);
         await page.waitForLoadState('networkidle');
         for (const click of clicks) {
-            await page.getByRole('button', { name: click }).first().click();
+            // A button, or an item of an open menu (e.g. "More choices" then
+            // "Add new…").
+            await page
+                .getByRole('button', { name: click })
+                .or(page.getByRole('menuitem', { name: click }))
+                .first()
+                .click();
             await page.waitForLoadState('networkidle');
         }
         const slug =

@@ -47,6 +47,7 @@ export default function TransactionsIndex({
                         reconcile: true,
                         invoice: true,
                         delete: true,
+                        exclude: true,
                     }}
                     editing={editing}
                     title="Transactions"

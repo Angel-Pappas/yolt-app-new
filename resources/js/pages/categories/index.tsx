@@ -72,7 +72,8 @@ export default function CategoriesIndex({
             header: () => null,
             cell: ({ row }) => (
                 <div
-                    className="flex justify-end"
+                    // Above the row's stretched open-in-new-tab link.
+                    className="relative z-10 flex justify-end"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <Button
@@ -124,8 +125,10 @@ export default function CategoriesIndex({
                         <DataTable
                             columns={columns}
                             data={income}
+                            stateKey="categories-income"
                             emptyMessage="No income categories yet."
                             onRowClick={openCategory}
+                            rowHref={(c) => `/configuration/categories/${c.id}`}
                             pageSize={1000}
                         />
                     </div>
@@ -136,8 +139,10 @@ export default function CategoriesIndex({
                         <DataTable
                             columns={columns}
                             data={expense}
+                            stateKey="categories-expense"
                             emptyMessage="No expense categories yet."
                             onRowClick={openCategory}
+                            rowHref={(c) => `/configuration/categories/${c.id}`}
                             pageSize={1000}
                         />
                     </div>

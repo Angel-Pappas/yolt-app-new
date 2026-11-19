@@ -1,7 +1,11 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    FileUp,
     ArrowLeft,
     ArrowLeftRight,
+    ChartNoAxesCombined,
+    FileSignature,
+    FolderKanban,
     Handshake,
     HandCoins,
     House,
@@ -11,6 +15,7 @@ import {
     Receipt,
     Repeat,
     Settings2,
+    TrendingUp,
     Truck,
     UserRound,
     Users,
@@ -37,10 +42,15 @@ import type { NavItem } from '@/types';
 
 // The day-to-day operational pages.
 const financeNavItems: NavItem[] = [
+    { title: 'Projection', href: '/projection', icon: ChartNoAxesCombined },
     { title: 'Transactions', href: '/transactions', icon: ArrowLeftRight },
     { title: 'Wallets', href: '/wallets', icon: Wallet },
+    { title: 'Bank import', href: '/bank-import', icon: FileUp },
+    { title: 'Income', href: '/income', icon: TrendingUp },
+    { title: 'Projects', href: '/projects', icon: FolderKanban },
     { title: 'Recurring', href: '/recurring', icon: Repeat },
     { title: 'One-offs', href: '/one-offs', icon: Receipt },
+    { title: 'Agreements', href: '/agreements', icon: FileSignature },
     { title: 'De minimis', href: '/de-minimis', icon: HandCoins },
 ];
 

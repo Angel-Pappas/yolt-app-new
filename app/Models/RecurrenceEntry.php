@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $fmy_amount
  * @property string|null $efka_employee_amount
  * @property string|null $efka_employer_amount
+ * @property bool $auto_payroll
  * @property string $amount_mode
  * @property int $position
  */
@@ -34,6 +35,7 @@ use Illuminate\Support\Carbon;
     'fmy_amount',
     'efka_employee_amount',
     'efka_employer_amount',
+    'auto_payroll',
     'amount_mode',
     'position',
 ])]
@@ -51,6 +53,7 @@ class RecurrenceEntry extends Model
             'fmy_amount' => 'decimal:2',
             'efka_employee_amount' => 'decimal:2',
             'efka_employer_amount' => 'decimal:2',
+            'auto_payroll' => 'boolean',
             'position' => 'integer',
         ];
     }

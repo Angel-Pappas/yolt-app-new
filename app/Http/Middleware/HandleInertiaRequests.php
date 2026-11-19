@@ -4,9 +4,13 @@ namespace App\Http\Middleware;
 
 use App\Models\Category;
 use App\Models\Entity;
+use App\Models\Project;
+use App\Models\Transaction;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
+use App\Support\Rates;
+use App\Support\WalletBalances;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -53,12 +57,52 @@ class HandleInertiaRequests extends Middleware
             // closure, so it evaluates on full loads and refreshes on a partial reload
             // (e.g. after inline-creating an entity) but not on unrelated partials.
             'financeLookups' => $request->user() ? fn (): array => [
-                'wallets' => Wallet::query()->orderBy('name')->get(['id', 'name']),
+                'wallets' => self::wallets(),
                 'entities' => Entity::query()->orderBy('name')->get(['id', 'name', 'type']),
                 'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
-                'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
-                'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate']),
+                // Each rate with its dated changes, so a form's preview uses the
+                // percentage in force on the row's invoice date, like the server.
+                'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate'])
+                    ->map(fn (VatRate $r): array => [...$r->only(['id', 'name', 'rate']), 'changes' => Rates::changes('vat', $r->id)]),
+                'projects' => Project::query()->orderBy('name')->get(['id', 'name', 'entity_id']),
+                'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate'])
+                    ->map(fn (WithheldTaxRate $r): array => [...$r->only(['id', 'name', 'rate']), 'changes' => Rates::changes('withheld', $r->id)]),
             ] : null,
         ];
+    }
+
+    /**
+     * The wallets for the forms; one that takes bank fees also carries the fee
+     * amounts it is charged most often (last year), as quick picks.
+     *
+     * @return list<array{id: int, name: string, fee_presets: list<string>|null}>
+     */
+    private static function wallets(): array
+    {
+        return array_values(Wallet::query()->orderBy('name')->get()
+            ->map(fn (Wallet $w): array => [
+                'id' => $w->id,
+                'name' => $w->name,
+                'fee_presets' => $w->takesBankFees() ? self::feePresets($w) : null,
+            ])->all());
+    }
+
+    /** @return list<string> */
+    private static function feePresets(Wallet $wallet): array
+    {
+        return array_values(Transaction::query()
+            ->where('wallet_id', $wallet->id)
+            ->where('entity_id', $wallet->fee_entity_id)
+            ->where('category_id', $wallet->fee_category_id)
+            ->whereDate('date', '>=', now()->subYear()->toDateString())
+            ->get(['net', 'vat_amount', 'withheld_amount', 'fmy_amount', 'efka_employee_amount'])
+            ->map(fn (Transaction $t): string => number_format(WalletBalances::cashTotal($t), 2, '.', ''))
+            ->countBy()
+            ->sortDesc()
+            ->keys()
+            ->take(4)
+            ->map(fn (int|string $amount): string => (string) $amount)
+            ->sort(SORT_NUMERIC)
+            ->all());
     }
 }

@@ -22,6 +22,8 @@ import {
     PayrollFields,
     PayrollSummary,
 } from '@/components/transactions/amount-lines';
+import { INCOME_STATUSES } from '@/components/transactions/income-status';
+import { type IncomeStatus } from '@/components/transactions/types';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import {
@@ -75,7 +77,74 @@ export type EditableTransaction = {
     efka_employer_amount: string | null;
     vat_lines: VatLine[];
     withheld_lines: WithheldLine[];
+    income_status?: IncomeStatus | null;
+    project_id?: number | null;
 };
+
+/** What a new row copies when added from a bank line (see the Bank import page). */
+export type BankLineTemplate = {
+    type: string;
+    wallet_id: number;
+    to_wallet_id: number | null;
+    entity_id: number | null;
+    category_id: number | null;
+    vat_rate_id: number | null;
+    withheld_rate_id: number | null;
+};
+
+/** A bank statement line the new transaction will confirm. */
+export type BankLinePrefill = {
+    id: number;
+    date: string;
+    /** Signed: money in is positive. */
+    amount: number;
+    text: string;
+    wallet_id: number;
+    template: BankLineTemplate | null;
+};
+
+/** The form's starting values for a bank line: its day, wallet and amount, shaped
+ *  like the row it resembles when there is one. */
+function bankLineDefaults(line: BankLinePrefill) {
+    const incoming = line.amount > 0;
+    const amount = String(Math.abs(line.amount));
+    const t = line.template;
+    const type =
+        t?.type === 'transfer' ? 'transfer' : incoming ? 'income' : 'expense';
+    const other =
+        t?.type === 'transfer'
+            ? t.wallet_id === line.wallet_id
+                ? t.to_wallet_id
+                : t.wallet_id
+            : null;
+    return {
+        type,
+        date: line.date,
+        invoice_date: line.date,
+        entity_id: t?.entity_id ? String(t.entity_id) : '',
+        category_id:
+            t?.category_id && t.type === type ? String(t.category_id) : '',
+        wallet_id: String(
+            type === 'transfer' && incoming && other ? other : line.wallet_id,
+        ),
+        to_wallet_id:
+            type === 'transfer'
+                ? String(incoming ? line.wallet_id : (other ?? ''))
+                : '',
+        net: amount,
+        amount_mode: 'total' as AmountMode,
+        lines: [
+            {
+                amount,
+                vat_rate_id: t?.vat_rate_id ? String(t.vat_rate_id) : '',
+                withheld: t?.withheld_rate_id != null,
+                withheld_rate_id: t?.withheld_rate_id
+                    ? String(t.withheld_rate_id)
+                    : '',
+            },
+        ],
+    };
+}
 
 type Props = {
     open: boolean;
@@ -83,6 +152,12 @@ type Props = {
     editing?: EditableTransaction | null;
     /** Adding from Finance ▸ One-offs: tag the new transaction as a one-off. */
     oneOff?: boolean;
+    /** Adding from Finance ▸ Income: the new transaction starts as an income. */
+    income?: boolean;
+    /** Adding from a project's page: an income installment of that project. */
+    project?: { id: number; entity_id: number } | null;
+    /** Adding from the Bank import page: the new row confirms this line. */
+    bankLine?: BankLinePrefill | null;
 };
 
 function today(): string {
@@ -94,10 +169,13 @@ export function TransactionFormDialog({
     onOpenChange,
     editing,
     oneOff = false,
+    income = false,
+    project = null,
+    bankLine = null,
 }: Props) {
     // Lookups come from the globally-shared source, so this form works wherever it's
     // opened without each page having to pass them.
-    const { wallets, entities, categories } = useFinanceLookups();
+    const { wallets, entities, categories, projects } = useFinanceLookups();
 
     // Re-couple each stored VAT line with its withheld line (matched by position),
     // so an edited transaction shows the withholding toggle lit on the right lines.
@@ -150,13 +228,19 @@ export function TransactionFormDialog({
                   efka_employer: editing.efka_employer_amount ?? '',
                   amount_mode: 'net' as AmountMode,
                   lines: editingLines(),
+                  income_status: (editing.income_status ??
+                      'agreed') as IncomeStatus,
+                  project_id: editing.project_id
+                      ? String(editing.project_id)
+                      : '',
+                  bank_fee: '',
               }
             : {
-                  type: 'expense',
+                  type: income || project ? 'income' : 'expense',
                   date: today(),
                   invoice_date: today(),
                   description: '',
-                  entity_id: '',
+                  entity_id: project ? String(project.entity_id) : '',
                   category_id: '',
                   wallet_id: wallets[0] ? String(wallets[0].id) : '',
                   to_wallet_id: '',
@@ -166,6 +250,10 @@ export function TransactionFormDialog({
                   efka_employer: '',
                   amount_mode: 'net' as AmountMode,
                   lines: [emptyAmountLine()],
+                  income_status: 'agreed' as IncomeStatus,
+                  project_id: project ? String(project.id) : '',
+                  bank_fee: '',
+                  ...(bankLine ? bankLineDefaults(bankLine) : {}),
               },
     );
 
@@ -185,6 +273,29 @@ export function TransactionFormDialog({
     const [addCategoryKey, setAddCategoryKey] = useState(0);
 
     const isTransfer = form.data.type === 'transfer';
+    const isIncome = form.data.type === 'income';
+
+    // The projects offered: the chosen entity's (all of them while none is chosen).
+    // An already-selected project is always kept.
+    const availableProjects = projects.filter(
+        (p) =>
+            form.data.entity_id === '' ||
+            String(p.entity_id) === form.data.entity_id ||
+            String(p.id) === form.data.project_id,
+    );
+
+    // Picking a project fills in its customer when none is chosen yet.
+    function changeProject(value: string) {
+        const picked = projects.find((p) => String(p.id) === value);
+        form.setData((data) => ({
+            ...data,
+            project_id: value,
+            entity_id:
+                picked && data.entity_id === ''
+                    ? String(picked.entity_id)
+                    : data.entity_id,
+        }));
+    }
 
     const availableCategories = categories.filter(
         (c) => c.type === form.data.type,
@@ -242,6 +353,20 @@ export function TransactionFormDialog({
         !isTransfer && selectedCategory?.name === PAYROLL_CATEGORY;
 
     const transferAmount = parseAmount(form.data.net);
+
+    // A new row on a wallet that takes bank fees can add the bank's fee with it —
+    // from a bank line too, when the bank booked the payment and its fee as one line.
+    const feePresets = !editing
+        ? (wallets.find((w) => String(w.id) === form.data.wallet_id)
+              ?.fee_presets ?? null)
+        : null;
+
+    // Payroll for an employee can be calculated from the gross. On by default for a
+    // new entry; an existing one keeps its saved figures until asked.
+    const [autoPayroll, setAutoPayroll] = useState(!editing);
+    const payrollEntityIsEmployee =
+        entities.find((e) => String(e.id) === form.data.entity_id)?.type ===
+        'employee';
 
     // The manual payroll figures, as the shared payroll fields/summary expect them.
     const payroll: PayrollAmounts = {
@@ -344,6 +469,13 @@ export function TransactionFormDialog({
             wallet_id: data.wallet_id,
             amount_mode: data.amount_mode,
             lines: linesPayload(data.lines),
+            // An income's tags; the server ignores them on any other type.
+            ...(data.type === 'income'
+                ? {
+                      income_status: data.income_status,
+                      project_id: data.project_id || null,
+                  }
+                : {}),
         };
     }
 
@@ -353,7 +485,13 @@ export function TransactionFormDialog({
     function doSubmit(mode: 'close' | 'new' | 'same') {
         // A new one-off carries the tag; an edit never sends it, so it's kept.
         const tag = oneOff && !editing ? { is_one_off: true } : {};
-        form.transform((data) => ({ ...payload(data), ...tag }));
+        const extra = {
+            ...(bankLine ? { bank_line_id: bankLine.id } : {}),
+            ...(feePresets
+                ? { bank_fee: optionalAmount(form.data.bank_fee) }
+                : {}),
+        };
+        form.transform((data) => ({ ...payload(data), ...tag, ...extra }));
 
         if (editing) {
             form.patch(`/transactions/${editing.id}`, {
@@ -386,6 +524,7 @@ export function TransactionFormDialog({
                     form.setData('fmy', '');
                     form.setData('efka_employee', '');
                     form.setData('efka_employer', '');
+                    form.setData('bank_fee', '');
                 }
             },
         });
@@ -400,12 +539,14 @@ export function TransactionFormDialog({
                             <DialogTitle>
                                 {editing
                                     ? 'Edit transaction'
-                                    : 'Add transaction'}
+                                    : bankLine
+                                      ? 'Add from the bank'
+                                      : 'Add transaction'}
                             </DialogTitle>
                             <DialogDescription>
-                                Income and expenses carry VAT (and optional
-                                withholding); a transfer moves money between
-                                wallets.
+                                {bankLine
+                                    ? `${bankLine.text} · ${formatAmount(bankLine.amount)} — saved as reconciled. With a bank fee, the row and the fee together make this line.`
+                                    : 'Income and expenses carry VAT (and optional withholding); a transfer moves money between wallets.'}
                             </DialogDescription>
                         </DialogHeader>
 
@@ -569,6 +710,59 @@ export function TransactionFormDialog({
                                 </div>
                             )}
 
+                            {isIncome && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="project_id">Project</Label>
+                                    <Combobox
+                                        id="project_id"
+                                        value={form.data.project_id}
+                                        onChange={changeProject}
+                                        options={availableProjects.map((p) => ({
+                                            value: String(p.id),
+                                            label: p.name,
+                                        }))}
+                                        placeholder="— None —"
+                                        searchPlaceholder="Search projects…"
+                                        emptyText="No projects found."
+                                        allowNone
+                                    />
+                                    <InputError
+                                        message={errors['project_id']}
+                                    />
+                                </div>
+                            )}
+
+                            {isIncome && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="income_status">
+                                        Status
+                                    </Label>
+                                    <Select
+                                        value={form.data.income_status}
+                                        onValueChange={(v) =>
+                                            form.setData(
+                                                'income_status',
+                                                v as IncomeStatus,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger id="income_status">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {INCOME_STATUSES.map((s) => (
+                                                <SelectItem
+                                                    key={s.value}
+                                                    value={s.value}
+                                                >
+                                                    {s.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
                             <div className="grid gap-2">
                                 <Label htmlFor="wallet_id">
                                     {isTransfer ? 'From wallet' : 'Wallet'}
@@ -643,6 +837,18 @@ export function TransactionFormDialog({
                                     <PayrollFields
                                         value={payroll}
                                         onChange={setPayroll}
+                                        auto={
+                                            payrollEntityIsEmployee
+                                                ? {
+                                                      on: autoPayroll,
+                                                      onChange: setAutoPayroll,
+                                                      entityId:
+                                                          form.data.entity_id,
+                                                      date: form.data
+                                                          .invoice_date,
+                                                  }
+                                                : undefined
+                                        }
                                         errors={{
                                             net: form.errors.net,
                                             fmy: errors['fmy_amount'],
@@ -665,7 +871,65 @@ export function TransactionFormDialog({
                                             form.setData('lines', lines)
                                         }
                                         error={netError}
+                                        date={form.data.invoice_date}
                                     />
+                                </div>
+                            )}
+
+                            {feePresets && (
+                                <div className="grid gap-2 sm:col-span-2">
+                                    <Label htmlFor="bank_fee">
+                                        Bank fee (added as its own expense)
+                                    </Label>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {feePresets.map((fee) => {
+                                            const on =
+                                                normalizeAmount(
+                                                    form.data.bank_fee,
+                                                ) === fee;
+                                            return (
+                                                <Button
+                                                    key={fee}
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    aria-pressed={on}
+                                                    className={
+                                                        on
+                                                            ? 'text-primary border-primary'
+                                                            : undefined
+                                                    }
+                                                    onClick={() =>
+                                                        form.setData(
+                                                            'bank_fee',
+                                                            on
+                                                                ? ''
+                                                                : fee.replace(
+                                                                      '.',
+                                                                      ',',
+                                                                  ),
+                                                        )
+                                                    }
+                                                >
+                                                    {formatAmount(fee)}
+                                                </Button>
+                                            );
+                                        })}
+                                        <AmountInput
+                                            id="bank_fee"
+                                            className="w-28"
+                                            value={form.data.bank_fee}
+                                            onChange={(v) =>
+                                                form.setData('bank_fee', v)
+                                            }
+                                            placeholder={
+                                                feePresets.length > 0
+                                                    ? 'Other'
+                                                    : undefined
+                                            }
+                                        />
+                                    </div>
+                                    <InputError message={errors['bank_fee']} />
                                 </div>
                             )}
 
@@ -701,6 +965,7 @@ export function TransactionFormDialog({
                                     <AmountSummary
                                         lines={form.data.lines}
                                         mode={form.data.amount_mode}
+                                        date={form.data.invoice_date}
                                     />
                                 </div>
                             )}
@@ -714,12 +979,12 @@ export function TransactionFormDialog({
                             >
                                 Cancel
                             </Button>
-                            {editing ? (
+                            {editing || bankLine ? (
                                 <Button
                                     type="submit"
                                     disabled={form.processing}
                                 >
-                                    Save
+                                    {editing ? 'Save' : 'Add'}
                                 </Button>
                             ) : (
                                 <>

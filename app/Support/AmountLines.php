@@ -4,8 +4,7 @@ namespace App\Support;
 
 use App\Http\Controllers\TransactionController;
 use App\Models\Category;
-use App\Models\VatRate;
-use App\Models\WithheldTaxRate;
+use Carbon\CarbonInterface;
 
 /**
  * The one definition of how an income/expense's amount lines become money — shared
@@ -30,8 +29,9 @@ class AmountLines
     /**
      * Resolve each amount line into a VAT line and — when the line carries a
      * withholding rate — a withheld line whose base is that same line's net, all
-     * computed server-side from the rates' current percentages (never trusted from
-     * the client). The single Net/Total mode governs the whole set of lines:
+     * computed server-side from the rates' percentages **on `$date`** — the invoice
+     * date, which is what tax law goes by (today when omitted) — never trusted from
+     * the client. The single Net/Total mode governs the whole set of lines:
      *
      *  - "net": the typed amount is the line's net. VAT = net × v, withheld = net × w.
      *  - "total": the typed amount is the cash total (net + VAT − withheld). The net
@@ -45,15 +45,8 @@ class AmountLines
      * @param  array<int, array{amount: mixed, vat_rate_id?: mixed, withheld_rate_id?: mixed}>  $lines
      * @return array{net: float, vat_amount: float, withheld_amount: float, vat_lines: array<int, array{net: float, vat_rate_id: int|null, vat_amount: float, position: int}>, withheld_lines: array<int, array{net: float, withheld_rate_id: int, withheld_amount: float, position: int}>}
      */
-    public static function resolve(array $lines, string $mode): array
+    public static function resolve(array $lines, string $mode, CarbonInterface|string|null $date = null): array
     {
-        $vatRates = VatRate::query()
-            ->whereIn('id', collect($lines)->pluck('vat_rate_id')->filter()->all())
-            ->pluck('rate', 'id');
-        $withheldRates = WithheldTaxRate::query()
-            ->whereIn('id', collect($lines)->pluck('withheld_rate_id')->filter()->all())
-            ->pluck('rate', 'id');
-
         $net = 0.0;
         $vatAmount = 0.0;
         $withheldAmount = 0.0;
@@ -64,9 +57,9 @@ class AmountLines
             $amount = round((float) $line['amount'], 2);
             $vatRateId = ($line['vat_rate_id'] ?? null) ? (int) $line['vat_rate_id'] : null;
             $withheldRateId = ($line['withheld_rate_id'] ?? null) ? (int) $line['withheld_rate_id'] : null;
-            // A rate soft-deleted since the line was saved counts as 0%.
-            $v = $vatRateId !== null ? (float) ($vatRates[$vatRateId] ?? 0) : 0.0;
-            $w = $withheldRateId !== null ? (float) ($withheldRates[$withheldRateId] ?? 0) : 0.0;
+            // The rates in force on the date (a rate soft-deleted since counts as 0%).
+            $v = Rates::vat($vatRateId, $date);
+            $w = Rates::withheld($withheldRateId, $date);
 
             if ($mode === 'total') {
                 $denom = 1 + ($v - $w) / 100;

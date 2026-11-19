@@ -36,6 +36,7 @@ class FmyLedger
         $byMonth = [];
 
         Transaction::query()
+            ->counted()
             ->where('fmy_amount', '>', 0)
             ->get(['invoice_date', 'fmy_amount'])
             ->each(function (Transaction $t) use (&$byMonth): void {

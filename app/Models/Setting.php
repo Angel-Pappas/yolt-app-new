@@ -13,21 +13,26 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $id
  * @property CarbonImmutable|null $managed_from
  * @property int|null $tax_wallet_id
+ * @property int $agreement_warning_days
  */
-#[Fillable(['managed_from', 'tax_wallet_id'])]
+#[Fillable(['managed_from', 'tax_wallet_id', 'agreement_warning_days'])]
 class Setting extends Model
 {
     protected function casts(): array
     {
         return [
             'managed_from' => 'date',
+            'agreement_warning_days' => 'integer',
         ];
     }
 
     /** The one settings row, created on first access. */
     public static function current(): self
     {
-        return static::query()->firstOrCreate([]);
+        // refresh(): a row just created has only its defaults in the database.
+        $setting = static::query()->firstOrCreate([]);
+
+        return $setting->wasRecentlyCreated ? $setting->refresh() : $setting;
     }
 
     /**

@@ -37,6 +37,7 @@ class EfkaLedger
         $byMonth = [];
 
         Transaction::query()
+            ->counted()
             ->where(function ($q): void {
                 $q->where('efka_employee_amount', '>', 0)
                     ->orWhere('efka_employer_amount', '>', 0);

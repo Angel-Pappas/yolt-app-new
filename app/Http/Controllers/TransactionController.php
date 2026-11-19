@@ -2,19 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BankLine;
 use App\Models\Category;
 use App\Models\Transaction;
-use App\Models\VatRate;
 use App\Models\Wallet;
-use App\Models\WithheldTaxRate;
 use App\Support\AmountLines;
+use App\Support\BankReconciler;
 use App\Support\TaxSync;
+use App\Support\TransactionWriter;
 use App\Support\WalletBalances;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -110,7 +112,7 @@ class TransactionController extends Controller
             $query->whereNull('invoice_month')->where('invoice_not_required', false);
         }
 
-        return $query->orderBy('date')->orderBy('id')->get();
+        return $query->inBankOrder()->get();
     }
 
     /**
@@ -152,11 +154,35 @@ class TransactionController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateTransaction($request);
+        $extra = $request->validate([
+            // Added from a bank statement line: the new row confirms that line.
+            'bank_line_id' => ['nullable', 'integer', 'exists:bank_lines,id'],
+            // A bank fee paid with it, added as its own row (see addBankFee()).
+            'bank_fee' => ['nullable', 'numeric', 'gt:0'],
+        ]);
+        $line = isset($extra['bank_line_id']) ? BankLine::query()->findOrFail((int) $extra['bank_line_id']) : null;
+        // A line already paired takes a further row only while its rows don't add
+        // up to it yet (the missing part of one bank line that is several rows).
+        if ($line !== null && ! $line->isPending() && abs($line->pairedCash() - abs((float) $line->amount)) < 0.005) {
+            throw ValidationException::withMessages(['bank_line_id' => __('That bank line is already done.')]);
+        }
 
-        DB::transaction(function () use ($data, $request) {
+        DB::transaction(function () use ($data, $extra, $line, $request) {
             $transaction = new Transaction;
             $transaction->user_id = $request->user()->id;
-            $this->persist($transaction, $data);
+            TransactionWriter::persist($transaction, $data);
+            $fee = isset($extra['bank_fee'])
+                ? $this->addBankFee($transaction, round((float) $extra['bank_fee'], 2), $request->user()->id)
+                : null;
+            if ($line !== null) {
+                // From a bank line: the new row is that line — together with its bank
+                // fee when one was added (the bank books them as one line).
+                match (true) {
+                    ! $line->isPending() => BankReconciler::pair($line, $transaction),
+                    $fee !== null => BankReconciler::accept($line, [$transaction, $fee]),
+                    default => BankReconciler::link($line, $transaction),
+                };
+            }
             TaxSync::run();
         });
 
@@ -165,12 +191,41 @@ class TransactionController extends Controller
         return back();
     }
 
+    /**
+     * The bank's fee for a payment, as its own expense on the same wallet and day —
+     * to the entity and category the wallet's fees go to. Ignored for a wallet that
+     * has none set.
+     */
+    private function addBankFee(Transaction $payment, float $fee, int $userId): ?Transaction
+    {
+        $wallet = Wallet::query()->find($payment->wallet_id);
+        if ($wallet === null || ! $wallet->takesBankFees()) {
+            return null;
+        }
+
+        $row = new Transaction;
+        $row->user_id = $userId;
+        TransactionWriter::persist($row, [
+            'type' => 'expense',
+            'date' => $payment->date->toDateString(),
+            'invoice_date' => $payment->date->toDateString(),
+            'description' => '',
+            'wallet_id' => $wallet->id,
+            'entity_id' => $wallet->fee_entity_id,
+            'category_id' => $wallet->fee_category_id,
+            'amount_mode' => 'total',
+            'lines' => [['amount' => $fee, 'vat_rate_id' => null]],
+        ]);
+
+        return $row;
+    }
+
     public function update(Request $request, Transaction $transaction): RedirectResponse
     {
         $data = $this->validateTransaction($request);
 
         DB::transaction(function () use ($transaction, $data) {
-            $this->persist($transaction, $data);
+            TransactionWriter::persist($transaction, $data);
             TaxSync::run();
         });
 
@@ -267,18 +322,30 @@ class TransactionController extends Controller
 
         DB::transaction(function () use ($data, $transaction) {
             $newNet = round((float) $data['net'], 2);
+            $reconciled = $data['is_reconciled'] ?? true;
+
+            // The invoice date follows the payment date until it has been set apart
+            // by hand — so it moves along here only while the two are still equal.
+            $followsDate = $transaction->invoice_date->toDateString() === $transaction->date->toDateString();
 
             $transaction->fill([
                 'date' => $data['date'],
                 'wallet_id' => $data['wallet_id'],
-                'is_reconciled' => $data['is_reconciled'] ?? true,
+                'is_reconciled' => $reconciled,
             ]);
+            if ($followsDate) {
+                $transaction->invoice_date = $data['date'];
+            }
+            // A reconciled row really happened, so it always counts.
+            if ($reconciled) {
+                $transaction->is_excluded = false;
+            }
 
             if ($transaction->type === 'transfer') {
                 $transaction->to_wallet_id = $data['to_wallet_id'];
                 $transaction->net = number_format($newNet, 2, '.', '');
             } else {
-                $this->rescaleLines($transaction, $newNet);
+                TransactionWriter::rescaleLines($transaction, $newNet);
             }
 
             $transaction->save();
@@ -288,71 +355,6 @@ class TransactionController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction reconciled.')]);
 
         return back();
-    }
-
-    /**
-     * Distribute a new net across a transaction's VAT lines in proportion to their
-     * current share (the last line absorbs any rounding remainder so the parts sum
-     * exactly), re-deriving each line's VAT from its rate. A withheld line stays
-     * coupled to its VAT line (matched by position): its base is reset to the line's
-     * new net and its withheld amount re-derived from its rate. The summed
-     * net/vat_amount/withheld_amount on the transaction are updated to match.
-     */
-    private function rescaleLines(Transaction $transaction, float $newNet): void
-    {
-        $lines = $transaction->vatLines()->orderBy('position')->get();
-        if ($lines->isEmpty()) {
-            $transaction->net = number_format($newNet, 2, '.', '');
-
-            return;
-        }
-
-        $withheldByPosition = $transaction->withheldLines()->get()->keyBy('position');
-        $oldNet = (float) $lines->sum(fn ($l) => (float) $l->net);
-        $vatRates = VatRate::query()
-            ->whereIn('id', $lines->pluck('vat_rate_id')->filter())
-            ->pluck('rate', 'id');
-        $withheldRates = WithheldTaxRate::query()
-            ->whereIn('id', $withheldByPosition->pluck('withheld_rate_id')->filter())
-            ->pluck('rate', 'id');
-
-        $count = $lines->count();
-        $remaining = $newNet;
-        $sumNet = 0.0;
-        $sumVat = 0.0;
-        $sumWithheld = 0.0;
-
-        foreach ($lines->values() as $i => $line) {
-            if ($i === $count - 1) {
-                $lineNet = round($remaining, 2);
-            } elseif ($oldNet > 0) {
-                $lineNet = round($newNet * (float) $line->net / $oldNet, 2);
-            } else {
-                $lineNet = $i === 0 ? $newNet : 0.0;
-            }
-            $remaining -= $lineNet;
-
-            $rate = $line->vat_rate_id !== null ? (float) $vatRates[$line->vat_rate_id] : 0.0;
-            $lineVat = round($lineNet * $rate / 100, 2);
-            $line->update(['net' => $lineNet, 'vat_amount' => $lineVat]);
-
-            $sumNet += $lineNet;
-            $sumVat += $lineVat;
-
-            $withheldLine = $withheldByPosition->get($line->position);
-            if ($withheldLine !== null) {
-                $wRate = $withheldLine->withheld_rate_id !== null
-                    ? (float) $withheldRates[$withheldLine->withheld_rate_id]
-                    : 0.0;
-                $lineWithheld = round($lineNet * $wRate / 100, 2);
-                $withheldLine->update(['net' => $lineNet, 'withheld_amount' => $lineWithheld]);
-                $sumWithheld += $lineWithheld;
-            }
-        }
-
-        $transaction->net = number_format($sumNet, 2, '.', '');
-        $transaction->vat_amount = number_format($sumVat, 2, '.', '');
-        $transaction->withheld_amount = number_format($sumWithheld, 2, '.', '');
     }
 
     /**
@@ -411,6 +413,13 @@ class TransactionController extends Controller
             'is_one_off' => ['sometimes', 'boolean'],
         ];
 
+        if ($request->input('type') === 'income') {
+            // An income's hand-set tag and (optionally) the project it belongs to.
+            // Absent means "leave as is" (a new income starts as agreed).
+            $rules['income_status'] = ['sometimes', Rule::in(Transaction::INCOME_STATUSES)];
+            $rules['project_id'] = ['sometimes', 'nullable', 'integer', 'exists:projects,id'];
+        }
+
         if ($request->input('type') === 'transfer') {
             $rules['to_wallet_id'] = ['required', 'integer', 'different:wallet_id', 'exists:wallets,id'];
             $rules['net'] = ['required', 'numeric', 'min:0'];
@@ -452,109 +461,48 @@ class TransactionController extends Controller
     }
 
     /**
-     * A payroll amount from validated data: the rounded number, or null when blank.
-     *
-     * @param  array<string, mixed>  $data
+     * Switch a transaction off or on. Off, it stays in every list but counts for
+     * nothing. A reconciled row really happened and a tax row is derived, so neither
+     * can be switched off.
      */
-    private static function payrollAmount(array $data, string $key): ?float
+    public function exclude(Request $request, Transaction $transaction): RedirectResponse
     {
-        return isset($data[$key]) ? round((float) $data[$key], 2) : null;
+        $data = $request->validate(['excluded' => ['required', 'boolean']]);
+        $excluded = (bool) $data['excluded'];
+
+        if ($excluded && ($transaction->is_reconciled || $transaction->source === 'tax')) {
+            throw ValidationException::withMessages([
+                'excluded' => $transaction->is_reconciled
+                    ? __('A reconciled transaction cannot be excluded.')
+                    : __('A tax payment is calculated and cannot be excluded.'),
+            ]);
+        }
+
+        DB::transaction(function () use ($transaction, $excluded) {
+            $transaction->update(['is_excluded' => $excluded]);
+            TaxSync::run();
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $excluded ? __('Transaction excluded.') : __('Transaction included.')]);
+
+        return back();
     }
 
     /**
-     * Set a transaction's fields from validated input and (re)write its VAT and
-     * withholding lines wholesale. Shared by store and update; handles both a
-     * transfer and an income/expense, nulling the other shape's fields so a type
-     * change on edit leaves no stale data behind.
-     *
-     * @param  array<string, mixed>  $data
+     * Set an income's status tag by hand. It never touches the reconciled flag (and
+     * reconciling never touches it); only "dropped" changes the numbers, because a
+     * dropped income counts for nothing.
      */
-    private function persist(Transaction $transaction, array $data): void
+    public function status(Request $request, Transaction $transaction): RedirectResponse
     {
-        if (array_key_exists('is_one_off', $data)) {
-            $transaction->is_one_off = (bool) $data['is_one_off'];
-        }
+        abort_unless($transaction->type === 'income', 422);
+        $data = $request->validate(['status' => ['required', Rule::in(Transaction::INCOME_STATUSES)]]);
 
-        if ($data['type'] === 'transfer') {
-            $transaction->fill([
-                'type' => 'transfer',
-                'date' => $data['date'],
-                'invoice_date' => $data['invoice_date'],
-                'description' => $data['description'] ?? '',
-                'wallet_id' => $data['wallet_id'],
-                'to_wallet_id' => $data['to_wallet_id'],
-                'entity_id' => null,
-                'category_id' => null,
-                'vat_rate_id' => null,
-                'net' => round((float) $data['net'], 2),
-                'vat_amount' => 0,
-                'withheld_amount' => 0,
-                'fmy_amount' => null,
-                'efka_employee_amount' => null,
-                'efka_employer_amount' => null,
-            ]);
-            $transaction->save();
-            $transaction->vatLines()->delete();
-            $transaction->withheldLines()->delete();
+        DB::transaction(function () use ($transaction, $data) {
+            $transaction->update(['income_status' => $data['status']]);
+            TaxSync::run();
+        });
 
-            return;
-        }
-
-        if (isset($data['category_id']) && $this->isPayrollCategory((int) $data['category_id'])) {
-            // Payroll: store the net (gross) plus the manual FMY/EFKA amounts. VAT and
-            // withholding are always zero here; the cash the wallet moves is the "To
-            // Pay" = net − FMY − employee EFKA, derived by WalletBalances::cashTotal.
-            $transaction->fill([
-                'type' => $data['type'],
-                'date' => $data['date'],
-                'invoice_date' => $data['invoice_date'],
-                'description' => $data['description'] ?? '',
-                'entity_id' => $data['entity_id'] ?? null,
-                'category_id' => $data['category_id'],
-                'wallet_id' => $data['wallet_id'],
-                'to_wallet_id' => null,
-                'vat_rate_id' => null,
-                'net' => round((float) $data['net'], 2),
-                'vat_amount' => 0,
-                'withheld_amount' => 0,
-                'fmy_amount' => self::payrollAmount($data, 'fmy_amount'),
-                'efka_employee_amount' => self::payrollAmount($data, 'efka_employee_amount'),
-                'efka_employer_amount' => self::payrollAmount($data, 'efka_employer_amount'),
-            ]);
-            $transaction->save();
-            $transaction->vatLines()->delete();
-            $transaction->withheldLines()->delete();
-
-            return;
-        }
-
-        $resolved = AmountLines::resolve($data['lines'], $data['amount_mode']);
-
-        $transaction->fill([
-            'type' => $data['type'],
-            'date' => $data['date'],
-            'invoice_date' => $data['invoice_date'],
-            'description' => $data['description'] ?? '',
-            'entity_id' => $data['entity_id'] ?? null,
-            'category_id' => $data['category_id'] ?? null,
-            'wallet_id' => $data['wallet_id'],
-            'to_wallet_id' => null,
-            'net' => $resolved['net'],
-            'vat_amount' => $resolved['vat_amount'],
-            'withheld_amount' => $resolved['withheld_amount'],
-            'fmy_amount' => null,
-            'efka_employee_amount' => null,
-            'efka_employer_amount' => null,
-            // A single line keeps the (denormalized) rate; mixed rates = null.
-            'vat_rate_id' => count($resolved['vat_lines']) === 1
-                ? $resolved['vat_lines'][0]['vat_rate_id']
-                : null,
-        ]);
-        $transaction->save();
-
-        $transaction->vatLines()->delete();
-        $transaction->vatLines()->createMany($resolved['vat_lines']);
-        $transaction->withheldLines()->delete();
-        $transaction->withheldLines()->createMany($resolved['withheld_lines']);
+        return back();
     }
 }

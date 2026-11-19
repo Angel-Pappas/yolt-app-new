@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\VatRate;
+use App\Support\Recalculate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -37,6 +38,10 @@ class VatRateController extends Controller
     public function update(Request $request, VatRate $vatRate): RedirectResponse
     {
         $vatRate->update($this->validateRate($request));
+        // The percentage feeds every amount not yet reconciled.
+        if ($vatRate->wasChanged('rate')) {
+            Recalculate::everything();
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('VAT rate updated.')]);
 

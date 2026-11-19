@@ -2,14 +2,19 @@
 
 namespace Database\Seeders;
 
+use App\Models\Agreement;
+use App\Models\BankLine;
 use App\Models\Category;
 use App\Models\Entity;
+use App\Models\LeaveEntry;
+use App\Models\Project;
 use App\Models\Recurrence;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
+use App\Support\BankReconciler;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -49,7 +54,8 @@ class DemoSeeder extends Seeder
             ->map(fn ($n) => Entity::create(['name' => $n, 'type' => 'supplier']));
         $customers = collect(['Dagmar-Koutsoumpidis', 'Γεωργαλάς Κωνσταντίνος', 'Acme Hellas'])
             ->map(fn ($n) => Entity::create(['name' => $n, 'type' => 'customer']));
-        Entity::create(['name' => 'Alpha Bank', 'type' => 'supplier']);
+        $alpha = Entity::create(['name' => 'Alpha Bank', 'type' => 'supplier']);
+        $bank->update(['fee_entity_id' => $alpha->id, 'fee_category_id' => $expense['Bank Expenses']->id]);
 
         mt_srand(42);
         $start = Carbon::now()->startOfMonth()->subMonths(2);
@@ -73,6 +79,7 @@ class DemoSeeder extends Seeder
                 'category_id' => ($isIncome ? $income : $expense)->random()->id,
                 'wallet_id' => $bank->id,
                 'is_reconciled' => $day->lt(Carbon::now()->startOfMonth()),
+                'income_status' => $isIncome ? ($day->lt(Carbon::now()->startOfMonth()) ? 'paid' : 'agreed') : null,
                 'invoice_month' => mt_rand(0, 2) ? (int) $day->format('n') : null,
                 'invoice_not_required' => false,
             ])->forceFill(['user_id' => $user->id])->save();
@@ -118,6 +125,128 @@ class DemoSeeder extends Seeder
                 'invoice_not_required' => false,
             ]);
         }
+
+        $this->projects($bank, $customers, $income['Services Sold'], $vat24->id);
+
+        // Agreements: one running, one about to end, one open-ended, one over.
+        foreach ([
+            [$customers[0], 'Webshop maintenance contract', -200, 400],
+            [$customers[1], 'Support contract 2026', -320, 18],
+            [$suppliers[0], 'Office lease', -700, null],
+            [$customers[2], 'Brand refresh agreement', -400, -30],
+        ] as [$entity, $title, $from, $to]) {
+            Agreement::forceCreate([
+                'entity_id' => $entity->id,
+                'title' => $title,
+                'start_date' => Carbon::now()->addDays($from)->toDateString(),
+                'end_date' => $to !== null ? Carbon::now()->addDays($to)->toDateString() : null,
+            ]);
+        }
+
+        // Leave taken by the first employee.
+        $employee = Entity::query()->where('type', 'employee')->orderBy('id')->first();
+        if ($employee !== null) {
+            foreach ([[-150, -146, 5], [-60, -51, 8]] as [$from, $to, $days]) {
+                LeaveEntry::forceCreate([
+                    'entity_id' => $employee->id,
+                    'start_date' => Carbon::now()->addDays($from)->toDateString(),
+                    'end_date' => Carbon::now()->addDays($to)->toDateString(),
+                    'days' => $days,
+                ]);
+            }
+        }
+
+        $this->bankStatement($bank, $user);
+    }
+
+    /**
+     * Last month's Alpha Bank statement, imported: most lines are the app's rows, a
+     * few were booked two days later than the app has them, a few rows never reached
+     * the bank, and a few lines are missing from the app (a fee among them). The sure
+     * pairs settle as an upload would.
+     */
+    private function bankStatement(Wallet $bank, User $user): void
+    {
+        $from = Carbon::now()->subMonthNoOverflow()->startOfMonth();
+        $to = $from->copy()->endOfMonth();
+        $rows = Transaction::query()->counted()->where('wallet_id', $bank->id)
+            ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
+            ->with('vatLines', 'withheldLines')->orderBy('date')->orderBy('id')->get();
+
+        $lines = [];
+        foreach ($rows->values() as $i => $t) {
+            if ($i % 7 === 6) {
+                continue; // never reached the bank
+            }
+            $cash = BankReconciler::cash($t);
+            $date = $i % 5 === 4 ? $t->date->copy()->addDays(2) : $t->date;
+            $lines[] = [$date->toDateString(), mb_strtoupper($t->entity->name ?? 'ΜΕΤΑΦΟΡΑ'), $t->type === 'income' || $t->to_wallet_id === $bank->id ? $cash : -$cash];
+        }
+        $lines[] = [$from->copy()->addDays(9)->toDateString(), 'ΕΞΟΔΑ ΕΝΤΟΛΗΣ', -1.30];
+        $lines[] = [$from->copy()->addDays(12)->toDateString(), 'FΑCΕΒΚ *Q7Z2', -45.00];
+        $lines[] = [$from->copy()->addDays(20)->toDateString(), 'ΧΟΡ989003070526587', 500.00];
+        usort($lines, fn (array $a, array $b): int => $a[0] <=> $b[0]);
+
+        $positions = [];
+        foreach ($lines as $n => [$date, $text, $amount]) {
+            $positions[$date] = ($positions[$date] ?? 0) + 1;
+            BankLine::query()->create([
+                'wallet_id' => $bank->id, 'date' => $date, 'position' => $positions[$date],
+                'text' => $text, 'amount' => $amount, 'reference' => (string) $n, 'fingerprint' => hash('sha256', "demo-{$n}"),
+            ]);
+        }
+        // One line the app has as two rows: a transfer and its cost.
+        $day = $from->copy()->addDays(15)->toDateString();
+        $revolut = Wallet::query()->where('name', 'Revolut')->firstOrFail();
+        foreach ([['type' => 'transfer', 'to_wallet_id' => $revolut->id, 'net' => 1000, 'description' => 'Top-up'], ['type' => 'expense', 'entity_id' => $bank->fee_entity_id, 'category_id' => $bank->fee_category_id, 'net' => 2.50, 'description' => '']] as $row) {
+            Transaction::query()->create([...$row, 'wallet_id' => $bank->id, 'date' => $day, 'invoice_date' => $day, 'vat_amount' => 0, 'user_id' => $user->id]);
+        }
+        BankLine::query()->create([
+            'wallet_id' => $bank->id, 'date' => $day, 'position' => ($positions[$day] ?? 0) + 1,
+            'text' => 'ΧΟΡ989003070512345', 'amount' => -1002.50, 'reference' => 'two', 'fingerprint' => hash('sha256', 'demo-two'),
+        ]);
+        $bank->forceFill(['statement_balance' => 14321.09, 'statement_date' => $to->toDateString()])->save();
+        BankReconciler::settle($bank, $user->id);
+    }
+
+    /**
+     * Projects with installments in every state: one part-paid, one all still to
+     * come (switched off — a "what if"), one finished.
+     *
+     * @param  Collection<int, Entity>  $customers
+     */
+    private function projects(Wallet $bank, Collection $customers, Category $category, int $vat24): void
+    {
+        foreach ([
+            ['Webshop rebuild', $customers[0], 30000, false, [[-40, 10000, 'paid'], [-5, 10000, 'invoiced'], [25, 10000, 'agreed']]],
+            ['Mobile app (proposal)', $customers[1], 24000, true, [[20, 8000, 'agreed'], [50, 8000, 'agreed'], [80, 8000, 'agreed']]],
+            ['Brand refresh', $customers[2], 6000, false, [[-70, 3000, 'paid'], [-35, 3000, 'paid']]],
+            ['Booking platform', $customers[0], 18000, false, [[10, 6000, 'agreed'], [40, 6000, 'agreed'], [70, 2000, 'dropped']]],
+        ] as [$name, $customer, $total, $excluded, $installments]) {
+            $project = Project::create(['name' => $name, 'entity_id' => $customer->id, 'agreed_total' => $total, 'is_excluded' => $excluded]);
+
+            foreach ($installments as $i => [$days, $net, $status]) {
+                $date = Carbon::now()->addDays($days)->toDateString();
+                Transaction::create([
+                    'date' => $date,
+                    'invoice_date' => $date,
+                    'description' => $name.' — installment '.($i + 1),
+                    'type' => 'income',
+                    'net' => $net,
+                    'vat_amount' => round($net * 0.24, 2),
+                    'withheld_amount' => 0,
+                    'vat_rate_id' => $vat24,
+                    'entity_id' => $customer->id,
+                    'category_id' => $category->id,
+                    'wallet_id' => $bank->id,
+                    'is_reconciled' => $status === 'paid',
+                    'is_excluded' => $excluded,
+                    'income_status' => $status,
+                    'project_id' => $project->id,
+                    'invoice_not_required' => false,
+                ]);
+            }
+        }
     }
 
     /**
@@ -140,6 +269,14 @@ class DemoSeeder extends Seeder
         ];
         foreach ($salaries as [$name, $start, $net, $fmy, $efkaEmployee, $efkaEmployer]) {
             $employee = Entity::create(['name' => $name, 'type' => 'employee']);
+            // The first is calculated from the gross (one child); the second typed.
+            $auto = $name === 'Μαρία Παπαδοπούλου';
+            $employee->employeeProfile()->create([
+                'birth_date' => $auto ? '1988-03-14' : '1999-09-02',
+                'children' => $auto ? 1 : 0,
+                'hire_date' => $start->toDateString(),
+                'prior_service_years' => $auto ? 6 : 0,
+            ]);
             $recurrence = $this->recurrence($employee, $bank, 'expense', $expense['Payroll'], 'Salary', true, $start, null);
             $recurrence->entries()->create([
                 'start_date' => $start,
@@ -148,6 +285,7 @@ class DemoSeeder extends Seeder
                 'fmy_amount' => $fmy,
                 'efka_employee_amount' => $efkaEmployee,
                 'efka_employer_amount' => $efkaEmployer,
+                'auto_payroll' => $auto,
                 'amount_mode' => 'net',
                 'position' => 0,
             ]);

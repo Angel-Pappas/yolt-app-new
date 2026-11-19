@@ -33,6 +33,21 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 - [x] Shared list view: sticky header, per-column filters, tri-state sort,
       load-as-you-scroll, totals row.
 - [x] Money inputs show thousands dots (`1.234,56`) when not being edited (2026-10-15).
+- [x] On/off switch on transactions, recurrences and projects (what-if), income
+      status tags, Projects with installments, Finance ▸ Income (2026-11-12).
+- [x] Date-sensitive VAT/withholding rates and dated Tax rules; payroll calculated
+      from the gross; Employment details, leave tracking and termination cost
+      (2026-11-12).
+- [x] Income tax estimated from running profit until the accountant's figure is in
+      (2026-11-12).
+- [x] Finance ▸ Projection with graph; Home dashboard (2026-11-12).
+- [x] Agreements with files and renewal warning (2026-11-12).
+- [x] Lists remember their setup; every row that opens something opens in a new tab
+      (2026-11-12).
+- [x] Finance ▸ Bank import (Alpha Bank CSV): the bank and the app side by side, each
+      row a pair with a verdict (match / differs / missing on one side), sure pairs
+      and fees settled on upload, drag to pair; rows follow the bank's order within a
+      day; Bank fee on the add form (2026-11-16, side by side 2026-11-17).
 - [x] Way of working: design principles, fast screenshots on demo data, one-command
       ship, frontend unit tests, deploy safety check.
 
@@ -40,11 +55,17 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 
 - [ ] **Users page onto the shared list view** — it's the last hand-rolled table
       (`pages/users/index.tsx`), so it lacks search, column filters and sorting.
-- [ ] **Projections / cash-flow view** — the future-balance view the recurring and tax
-      transactions were built for (deferred since 2026-09-21).
-- [ ] **Home page content** — currently just the logo and a welcome.
+- [ ] **Tick payroll periods to "calculated"** where wanted — existing periods kept
+      their typed figures.
 
 ## Ideas / later
+
+- [ ] Income tax: carry losses forward; the reduced advance for a company's first
+      years.
+- [ ] Severance: the extra for staff with 17+ years on 12/11/2012 (not needed today).
+- [ ] Leave: month-by-month accrual in the first two years (the whole year's figure is
+      shown now).
+- [ ] Transactions: remember the last date range when returning from elsewhere.
 
 - [ ] De minimis: show the rolling 3-year total against the €300.000 ceiling
       (Regulation (EU) 2023/2831), so the declaration's last check is at a glance.

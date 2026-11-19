@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $year
  * @property string $revenue_before_tax
  * @property string $total_tax
+ * @property string|null $advance_amount
  * @property string $first_installment_month
  * @property string $last_installment_month
  * @property string $monthly_installment_amount
@@ -26,6 +27,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'year',
     'revenue_before_tax',
     'total_tax',
+    'advance_amount',
     'first_installment_month',
     'last_installment_month',
     'monthly_installment_amount',
@@ -41,6 +43,7 @@ class IncomeTaxYear extends Model
             'year' => 'integer',
             'revenue_before_tax' => 'decimal:2',
             'total_tax' => 'decimal:2',
+            'advance_amount' => 'decimal:2',
             'first_installment_month' => 'date:Y-m-d',
             'last_installment_month' => 'date:Y-m-d',
             'monthly_installment_amount' => 'decimal:2',

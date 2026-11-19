@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { CrudResource } from '@/components/crud/crud-resource';
 
 type VatRate = {
@@ -32,6 +32,11 @@ export default function VatRatesIndex({ vatRates }: { vatRates: VatRate[] }) {
                                 `${Number(item.rate).toFixed(2)}%`,
                         },
                     ]}
+                    // A rate's page holds its dated changes.
+                    onRowClick={(item) =>
+                        router.visit(`/configuration/vat-rates/${item.id}`)
+                    }
+                    rowHref={(item) => `/configuration/vat-rates/${item.id}`}
                     fields={[
                         {
                             key: 'name',

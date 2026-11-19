@@ -12,6 +12,14 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-19** — **The "next" build goes live.** Angel tested the copy and said go:
+  branch `next` was merged into `main` and deployed to the live app (its new tables
+  and columns only add to the data; nothing existing is dropped or rewritten). The live
+  nginx site now lets PHP accept uploads up to 20 MB (`fastcgi_param PHP_VALUE
+"upload_max_filesize=20M \n post_max_size=21M"`, agreement files; PHP's default is
+  2 MB). The copy was then removed: its folders, database `yolt_next` and its MySQL
+  user, nginx site + certificate, `refresh-from-live.sh`, and the copy-only lines in
+  `ship.sh` and the CI workflow. One app again.
 - **2026-11-17** — **UI audit: nothing cut off, every list scrolls, every button
   reachable.** Angel hit a payroll add form taller than his screen (title and buttons
   cut off) right after a picker list that wouldn't scroll, and asked for every such
@@ -24,17 +32,120 @@ something came to be; read `Summary.md` for how the app works **now**.
     - **Dialogs** never grow past the screen: they scroll inside, with the buttons
       pinned to the bottom (`ui/dialog.tsx`, for every dialog). A dialog holding a form
       no longer closes on a click beside it (typed data was lost); Cancel, ✕ and Esc do.
-    - **Tables fit a 1280px laptop**: Transactions, One-offs, Recurring and De minimis
-      hid their last columns (the row buttons)
+    - **Tables fit a 1280px laptop**: Transactions, Income, One-offs, Recurring,
+      Projects, Projection and De minimis hid their last columns (the row buttons)
       sideways. Cells are a little tighter, headers may wrap onto two lines, the filter
       funnel is smaller, and icon buttons in a row are compact (`ui/table.tsx`,
       `ui/button.tsx` now marks its size).
+    - Tax rules on a phone pushed the page sideways (the six-column FMY table now
+      scrolls in its own box); the payroll calculation no longer asks the server about
+      an empty amount (a failed request on an employee's page).
       Left as is, by design: on a phone, wide tables scroll sideways inside their box.
 - **2026-11-17** — **Pickers in a dialog scroll with the mouse wheel.** Angel couldn't
   scroll the Category list in the add form. The searchable picker (`Combobox`) draws
   its list outside the dialog, and an open dialog blocks wheel/touch scrolling outside
   itself; the picker's popover is now modal, so it allows scrolling in its own list
   (checked with a wheel test in a browser, before and after).
+- **2026-11-17** — **One bank line can be several app rows.** Angel pointed at the
+  −25.003,78 line of 01/10 shown as missing: the app has it, as two rows — the €25.000
+  transfer back to Αλληλόχρεος and the €3,78 bank cost — which Alpha books as one line.
+  The pairing moved from the line to the rows (`transactions.bank_line_id`, a line has
+  many rows); the app now also looks for two or three rows within 3 days that add up to
+  a line exactly (only a combination that stands out; on the line's own day it pairs
+  them on upload). Rows paired by hand keep their own amount and join a line until they
+  add up to it, and adding from a bank line can include its bank fee.
+- **2026-11-17** — **Bank import becomes the bank and the app side by side.** Angel
+  tried the first version on October's statement and couldn't read it: each line
+  showed only the bank's text (meaningless in exports) and an "Apply" that didn't say
+  what it did, and he was asked to act even on lines the app already had on the same
+  day at the same amount. His design: two lists next to each other, each row pairing
+  a bank line with its app row (a side left empty when it exists only on the other),
+  with a verdict per row — match, the same but something differs, missing — and drag
+  to fix the pairing. Agreed with him: green = same date and amount exactly (anything
+  else is amber, and accepting moves the app row to the bank's day); every pair counts
+  as reconciled; app rows shown for the same dates. Sure pairs (same amount, same day)
+  and bank fees now settle on upload, so only real decisions are left. Dragging pairs
+  rows rather than reordering them, since a paired row takes the bank's place by
+  itself. "Set aside" was dropped (column removed): every bank line is in the app or
+  missing from it. The demo data now has a statement for screenshots.
+- **2026-11-16** — **Bank import, bank order, bank fee.** Angel's month close starts
+  at the bank statement, line by line, and adding rows while automatic ones already
+  exist was clunky: a row added by hand sorted after the automatic one of the same day
+  whatever the bank said, and the add dialog hid the list, so duplicates were easy.
+  Now Finance ▸ **Bank import** reads the Alpha Bank CSV and, line by line, confirms
+  the row the app already has (salaries, subscriptions, taxes) or adds the new one —
+  suggesting which, from the amount, the name in the bank text and what the same text
+  became before — leaving every row reconciled, on the bank's day and amount, in the
+  bank's order. Angel's decisions: the date is the day the money shows at the bank
+  (not the card's purchase date); refunds are income from the supplier; bank fees stay
+  their own rows (Alpha Bank · Bank Expenses), with a **Bank fee** field on the add form
+  for a wallet that takes them. Only Alpha has a statement (Cash, Register, Bacon are
+  typed by hand). The save/rescale code moved from `TransactionController` to
+  `App\Support\TransactionWriter` so the form, Reconcile and the import share it.
+- **2026-11-12** — **The "next" build begins (branch `next`, copy site).** Angel asked
+  for the whole remaining scope to be built in one go on a copy he can test, without
+  touching the live app: a second site `yolt-next.pappas.yoltobots.click`
+  (`/home/ploi/yolt-next/{dev,site}`, database `yolt_next`, its own MySQL user with no
+  rights on `yolt_app`) filled by `refresh-from-live.sh` (read-only dump of live →
+  replace the copy's database → migrate → sync). `ship.sh` on this branch pushes
+  `next` and deploys the copy only. When Angel approves, `next` becomes `main` and the
+  copy (site, database, nginx site, branch) is removed.
+- **2026-11-12** — **Smoothness pass.** Lists now remember their setup for the tab's
+  session — search, column filters, sorting, scroll (`DataTable` by `title`/`stateKey`)
+  and page toggles (`useStoredState`, replacing Inertia's `useRemember`, which only
+  survived the Back button, not a back link or the sidebar). Rows that open something
+  are real links everywhere (entities, rates, categories, wallets → their balance
+  view, projects, projection months). `backup-db.sh` also archives the agreement
+  files. The screenshot tool gained `--tall` for long pages.
+- **2026-11-12** — **Leave, termination cost, Agreements, Home.** On an employee's
+  page: **Leave** (entries with days counted from the dates; entitlement by law per
+  calendar year — 20 pro rata / 21 / 22, 25 at 10 years here or 12 in all, 26 at 25 —
+  or an override; `App\Support\Leave`) and **If they leave** (`Termination`: severance
+  by completed years × monthly pay capped at 8×30×minimum daily wage + 1/6, halved
+  with notice; plus unused leave, and the leave allowance and bonus earned so far if
+  unpaid). **Agreements** (`/agreements`, and on every entity's page): title, dates
+  (open-ended allowed), notes and a private file (`storage/app/private/agreements`,
+  served only to signed-in users); "ending" within `settings.agreement_warning_days`
+  (30, Angel; changeable on the page). **Home** is now a dashboard: wallets, income due
+  and overdue, taxes this month, rows to reconcile, the year ahead, agreements ending.
+  **Cutover note:** uploads over 2 MB need `upload_max_filesize`/`post_max_size` raised
+  for the site (set to 20M/21M in the copy's own nginx site via `fastcgi_param
+PHP_VALUE`) — the live site's nginx config needs the same line when `next` goes live.
+- **2026-11-12** — **Income tax estimate, Projection.** `IncomeTaxEstimate` works out
+  each fiscal year's profit from the transactions (income − expenses − employer EFKA,
+  by invoice date; tax rows, transfers, shareholders and categories switched off under
+  the new "counts toward profit" tick are left out — Taxes and Deposit start off),
+  then tax, levy, next year's advance less the advance already paid, in 8 installments
+  from July. It stands in until the accountant's figure for that year is entered
+  (`advance_amount` on a year passes its advance on). A year with no activity is not
+  estimated (no levy-only payments). **Finance ▸ Projection** (`App\Support\Projection`):
+  month-by-month starting balance, income, expenses / payroll / contractors / taxes,
+  ending balance, with a hand-drawn SVG graph (no chart library added); range, wallets
+  and "unreconciled past" are remembered per user (`users.preferences`), the range
+  relative to the current month.
+- **2026-11-12** — **Dated rates, tax rules, payroll from gross.** VAT/withholding
+  rates take dated changes (`rate_periods`, `App\Support\Rates`; a rate's page lists
+  them) and amounts use the rate in force on the **invoice date**. Configuration ▸ Tax
+  rules holds dated sets of the law's figures (`tax_rules`, `TaxRules::at()`; sources
+  in `TaxRuleDefaults`). `PayrollCalculator` derives EFKA and FMY from the gross (it
+  reproduces two real 2026 payslips: 920,00 → 25,33 and 1.462,18 at age 27 → 66,69); a
+  payroll period can be set to automatic (`auto_payroll`; existing periods keep their
+  typed figures), bonuses included. Employees get an Employment card (children, birth
+  date, hire date…). Any such change runs `Recalculate::everything()`: unreconciled
+  rows follow, reconciled ones stay.
+- **2026-11-12** — **Include/exclude, income status, Projects, Income.** Everything is
+  entered as real; any item can be **switched off** (Angel: the Excel tick boxes) — it
+  stays in its normal list, struck through, and counts for nothing (balances, taxes).
+  The switch is on a transaction, a recurrence (flips its unreconciled rows; new rows
+  follow) and a project (same). A reconciled row always counts; a tax row can't be
+  switched. One rule for "counts": `Transaction::scopeCounted()` — used by every
+  ledger and balance. An income carries a hand-set **status** (agreed → invoiced →
+  paid, or dropped = counts for nothing); status and reconciling never touch each
+  other (Angel). Existing incomes were backfilled paid/agreed by reconciled.
+  **Projects** are containers of income installments (ordinary transactions with
+  `project_id`); **Finance ▸ Income** lists every income with its status and due
+  buttons. The invoice date now also follows the date on **reconcile** while the two
+  are still equal (Angel: it follows the payment date until changed by hand).
 - **2026-10-30** — **De minimis.** Grant applications keep asking for the table of
   de minimis aid received, and it had to be rebuilt from paper each time. New
   Finance ▸ De minimis keeps one row per grant with the official table's columns, and

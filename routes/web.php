@@ -1,13 +1,23 @@
 <?php
 
+use App\Http\Controllers\AgreementController;
+use App\Http\Controllers\BankImportController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DeMinimisAidController;
 use App\Http\Controllers\EntityController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\IncomeTaxYearController;
+use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\OneOffController;
+use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectionController;
 use App\Http\Controllers\PublicHolidayController;
+use App\Http\Controllers\RateChangeController;
 use App\Http\Controllers\RecurrenceController;
 use App\Http\Controllers\TaxController;
+use App\Http\Controllers\TaxRuleController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VatRateController;
@@ -18,8 +28,8 @@ use Illuminate\Support\Facades\Route;
 // Every active user can use the whole app; a deactivated user is logged out by the
 // EnsureAccountIsActive middleware. Admin-only areas add `can:admin`.
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Home — the landing page after login (a welcome for now).
-    Route::inertia('/', 'home')->name('home');
+    // Home — the landing page after login: what needs attention today.
+    Route::get('/', [HomeController::class, 'index'])->name('home');
 
     // Finance — the day-to-day pages.
     Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
@@ -30,12 +40,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('transactions/bulk', [TransactionController::class, 'bulkDestroy'])->name('transactions.bulk.destroy');
     Route::patch('transactions/{transaction}', [TransactionController::class, 'update'])->name('transactions.update');
     Route::delete('transactions/{transaction}', [TransactionController::class, 'destroy'])->name('transactions.destroy');
+    Route::patch('transactions/{transaction}/excluded', [TransactionController::class, 'exclude'])->name('transactions.exclude');
+    Route::patch('transactions/{transaction}/status', [TransactionController::class, 'status'])->name('transactions.status');
     Route::post('transactions/{transaction}/reconcile', [TransactionController::class, 'reconcile'])->name('transactions.reconcile');
     Route::post('transactions/{transaction}/invoice', [TransactionController::class, 'invoice'])->name('transactions.invoice');
     Route::patch('transactions/{transaction}/description', [TransactionController::class, 'describe'])->name('transactions.describe');
 
     // One-off expenses: tagged transactions, listed apart (added/edited as transactions).
     Route::get('one-offs', [OneOffController::class, 'index'])->name('one-offs.index');
+
+    // Income (every income with its status tag) and Projects (containers of income
+    // installments).
+    // Agreements (files are private, served through `download`).
+    Route::get('agreements', [AgreementController::class, 'index'])->name('agreements.index');
+    Route::post('agreements', [AgreementController::class, 'store'])->name('agreements.store');
+    Route::patch('agreements/warning', [AgreementController::class, 'updateWarning'])->name('agreements.warning');
+    Route::post('agreements/{agreement}', [AgreementController::class, 'update'])->name('agreements.update');
+    Route::delete('agreements/{agreement}', [AgreementController::class, 'destroy'])->name('agreements.destroy');
+    Route::get('agreements/{agreement}/file', [AgreementController::class, 'download'])->name('agreements.download');
+
+    Route::get('projection', [ProjectionController::class, 'index'])->name('projection.index');
+    Route::get('income', [IncomeController::class, 'index'])->name('income.index');
+    Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
+    Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
+    Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+    Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+    Route::patch('projects/{project}/excluded', [ProjectController::class, 'exclude'])->name('projects.exclude');
+    Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
 
     // De minimis grants: the company's record, downloadable as Markdown or Excel.
     // Downloads are registered before the {deMinimisAid} routes.
@@ -45,6 +76,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('de-minimis', [DeMinimisAidController::class, 'store'])->name('de-minimis.store');
     Route::patch('de-minimis/{deMinimisAid}', [DeMinimisAidController::class, 'update'])->name('de-minimis.update');
     Route::delete('de-minimis/{deMinimisAid}', [DeMinimisAidController::class, 'destroy'])->name('de-minimis.destroy');
+
+    Route::get('bank-import', [BankImportController::class, 'index'])->name('bank-import.index');
+    Route::post('bank-import', [BankImportController::class, 'store'])->name('bank-import.store');
+    Route::post('bank-lines/apply', [BankImportController::class, 'apply'])->name('bank-lines.apply');
+    Route::post('bank-lines/{line}/match', [BankImportController::class, 'match'])->name('bank-lines.match');
+    Route::post('bank-lines/{line}/accept', [BankImportController::class, 'accept'])->name('bank-lines.accept');
+    Route::post('bank-lines/{line}/fee', [BankImportController::class, 'fee'])->name('bank-lines.fee');
+    Route::post('bank-lines/{line}/like', [BankImportController::class, 'like'])->name('bank-lines.like');
+    Route::post('bank-lines/{line}/unlink', [BankImportController::class, 'unlink'])->name('bank-lines.unlink');
 
     Route::get('wallets', [WalletController::class, 'index'])->name('wallets.index');
     Route::post('wallets', [WalletController::class, 'store'])->name('wallets.store');
@@ -60,12 +100,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('entities.type');
     Route::get('entities/{entity}', [EntityController::class, 'show'])->whereNumber('entity')->name('entities.show');
     Route::patch('entities/{entity}', [EntityController::class, 'update'])->whereNumber('entity')->name('entities.update');
+    Route::patch('entities/{entity}/employee', [EntityController::class, 'updateEmployee'])->whereNumber('entity')->name('entities.employee');
+    Route::post('entities/{entity}/leave', [LeaveController::class, 'store'])->whereNumber('entity')->name('entities.leave.store');
+    Route::patch('entities/{entity}/leave/{leave}', [LeaveController::class, 'update'])->whereNumber('entity')->name('entities.leave.update');
+    Route::delete('entities/{entity}/leave/{leave}', [LeaveController::class, 'destroy'])->whereNumber('entity')->name('entities.leave.destroy');
+    Route::get('entities/{entity}/termination', [LeaveController::class, 'termination'])->whereNumber('entity')->name('entities.termination');
+    Route::get('payroll/preview', [PayrollController::class, 'preview'])->name('payroll.preview');
     Route::delete('entities/{entity}', [EntityController::class, 'destroy'])->whereNumber('entity')->name('entities.destroy');
 
     // Recurring transactions (defined on an entity's page; all listed on /recurring).
     Route::get('recurring', [RecurrenceController::class, 'index'])->name('recurring.index');
     Route::post('recurrences', [RecurrenceController::class, 'store'])->name('recurrences.store');
     Route::patch('recurrences/{recurrence}', [RecurrenceController::class, 'update'])->name('recurrences.update');
+    Route::patch('recurrences/{recurrence}/excluded', [RecurrenceController::class, 'exclude'])->name('recurrences.exclude');
     Route::delete('recurrences/{recurrence}', [RecurrenceController::class, 'destroy'])->name('recurrences.destroy');
 
     Route::get('taxes', [TaxController::class, 'index'])->name('taxes.index');
@@ -89,6 +136,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('categories/{category}', [CategoryController::class, 'show'])->name('categories.show');
         Route::patch('categories/{category}', [CategoryController::class, 'update'])->name('categories.update');
         Route::delete('categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy');
+
+        // A rate's own page: its dated changes. `{kind}` is vat-rates or
+        // withheld-tax-rates.
+        Route::controller(RateChangeController::class)
+            ->prefix('{kind}/{rate}')
+            ->whereIn('kind', array_keys(RateChangeController::KINDS))
+            ->whereNumber('rate')
+            ->group(function () {
+                Route::get('/', 'show')->name('rates.show');
+                Route::post('changes', 'store')->name('rates.changes.store');
+                Route::patch('changes/{change}', 'update')->name('rates.changes.update');
+                Route::delete('changes/{change}', 'destroy')->name('rates.changes.destroy');
+            });
+
+        Route::get('tax-rules', [TaxRuleController::class, 'index'])->name('tax-rules.index');
+        Route::post('tax-rules', [TaxRuleController::class, 'store'])->name('tax-rules.store');
+        Route::patch('tax-rules/{taxRule}', [TaxRuleController::class, 'update'])->name('tax-rules.update');
+        Route::delete('tax-rules/{taxRule}', [TaxRuleController::class, 'destroy'])->name('tax-rules.destroy');
 
         Route::get('vat-rates', [VatRateController::class, 'index'])->name('vat-rates.index');
         Route::post('vat-rates', [VatRateController::class, 'store'])->name('vat-rates.store');

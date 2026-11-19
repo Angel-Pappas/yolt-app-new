@@ -3,6 +3,7 @@ import {
     Landmark,
     type LucideIcon,
     Percent,
+    Scale,
     Tags,
     Users,
 } from 'lucide-react';
@@ -37,6 +38,13 @@ export const configItems: ConfigItem[] = [
         href: '/configuration/withheld-tax-rates',
         icon: Landmark,
         description: 'Withholding-tax rates kept back on contractor payments.',
+    },
+    {
+        title: 'Tax rules',
+        href: '/configuration/tax-rules',
+        icon: Scale,
+        description:
+            'The tax-law figures behind payroll, company tax and severance, by date.',
     },
     {
         title: 'Public holidays',

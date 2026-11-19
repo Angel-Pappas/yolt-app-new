@@ -38,6 +38,8 @@ type Props = {
     description?: string;
     /** Extra header controls, before the Add button (e.g. a Download menu). */
     toolbar?: ReactNode;
+    /** A row under the header (e.g. summary figures), as on {@see DataTable}. */
+    controls?: ReactNode;
     /**
      * Values submitted on create/edit but not rendered as fields — e.g. a list
      * scoped to one `type` locks that column so every row it adds gets it.
@@ -45,6 +47,8 @@ type Props = {
     fixedValues?: Record<string, string>;
     /** Called when a row is clicked (e.g. to open the item's own page). */
     onRowClick?: (item: CrudItem) => void;
+    /** Each row's own page — makes rows openable in a new tab (see DataTable). */
+    rowHref?: (item: CrudItem) => string;
     /**
      * Hide the per-row edit (pencil) button — for a resource that edits on its own
      * page instead of in the list's dialog. The Add dialog is unaffected.
@@ -74,8 +78,10 @@ export function CrudResource({
     fields,
     description,
     toolbar,
+    controls,
     fixedValues = {},
     onRowClick,
+    rowHref,
     disableEdit = false,
     enableSelection = false,
     getRowId,
@@ -136,7 +142,8 @@ export function CrudResource({
             header: () => null,
             cell: ({ row }) => (
                 <div
-                    className="flex justify-end gap-1"
+                    // Above a row's stretched open-in-new-tab link.
+                    className="relative z-10 flex justify-end gap-1"
                     onClick={(e) => e.stopPropagation()}
                 >
                     {!disableEdit && (
@@ -171,11 +178,13 @@ export function CrudResource({
                 searchPlaceholder={`Search ${title.toLowerCase()}…`}
                 emptyMessage={`No ${title.toLowerCase()} yet.`}
                 onRowClick={onRowClick}
+                rowHref={rowHref}
                 enableSelection={enableSelection}
                 getRowId={getRowId}
                 renderBulkActions={renderBulkActions}
                 enableTotals={columns.some((col) => col.footer)}
                 toolbar={toolbar}
+                controls={controls}
                 action={
                     <Button
                         onClick={openCreate}

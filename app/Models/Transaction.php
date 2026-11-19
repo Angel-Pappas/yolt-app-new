@@ -10,12 +10,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
  * @property int|null $user_id
- * @property string $date
- * @property string $invoice_date
+ * @property Carbon $date
+ * @property int|null $bank_position
+ * @property int|null $bank_line_id
+ * @property Carbon $invoice_date
  * @property string $description
  * @property string $type
  * @property string $net
@@ -31,6 +34,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int|null $vat_rate_id
  * @property bool $is_reconciled
  * @property bool $is_one_off
+ * @property bool $is_excluded
+ * @property string|null $income_status
+ * @property int|null $project_id
  * @property int|null $invoice_month
  * @property bool $invoice_not_required
  * @property string|null $source
@@ -39,6 +45,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 #[Fillable([
     'date',
+    'bank_position',
     'invoice_date',
     'description',
     'type',
@@ -55,6 +62,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'vat_rate_id',
     'is_reconciled',
     'is_one_off',
+    'is_excluded',
+    'income_status',
+    'project_id',
     'invoice_month',
     'invoice_not_required',
     'source',
@@ -65,6 +75,43 @@ class Transaction extends Model
 {
     /** @use HasFactory<TransactionFactory> */
     use HasFactory, SoftDeletes;
+
+    /** The hand-set tags an income can carry. Independent of reconciling. */
+    public const INCOME_STATUSES = ['agreed', 'invoiced', 'paid', 'dropped'];
+
+    /**
+     * The rows that count: not switched off, and not a dropped income. Every balance,
+     * projection and tax figure is computed from these only — an excluded or dropped
+     * row stays in the lists but counts for nothing.
+     *
+     * @param  Builder<Transaction>  $query
+     */
+    public function scopeCounted(Builder $query): void
+    {
+        $query->where('is_excluded', false)
+            ->where(fn ($q) => $q->whereNull('income_status')->orWhere('income_status', '!=', 'dropped'));
+    }
+
+    /** Whether this row counts (see {@see scopeCounted()}). */
+    public function counts(): bool
+    {
+        return ! $this->is_excluded && $this->income_status !== 'dropped';
+    }
+
+    /**
+     * Date order, and within a day the bank statement's order: rows a statement has
+     * confirmed first, in the bank's sequence, then the rest in the order they were
+     * added.
+     *
+     * @param  Builder<Transaction>  $query
+     */
+    public function scopeInBankOrder(Builder $query): void
+    {
+        $query->orderBy('date')
+            ->orderByRaw('bank_position is null')
+            ->orderBy('bank_position')
+            ->orderBy('id');
+    }
 
     /**
      * Eager-load everything the shared transactions table needs to display a row and
@@ -80,6 +127,7 @@ class Transaction extends Model
             'toWallet:id,name',
             'entity:id,name',
             'category:id,name',
+            'project:id,name',
             'vatLines' => fn ($q) => $q->orderBy('position')->select('id', 'transaction_id', 'net', 'vat_rate_id', 'position'),
             'withheldLines' => fn ($q) => $q->orderBy('position')->select('id', 'transaction_id', 'net', 'withheld_rate_id', 'position'),
         ]);
@@ -98,9 +146,21 @@ class Transaction extends Model
             'efka_employer_amount' => 'decimal:2',
             'is_reconciled' => 'boolean',
             'is_one_off' => 'boolean',
+            'is_excluded' => 'boolean',
             'invoice_not_required' => 'boolean',
             'invoice_month' => 'integer',
+            'bank_position' => 'integer',
         ];
+    }
+
+    /**
+     * The bank statement line this row is (part of), if paired.
+     *
+     * @return BelongsTo<BankLine, $this>
+     */
+    public function bankLine(): BelongsTo
+    {
+        return $this->belongsTo(BankLine::class);
     }
 
     /** @return BelongsTo<Wallet, $this> */
@@ -131,6 +191,12 @@ class Transaction extends Model
     public function vatRate(): BelongsTo
     {
         return $this->belongsTo(VatRate::class);
+    }
+
+    /** @return BelongsTo<Project, $this> */
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
     }
 
     /** @return BelongsTo<Recurrence, $this> */

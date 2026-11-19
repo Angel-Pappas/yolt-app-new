@@ -15,6 +15,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 
 type Category = {
@@ -22,6 +23,7 @@ type Category = {
     name: string;
     type: string;
     description: string | null;
+    counts_for_profit: boolean;
 };
 
 type Option = { id: number; name: string };
@@ -42,6 +44,7 @@ export default function CategoryShow({
         name: category.name,
         description: category.description ?? '',
         type: category.type,
+        counts_for_profit: category.counts_for_profit,
     });
     const [moveTarget, setMoveTarget] = useState('');
 
@@ -135,6 +138,21 @@ export default function CategoryShow({
                                 />
                                 <InputError message={form.errors.description} />
                             </div>
+                            <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                                <Checkbox
+                                    checked={form.data.counts_for_profit}
+                                    onCheckedChange={(v) =>
+                                        form.setData(
+                                            'counts_for_profit',
+                                            v === true,
+                                        )
+                                    }
+                                />
+                                Counts toward the company's profit (used for the
+                                income tax estimate). Turn off for money that
+                                only passes through, like deposits or tax
+                                payments.
+                            </label>
                             <div className="sm:col-span-2">
                                 <Button
                                     type="submit"

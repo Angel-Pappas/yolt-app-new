@@ -1,6 +1,10 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { type FormEvent } from 'react';
+import {
+    type Agreement,
+    AgreementsTable,
+} from '@/components/agreements/agreements-table';
 import InputError from '@/components/input-error';
 import { TransactionsTable } from '@/components/transactions/transactions-table';
 import { type Transaction } from '@/components/transactions/types';
@@ -16,7 +20,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { type RecurrenceRecord } from '@/components/recurrences/recurrence-form-dialog';
+import { type EmployeeDetails, EmployeePanel } from './employee-panel';
+import { type LeaveData, LeavePanel } from './leave-panel';
 import { RecurrencesPanel } from './recurrences-panel';
+import { TerminationPanel } from './termination-panel';
 
 type Entity = {
     id: number;
@@ -29,6 +36,11 @@ type Props = {
     entity: Entity;
     transactions: Transaction[];
     recurrences: RecurrenceRecord[];
+    agreements: Agreement[];
+    /** An employee's details for payroll, leave and severance; null otherwise. */
+    employee: EmployeeDetails | null;
+    /** An employee's leave entries and yearly summary; null otherwise. */
+    leave: LeaveData | null;
     /** The back link: the entity's own list (or the tax pages for the State). */
     listHref: string;
     listTitle: string;
@@ -47,6 +59,9 @@ export default function EntityShow({
     entity,
     transactions,
     recurrences,
+    agreements,
+    employee,
+    leave,
     listHref,
     listTitle,
 }: Props) {
@@ -146,7 +161,21 @@ export default function EntityShow({
                     </CardContent>
                 </Card>
 
+                {employee && (
+                    <EmployeePanel entityId={entity.id} employee={employee} />
+                )}
+
                 <RecurrencesPanel entity={entity} recurrences={recurrences} />
+
+                {employee && <TerminationPanel entityId={entity.id} />}
+                {leave && <LeavePanel entityId={entity.id} leave={leave} />}
+
+                {entity.type !== 'state' && (
+                    <AgreementsTable
+                        agreements={agreements}
+                        entityId={entity.id}
+                    />
+                )}
 
                 <TransactionsTable
                     transactions={transactions}

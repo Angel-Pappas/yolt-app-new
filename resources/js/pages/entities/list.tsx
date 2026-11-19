@@ -62,6 +62,7 @@ export default function EntitiesList({ entities, title, singular }: Props) {
                     onRowClick={(item: CrudItem) =>
                         router.visit(`/entities/${item.id}`)
                     }
+                    rowHref={(item: CrudItem) => `/entities/${item.id}`}
                     disableEdit
                 />
             </div>

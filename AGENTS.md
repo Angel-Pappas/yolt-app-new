@@ -161,15 +161,18 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
   use `CrudResource`.
 - **Transactions** (`TransactionController`): `validateTransaction()` (rules branch
   on type — income/expense carry a `lines[]` array; transfer needs `to_wallet_id`
-  `different` from `wallet_id`), `persist()` (fills fields + rewrites VAT lines
-  wholesale; nulls the other shape's fields on a type change), and
+  `different` from `wallet_id`), `App\Support\TransactionWriter` — `persist()`
+  (fills fields + rewrites VAT lines wholesale; nulls the other shape's fields on a
+  type change), `rescaleLines()` / `toCash()` (a saved row to a new amount), shared by
+  the form, Reconcile and the Bank import — and
   `App\Support\AmountLines::resolve()` (**VAT is always computed server-side from
   the rate's current % — never trusted from the client**; the one resolver shared
   with `RecurrenceGenerator`, so generated rows match typed ones). Form:
   `transaction-form-dialog.tsx` (create + edit; the list remounts it via a `key`
   bump for a fresh form). Its amount area (VAT lines, W toggle, Net/Total, summary,
   payroll fields) is `components/transactions/amount-lines.tsx`, shared with the
-  recurrence form — change it there, not per form.
+  recurrence form — change it there, not per form. Lists of transactions are ordered
+  with `->inBankOrder()` (date, then the bank statement's order within the day).
 - **Recurrences:** one form, `components/recurrences/recurrence-form-dialog.tsx`, used
   by the entity page's panel (entity fixed) and Finance ▸ Recurring (`entity={null}`
   shows an entity picker). What a new recurrence starts as comes from
@@ -189,6 +192,22 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
       auto-generated) never count there; nor does a reconciled future-dated row.
     - `runningFor()` — the **Transactions balance view**: **every** row of the wallet,
       in date order, whatever its date or reconciled state, so each row's effect shows.
+- **What counts:** read transactions for any figure through
+  `Transaction::query()->counted()` (not switched off, not a dropped income) — never
+  the bare table. Generators set `is_excluded` / `income_status` only on a row's
+  first creation (`RecurrenceGenerator::newRowDefaults`), so hand changes survive.
+- **Dated rules:** a percentage or law figure is never read "as of now" for a dated
+  thing — use `Rates::vat($id, $date)` / `Rates::withheld()` (the invoice date) and
+  `TaxRules::at($date)`; pass the date to `AmountLines::resolve(…, $date)`. After any
+  change to rules call `Recalculate::everything()`.
+- **Live previews of server maths** that would need a client twin (payroll,
+  termination) are fetched from the server's own calculator (`/payroll/preview`,
+  `/entities/{id}/termination`) instead of being re-implemented in TypeScript.
+- **Remembered view state:** `useStoredState(key, initial)` for page toggles; a
+  `DataTable` remembers itself by `title` (or `stateKey` when a page has two tables
+  with one title, or one table with changing columns).
+- **Row links:** give a list `rowHref` (plus `onRowClick`) whenever a row opens
+  something, and lift the row's buttons above the link (`relative z-10`).
 - **Schema:** bigint PKs, `foreignId(...)->constrained()`, `softDeletes()`,
   `timestamps()`, a nullable `user_id` audit FK on shared tables. Models use the
   Laravel-13 `#[Fillable([...])]` attribute + a `casts()` method. Existing UUIDs are
@@ -227,7 +246,7 @@ php artisan test                # Pest
   SQLite with realistic FAKE data (3 wallets, ~3 months of transactions, categories,
   entities, rates) and a login `demo@example.com` / `password`. Dev only — never live.
 - **Screenshots:** `pnpm run shots /transactions "/transactions?balance=1"`
-  (`--mobile` = 390×844, `--dark`, `--click=<button name>` to click e.g. a tab first; repeatable) → PNGs in `storage/screenshots/` (gitignored), then
+  (`--mobile` = 390×844, `--dark`, `--tall` = a 2600px-high window for long pages, `--click=<button name>` to click e.g. a tab first; repeatable) → PNGs in `storage/screenshots/` (gitignored), then
   read them. It boots `php artisan serve` on port 8123 if needed and caches the login.
   Needs `pnpm run build` first (it serves the built assets). Uses `playwright-core`
   pinned to **1.63.0** because that version's Chromium (revision 1243) is already in

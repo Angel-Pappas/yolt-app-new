@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Rates;
 use Database\Factories\WithheldTaxRateFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -25,5 +26,12 @@ class WithheldTaxRate extends Model
         return [
             'rate' => 'decimal:2',
         ];
+    }
+
+    /** A change to a rate must be seen by every calculation in the same request. */
+    protected static function booted(): void
+    {
+        static::saved(fn () => Rates::flush());
+        static::deleted(fn () => Rates::flush());
     }
 }
