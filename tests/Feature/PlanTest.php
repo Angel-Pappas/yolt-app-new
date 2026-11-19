@@ -132,3 +132,26 @@ test('the plan read back from the cache is the plan built fresh', function () {
 
     expect($snapshot())->toBe($fresh);
 });
+
+test('a recurrence occurrence is settled by its payment, a few cents off or not', function () {
+    $wallet = Wallet::factory()->create();
+    $supplier = Entity::factory()->supplier()->create();
+    $recurrence = Recurrence::factory()->create([
+        'entity_id' => $supplier->id, 'wallet_id' => $wallet->id, 'interval_count' => 1, 'interval_unit' => 'month',
+        'day_of_month' => 5, 'start_date' => '2026-11-01', 'end_date' => '2026-11-30',
+    ]);
+    $entry = RecurrenceEntry::factory()->create(['recurrence_id' => $recurrence->id, 'start_date' => '2026-11-01', 'end_date' => null, 'net' => 0]);
+    RecurrenceEntryLine::factory()->create(['recurrence_entry_id' => $entry->id, 'amount' => 54, 'position' => 0]);
+    $key = "recurrence:{$recurrence->id}:2026-11-05";
+    Transaction::factory()->create([
+        'type' => 'expense', 'date' => '2026-11-05', 'invoice_date' => '2026-11-05', 'net' => 53.10,
+        'vat_amount' => 0, 'withheld_amount' => 0, 'wallet_id' => $wallet->id, 'managed_key' => $key, 'is_reconciled' => true,
+    ]);
+
+    expect(Plan::find($key)->isDone())->toBeTrue();
+
+    // Split on purpose at the bank: the rest stays open.
+    PlanAdjustment::query()->create(['plan_key' => $key, 'date' => '2026-12-05', 'part_paid' => true]);
+    Plan::flush();
+    expect(Plan::find($key)->open())->toBe(0.9);
+});

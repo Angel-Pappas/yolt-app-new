@@ -15,12 +15,13 @@ use Illuminate\Support\Carbon;
  * @property string $plan_key
  * @property Carbon|null $date
  * @property bool $cancelled
+ * @property bool $part_paid the rest of a payment split on purpose stays open
  */
-#[Fillable(['plan_key', 'date', 'cancelled', 'user_id'])]
+#[Fillable(['plan_key', 'date', 'cancelled', 'part_paid', 'user_id'])]
 class PlanAdjustment extends Model
 {
     protected function casts(): array
     {
-        return ['date' => 'date', 'cancelled' => 'boolean'];
+        return ['date' => 'date', 'cancelled' => 'boolean', 'part_paid' => 'boolean'];
     }
 }

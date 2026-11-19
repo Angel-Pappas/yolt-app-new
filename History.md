@@ -12,6 +12,16 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-19** — **Plan follow-up on the real data.** After the go-live, the live
+  data showed "not matched" crumbs (AWS 1,01, Google 0,90, bonus differences): a
+  real bill or payslip differs a little from the planned estimate, and the plan
+  kept the difference open. A recurrence occurrence or tax payment is now **settled
+  by its payment whatever the exact amount**; only a part payment made on purpose at
+  the bank (rest given a date, `part_paid`) keeps the rest open. Planned rows
+  (one-offs, customer payment lines) keep exact partial amounts, as agreed. Also the
+  plan rebuild was 2,5 s on live: payroll bonuses are now worked out per salary
+  period (date ranges) instead of day by day, and only for pay days inside the plan's
+  window — same results (all bonus tests unchanged), about 2,5× faster.
 - **2026-11-19** — **Books, plan and income.** Three designs agreed with Angel the same
   day, built together (full plan, kept in `docs/archive/Plan - books, plan and
 income.md`):

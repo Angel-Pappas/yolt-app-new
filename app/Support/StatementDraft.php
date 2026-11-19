@@ -404,7 +404,7 @@ final class StatementDraft
             if ($planned !== null) {
                 $planned->forceFill(['date' => $p['rest'], 'invoice_pinned' => true])->save();
             } else {
-                PlanAdjustment::query()->updateOrCreate(['plan_key' => $item->key], ['date' => $p['rest'], 'user_id' => $userId]);
+                PlanAdjustment::query()->updateOrCreate(['plan_key' => $item->key], ['date' => $p['rest'], 'part_paid' => true, 'user_id' => $userId]);
             }
         } elseif ($rest < 0.005 && $planned !== null && $planned->type === 'income') {
             $planned->forceFill(['is_issued' => true])->save();

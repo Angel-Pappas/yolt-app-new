@@ -25,8 +25,11 @@ use Illuminate\Support\Facades\Cache;
  *  - **planned one-offs** and **customer payment lines** — kept as planned rows
  *    ({@see PlannedTransaction}), key `planned:{id}`.
  *
- * A real transaction carrying an item's key (`managed_key`) pays it; the item stays
- * open for what is left. A computed item can be moved or cancelled by hand
+ * A real transaction carrying an item's key (`managed_key`) pays it. A planned row
+ * (one-off, payment line) stays open for what is left; a computed item (recurrence,
+ * tax) is settled by its payment whatever the exact amount — a bill or payslip
+ * differs a little from the estimate — unless it was paid in part on purpose (the
+ * rest given a date at the bank: `part_paid`). A computed item can be moved or cancelled by hand
  * ({@see PlanAdjustment}). Nothing is planned before the floor (`managed_from`);
  * recurrences reach 24 months ahead.
  *
@@ -264,6 +267,10 @@ final class Plan
             $total = round(WalletBalances::cashTotal($t), 2);
             if ($total <= 0) {
                 continue; // nothing to expect
+            }
+            // A computed item's payment settles it, unless the rest was kept on purpose.
+            if (in_array($kind, ['recurrence', 'tax'], true) && $donePaid > 0 && ! $adjustment?->part_paid) {
+                $donePaid = max($donePaid, $total);
             }
             $cancelled = (bool) $adjustment?->cancelled;
             $until = $concluded->get($t->wallet_id);

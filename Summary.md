@@ -159,9 +159,12 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
     - **planned one-offs** and **customer payment lines** — kept as **planned rows** of
       the `transactions` table (`PlannedTransaction`, `is_planned`), hidden from every
       real query by a global scope — key `planned:{id}`.
-- **Paid by key:** a real row carrying an item's key (`managed_key`) pays it; the
-  item's **open amount = its cash − what real rows with its key moved**. Open ≤ 0 →
-  done. A computed item can be **moved** or **cancelled** by hand
+- **Paid by key:** a real row carrying an item's key (`managed_key`) pays it. A
+  planned row (one-off, payment line) stays open for what is left (**open = its cash
+  − what real rows with its key moved**). A computed item (recurrence occurrence,
+  tax payment) is **settled by its payment whatever the exact amount** — a bill or a
+  payslip differs a little from the estimate — unless it was paid in part on purpose
+  at the bank (the rest given a date: `plan_adjustments.part_paid`). A computed item can be **moved** or **cancelled** by hand
   (`plan_adjustments`); a planned row is just edited or deleted.
 - **Concluded dates:** each wallet has a **concluded-up-to** date
   (`wallets.concluded_until`; Alpha's moves when a statement is concluded, any other
@@ -176,8 +179,7 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
 - The plan is kept in the cache as plain data under one fixed key, stamped with a
   version and the day; any save (a listener in `AppServiceProvider`) or form
   submission (`FlushPlanAfterWrites`) bumps the version, so every page shows it as
-  the data now stands. A rebuild takes about a second (employees' bonuses are worked
-  out day by day); a cached read about 60 ms.
+  the data now stands. A rebuild takes well under a second; a cached read about 60 ms.
 
 ## Income: customers, projects, payment lines (Angel, 2026-11-19)
 

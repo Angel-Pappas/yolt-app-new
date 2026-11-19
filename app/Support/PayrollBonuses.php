@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Recurrence;
+use App\Models\RecurrenceEntry;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
@@ -70,12 +71,13 @@ final class PayrollBonuses
         $out = [];
         for ($year = $recurrence->start_date->year; $year <= $until->year; $year++) {
             foreach (array_keys(self::LABELS) as $kind) {
-                $amounts = self::amounts($recurrence, $kind, $year);
-                if ($amounts === null) {
-                    continue;
-                }
+                // The pay day first: a bonus outside the window isn't worked out.
                 $date = self::payDate($recurrence, $kind, $year, $holidays);
                 if ($date->lessThan($from->startOfDay()) || $date->greaterThan($until)) {
+                    continue;
+                }
+                $amounts = self::amounts($recurrence, $kind, $year);
+                if ($amounts === null) {
                     continue;
                 }
                 // A period set to automatic: FMY and EFKA are calculated on the bonus
@@ -111,15 +113,19 @@ final class PayrollBonuses
         $present = array_fill_keys($fields, false);
         $days = 0;
 
-        for ($day = $first; $day->lessThanOrEqualTo($last); $day = $day->addDay()) {
-            $entry = RecurrenceGenerator::entryFor($recurrence, $day);
-            if ($entry === null) {
-                continue; // before the start, after the end, or in a gap
+        // Each period counts for the days of the accrual period it is in force (the
+        // same days `entryFor()` would give it, one by one): from its start until its
+        // end or the next period's start.
+        [$from, $to] = [$first->toDateString(), $last->toDateString()];
+        foreach (self::segments($recurrence) as [$entry, $start, $end]) {
+            $overlap = self::daysBetween(max($start, $from), min($end, $to));
+            if ($overlap <= 0) {
+                continue;
             }
-            $days++;
+            $days += $overlap;
             foreach ($fields as $field) {
                 if ($entry->{$field} !== null) {
-                    $sums[$field] += (float) $entry->{$field};
+                    $sums[$field] += (float) $entry->{$field} * $overlap;
                     $present[$field] = true;
                 }
             }
@@ -154,14 +160,52 @@ final class PayrollBonuses
     public static function isAutomatic(Recurrence $recurrence, string $kind, int $year): bool
     {
         [$first, $last] = self::accrualPeriod($kind, $year);
-        for ($day = $last; $day->greaterThanOrEqualTo($first); $day = $day->subDay()) {
-            $entry = RecurrenceGenerator::entryFor($recurrence, $day);
-            if ($entry !== null) {
-                return (bool) $entry->auto_payroll;
+        $latest = null;
+        [$from, $to] = [$first->toDateString(), $last->toDateString()];
+        foreach (self::segments($recurrence) as [$entry, $start, $end]) {
+            if ($start <= $to && $end >= $from) {
+                $latest = $entry; // segments run in date order: the last one wins
             }
         }
 
-        return false;
+        return (bool) $latest?->auto_payroll;
+    }
+
+    /**
+     * The days each period is in force, in order: from its start to its end, or to
+     * the day before the next period starts (a later start supersedes an open end).
+     * Dates as 'Y-m-d' strings, so they compare as text.
+     *
+     * @return list<array{0: RecurrenceEntry, 1: string, 2: string}>
+     */
+    private static function segments(Recurrence $recurrence): array
+    {
+        $entries = $recurrence->entries->values();
+        $out = [];
+        foreach ($entries as $i => $entry) {
+            $start = $entry->start_date->toDateString();
+            $end = $entry->end_date?->toDateString() ?? '9999-12-31';
+            $next = $entries->get($i + 1);
+            if ($next !== null) {
+                $dayBefore = $next->start_date->subDay()->toDateString();
+                $end = min($end, $dayBefore);
+            }
+            if ($end >= $start) {
+                $out[] = [$entry, $start, $end];
+            }
+        }
+
+        return $out;
+    }
+
+    /** Days from one date to another, both included ('Y-m-d'); 0 when the range is empty. */
+    private static function daysBetween(string $from, string $to): int
+    {
+        if ($to < $from) {
+            return 0;
+        }
+
+        return (int) CarbonImmutable::parse($from)->diffInDays(CarbonImmutable::parse($to)) + 1;
     }
 
     /**

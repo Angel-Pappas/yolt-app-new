@@ -63,18 +63,16 @@ test('the planned payment goes when the obligation disappears', function () {
     expect(taxPayments())->not->toHaveKey('tax:vat:2026-02');
 });
 
-test('a real payment carrying the key pays the planned one, in part or in full', function () {
+test('a real payment carrying the key settles the planned one, whatever its exact amount', function () {
     $wallet = Wallet::factory()->create();
     vatIncome($wallet, 24);
 
-    $payment = Transaction::factory()->create([
+    Transaction::factory()->create([
         'type' => 'expense', 'date' => '2026-03-31', 'invoice_date' => '2026-03-31',
-        'net' => 10, 'vat_amount' => 0, 'wallet_id' => $wallet->id,
+        'net' => 23.50, 'vat_amount' => 0, 'wallet_id' => $wallet->id,
         'source' => 'tax', 'managed_key' => 'tax:vat:2026-02', 'is_reconciled' => true,
     ]);
-    expect(taxPayments()['tax:vat:2026-02'])->toBe(14.0);
 
-    $payment->update(['net' => 24]);
     expect(taxPayments())->not->toHaveKey('tax:vat:2026-02');
 });
 
