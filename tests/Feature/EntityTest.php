@@ -214,7 +214,7 @@ test('an entity has its own detail page', function () {
         );
 });
 
-test('the State entity page links back to the tax pages', function () {
+test('the State entity page links back to the State tab of Entities', function () {
     $user = User::factory()->create();
     $state = Entity::factory()->stateType()->create();
 
@@ -222,9 +222,33 @@ test('the State entity page links back to the tax pages', function () {
         ->get("/entities/{$state->id}")
         ->assertInertia(
             fn ($page) => $page
-                ->where('listHref', '/taxes')
+                ->where('listHref', '/entities/state')
                 ->where('listTitle', 'State'),
         );
+});
+
+test('the State tab lists the state entities', function () {
+    $user = User::factory()->create();
+    Entity::factory()->stateType()->create(['name' => 'AADE']);
+    Entity::factory()->create(['name' => 'Supplier']);
+
+    $this->actingAs($user)
+        ->get('/entities/state')
+        ->assertInertia(fn ($page) => $page
+            ->component('entities/list')
+            ->where('tab', '/entities/state')
+            ->has('entities', 1)
+            ->where('entities.0.name', 'AADE'));
+});
+
+test('the old planning addresses redirect to their tabs', function () {
+    $user = User::factory()->create();
+
+    foreach (['/income' => '/planning/income', '/recurring' => '/planning/recurring',
+        '/one-offs' => '/planning/one-offs', '/taxes' => '/planning/taxes',
+        '/taxes/vat' => '/planning/taxes/vat', '/planning' => '/planning/income'] as $old => $new) {
+        $this->actingAs($user)->get($old)->assertRedirect($new);
+    }
 });
 
 test('a factory entity defaults to a supplier', function () {

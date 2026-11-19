@@ -1,10 +1,22 @@
 <?php
 
+use App\Models\Entity;
+use App\Models\PlannedTransaction;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Support\Plan;
+use Illuminate\Support\Carbon;
 
-/** A minimal expense payload for POST/PATCH /transactions. */
+beforeEach(function () {
+    Carbon::setTestNow('2026-09-20');
+});
+
+afterEach(function () {
+    Carbon::setTestNow();
+});
+
+/** A minimal one-off payload (the transaction form's shape). */
 function oneOffPayload(Wallet $wallet, array $extra = []): array
 {
     return array_merge([
@@ -18,72 +30,62 @@ function oneOffPayload(Wallet $wallet, array $extra = []): array
     ], $extra);
 }
 
-test('a transaction added from the One-offs page is tagged a one-off', function () {
+test('a one-off is planned, not a transaction', function () {
     $wallet = Wallet::factory()->create();
 
     $this->actingAs(User::factory()->create())
-        ->post('/transactions', oneOffPayload($wallet, ['is_one_off' => true]))
+        ->post('/one-offs', oneOffPayload($wallet))
         ->assertRedirect();
 
-    expect(Transaction::query()->whereNull('source')->sole()->is_one_off)->toBeTrue();
+    $oneOff = PlannedTransaction::query()->sole();
+    expect($oneOff->is_one_off)->toBeTrue();
+    expect($oneOff->type)->toBe('expense');
+    expect(Transaction::query()->count())->toBe(0);
+    expect(Plan::find($oneOff->planKey())->open())->toBe(1200.0);
 });
 
-test('an ordinary transaction is not a one-off', function () {
-    $wallet = Wallet::factory()->create();
-
-    $this->actingAs(User::factory()->create())->post('/transactions', oneOffPayload($wallet));
-
-    expect(Transaction::query()->whereNull('source')->sole()->is_one_off)->toBeFalse();
-});
-
-test('editing a one-off keeps its tag', function () {
+test('a one-off can be edited, switched off and deleted', function () {
     $wallet = Wallet::factory()->create();
     $user = User::factory()->create();
-    $this->actingAs($user)->post('/transactions', oneOffPayload($wallet, ['is_one_off' => true]));
-    $transaction = Transaction::query()->whereNull('source')->sole();
+    $this->actingAs($user)->post('/one-offs', oneOffPayload($wallet));
+    $oneOff = PlannedTransaction::query()->sole();
 
-    // The shared edit form never sends the tag.
-    $this->actingAs($user)
-        ->patch("/transactions/{$transaction->id}", oneOffPayload($wallet, ['description' => 'Laptop']))
-        ->assertRedirect();
+    $this->actingAs($user)->patch("/one-offs/{$oneOff->id}", oneOffPayload($wallet, ['lines' => [['amount' => '900']]]))->assertRedirect();
+    expect((float) $oneOff->refresh()->net)->toBe(900.0);
 
-    expect($transaction->refresh()->is_one_off)->toBeTrue();
-    expect($transaction->description)->toBe('Laptop');
+    $this->actingAs($user)->patch("/one-offs/{$oneOff->id}/excluded", ['excluded' => true])->assertRedirect();
+    expect($oneOff->refresh()->is_excluded)->toBeTrue();
+    expect(Plan::counted()->where('managed_key', $oneOff->planKey()))->toHaveCount(0);
+
+    $this->actingAs($user)->delete("/one-offs/{$oneOff->id}")->assertRedirect();
+    expect(PlannedTransaction::query()->count())->toBe(0);
 });
 
-test('reconciling a one-off keeps its tag', function () {
-    $transaction = Transaction::factory()->create(['is_one_off' => true, 'type' => 'expense']);
+test('a real transaction that pays a one-off makes it done', function () {
+    $wallet = Wallet::factory()->create();
+    $supplier = Entity::factory()->supplier()->create();
+    $user = User::factory()->create();
+    $this->actingAs($user)->post('/one-offs', oneOffPayload($wallet, ['entity_id' => $supplier->id]));
+    $oneOff = PlannedTransaction::query()->sole();
 
-    $transaction->update(['is_reconciled' => true]);
+    $this->actingAs($user)->post('/transactions', oneOffPayload($wallet, [
+        'entity_id' => $supplier->id, 'managed_key' => $oneOff->planKey(),
+    ]))->assertRedirect();
 
-    expect($transaction->refresh()->is_one_off)->toBeTrue();
+    expect(Plan::find($oneOff->planKey())->isDone())->toBeTrue();
+    $this->actingAs($user)->get('/planning/one-offs')
+        ->assertInertia(fn ($page) => $page->component('one-offs/index')
+            ->where('transactions.0.done', true)
+            ->where('transactions.0.open', 0));
 });
 
-test('the One-offs page lists only one-offs, open and reconciled', function () {
-    $open = Transaction::factory()->create(['is_one_off' => true, 'is_reconciled' => false]);
-    Transaction::factory()->create(['is_one_off' => true, 'is_reconciled' => true]);
-    Transaction::factory()->create(['is_one_off' => false]);
+test('a one-off route never reaches a real transaction', function () {
+    $real = Transaction::factory()->create(['is_one_off' => true]);
 
-    $this->actingAs(User::factory()->create())
-        ->get('/one-offs')
-        ->assertOk()
-        ->assertInertia(
-            fn ($page) => $page
-                ->component('one-offs/index')
-                ->has('transactions', 2)
-                ->where('transactions.0.id', $open->id)
-                ->where('transactions.1.is_reconciled', true),
-        );
-});
-
-test('a deleted one-off is not listed', function () {
-    Transaction::factory()->create(['is_one_off' => true])->delete();
-
-    $this->actingAs(User::factory()->create())
-        ->get('/one-offs')
-        ->assertInertia(fn ($page) => $page->has('transactions', 0));
+    $this->actingAs(User::factory()->create())->delete("/one-offs/{$real->id}")->assertNotFound();
+    expect(Transaction::find($real->id))->not->toBeNull();
 });
 
 test('a guest cannot see the One-offs page', function () {
-    $this->get('/one-offs')->assertRedirect(route('login'));
+    $this->get('/planning/one-offs')->assertRedirect('/login');
 });

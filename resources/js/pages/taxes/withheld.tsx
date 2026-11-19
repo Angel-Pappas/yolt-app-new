@@ -43,7 +43,7 @@ export default function TaxesWithheld({
 
 TaxesWithheld.layout = {
     breadcrumbs: [
-        { title: 'Taxes', href: '/taxes' },
-        { title: 'Withholding tax', href: '/taxes/withheld' },
+        { title: 'Taxes', href: '/planning/taxes' },
+        { title: 'Withholding tax', href: '/planning/taxes/withheld' },
     ],
 };

@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int|null $user_id
  * @property int $wallet_id
+ * @property int|null $bank_statement_id
  * @property Carbon $date
  * @property int $position
  * @property string $text
@@ -26,7 +27,7 @@ use Illuminate\Support\Carbon;
  * @property string $reference
  * @property string $fingerprint
  */
-#[Fillable(['wallet_id', 'date', 'position', 'text', 'amount', 'reference', 'fingerprint'])]
+#[Fillable(['wallet_id', 'bank_statement_id', 'date', 'position', 'text', 'amount', 'reference', 'fingerprint'])]
 class BankLine extends Model
 {
     protected function casts(): array
@@ -53,6 +54,12 @@ class BankLine extends Model
     public function isPending(): bool
     {
         return $this->transactions->isEmpty();
+    }
+
+    /** @return BelongsTo<BankStatement, $this> */
+    public function statement(): BelongsTo
+    {
+        return $this->belongsTo(BankStatement::class, 'bank_statement_id');
     }
 
     /** @return BelongsTo<Wallet, $this> */

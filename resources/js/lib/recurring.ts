@@ -2,8 +2,7 @@
 export const RECURRING_GROUPS = [
     { key: 'payroll', label: 'Payroll' },
     { key: 'contractors', label: 'Contractors' },
-    { key: 'expenses', label: 'Expenses' },
-    { key: 'income', label: 'Income' },
+    { key: 'expenses', label: 'Other' },
 ] as const;
 
 export type RecurringGroup = (typeof RECURRING_GROUPS)[number]['key'];
@@ -12,7 +11,7 @@ export type RecurringGroup = (typeof RECURRING_GROUPS)[number]['key'];
 export function groupCounts(
     rows: { group: string }[],
 ): Record<RecurringGroup, number> {
-    const counts = { payroll: 0, contractors: 0, expenses: 0, income: 0 };
+    const counts = { payroll: 0, contractors: 0, expenses: 0 };
     for (const row of rows) {
         if (row.group in counts) counts[row.group as RecurringGroup]++;
     }
@@ -29,19 +28,16 @@ export function defaultGroup(rows: { group: string }[]): RecurringGroup {
 }
 
 /**
- * What a new recurrence for an entity of this type starts as: a customer pays us
- * (income); everyone else is paid (expense), and an employee is paid through the
- * Payroll category. Used wherever a recurrence is created, so it lands in the same
- * Recurring group whichever page it was added from.
+ * What a new recurrence for an entity of this type starts as: an expense (recurring
+ * income lives on the customer, as payment lines), and an employee is paid through
+ * the Payroll category. Used wherever a recurrence is created, so it lands in the
+ * same Recurring group whichever page it was added from.
  */
 export function recurrenceDefaults(entityType: string | undefined): {
-    type: 'income' | 'expense';
+    type: 'expense';
     payroll: boolean;
 } {
-    return {
-        type: entityType === 'customer' ? 'income' : 'expense',
-        payroll: entityType === 'employee',
-    };
+    return { type: 'expense', payroll: entityType === 'employee' };
 }
 
 /**

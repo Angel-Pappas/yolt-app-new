@@ -1,26 +1,19 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
-    FileUp,
     ArrowLeft,
     ArrowLeftRight,
+    CalendarRange,
     ChartNoAxesCombined,
     FileSignature,
+    FileUp,
     FolderKanban,
-    Handshake,
     HandCoins,
     House,
-    Landmark,
     PanelLeftClose,
     PanelLeftOpen,
-    Receipt,
-    Repeat,
     Settings2,
-    TrendingUp,
-    Truck,
-    UserRound,
     Users,
     Wallet,
-    Wrench,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
@@ -37,31 +30,48 @@ import {
     useSidebar,
 } from '@/components/ui/sidebar';
 import { configItems, isConfigPath } from '@/config-nav';
+import { ENTITY_TABS, lastTab, PLANNING_TABS } from '@/components/page-tabs';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import type { NavItem } from '@/types';
 
-// The day-to-day operational pages.
-const financeNavItems: NavItem[] = [
+// Finance: what Angel goes through with the CEO — the plan, where it leads, the
+// projects behind it. Planning opens on its tab last used.
+const financeNavItems = (): NavItem[] => [
+    {
+        title: 'Planning',
+        href: lastTab('planning', PLANNING_TABS),
+        section: '/planning',
+        icon: CalendarRange,
+    },
     { title: 'Projection', href: '/projection', icon: ChartNoAxesCombined },
-    { title: 'Transactions', href: '/transactions', icon: ArrowLeftRight },
-    { title: 'Wallets', href: '/wallets', icon: Wallet },
-    { title: 'Bank import', href: '/bank-import', icon: FileUp },
-    { title: 'Income', href: '/income', icon: TrendingUp },
-    { title: 'Projects', href: '/projects', icon: FolderKanban },
-    { title: 'Recurring', href: '/recurring', icon: Repeat },
-    { title: 'One-offs', href: '/one-offs', icon: Receipt },
-    { title: 'Agreements', href: '/agreements', icon: FileSignature },
-    { title: 'De minimis', href: '/de-minimis', icon: HandCoins },
+    {
+        title: 'Projects',
+        href: '/projects',
+        section: '/projects',
+        icon: FolderKanban,
+    },
 ];
 
-// The counterparties, one list per type. "State" is the tax pages.
-const entitiesNavItems: NavItem[] = [
-    { title: 'Customers', href: '/entities/customers', icon: UserRound },
-    { title: 'Suppliers', href: '/entities/suppliers', icon: Truck },
-    { title: 'Contractors', href: '/entities/contractors', icon: Wrench },
-    { title: 'Employees', href: '/entities/employees', icon: Users },
-    { title: 'Shareholders', href: '/entities/shareholders', icon: Handshake },
-    { title: 'State', href: '/taxes', icon: Landmark },
+// Accounting: the books, kept monthly. Entities opens on its tab last used; Bank
+// import shows "!" while planned items wait unmatched in a concluded period.
+const accountingNavItems = (notMatched: number): NavItem[] => [
+    { title: 'Transactions', href: '/transactions', icon: ArrowLeftRight },
+    {
+        title: 'Bank import',
+        href: '/bank-import',
+        icon: FileUp,
+        attention: notMatched > 0,
+    },
+    { title: 'Wallets', href: '/wallets', icon: Wallet },
+    {
+        title: 'Entities',
+        href: lastTab('entities', ENTITY_TABS),
+        section: '/entities',
+        icon: Users,
+    },
+    { title: 'Agreements', href: '/agreements', icon: FileSignature },
+    { title: 'De minimis', href: '/de-minimis', icon: HandCoins },
+    { title: 'Configuration', href: '/configuration', icon: Settings2 },
 ];
 
 /** The sidebar collapse/expand toggle, living at the bottom of the panel. */
@@ -85,7 +95,7 @@ function CollapseControl() {
     );
 }
 
-// The landing page, above the Finance section.
+// The landing page, above the sections.
 const homeNavItems: NavItem[] = [{ title: 'Home', href: '/', icon: House }];
 
 /** A single full-width sidebar link (used for the Configuration entry and the
@@ -117,7 +127,7 @@ function SidebarLink({
 
 export function AppSidebar() {
     const { currentUrl } = useCurrentUrl();
-    const { auth } = usePage().props;
+    const { auth, attention } = usePage().props;
     const inConfig = isConfigPath(currentUrl);
     const isAdmin = auth.user?.is_admin ?? false;
 
@@ -156,12 +166,12 @@ export function AppSidebar() {
                 ) : (
                     <>
                         <NavMain items={homeNavItems} />
-                        <NavMain items={financeNavItems} label="Finance" />
-                        <NavMain items={entitiesNavItems} label="Entities" />
-                        <SidebarLink
-                            href="/configuration"
-                            label="Configuration"
-                            icon={Settings2}
+                        <NavMain items={financeNavItems()} label="Finance" />
+                        <NavMain
+                            items={accountingNavItems(
+                                attention?.not_matched ?? 0,
+                            )}
+                            label="Accounting"
                         />
                     </>
                 )}

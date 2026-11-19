@@ -14,15 +14,15 @@ describe('groupCounts', () => {
                 { group: 'expenses' },
                 { group: 'expenses' },
             ]),
-        ).toEqual({ payroll: 1, contractors: 0, expenses: 2, income: 0 });
+        ).toEqual({ payroll: 1, contractors: 0, expenses: 2 });
     });
 });
 
 describe('defaultGroup', () => {
     it('opens on the first group that has rows', () => {
-        expect(defaultGroup([{ group: 'income' }, { group: 'expenses' }])).toBe(
-            'expenses',
-        );
+        expect(
+            defaultGroup([{ group: 'contractors' }, { group: 'expenses' }]),
+        ).toBe('contractors');
     });
 
     it('falls back to Payroll when there are no rows', () => {
@@ -31,9 +31,9 @@ describe('defaultGroup', () => {
 });
 
 describe('recurrenceDefaults', () => {
-    it('makes a customer recurrence income', () => {
-        expect(recurrenceDefaults('customer')).toEqual({
-            type: 'income',
+    it('makes every recurrence an expense (income lives on the customer)', () => {
+        expect(recurrenceDefaults('supplier')).toEqual({
+            type: 'expense',
             payroll: false,
         });
     });

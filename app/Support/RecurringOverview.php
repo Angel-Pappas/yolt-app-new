@@ -5,22 +5,22 @@ namespace App\Support;
 use App\Models\Recurrence;
 use App\Models\RecurrenceEntry;
 use App\Models\RecurrenceEntryLine;
-use App\Models\Transaction;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 
 /**
- * The Finance ▸ Recurring page: every recurrence as one row, grouped by who it is
- * with — payroll (an employee), contractors, other expenses, and income — showing
+ * Planning ▸ Recurring: every recurring expense as one row, grouped by who it is
+ * with — payroll (an employee), contractors, and other expenses — showing
  * the amounts of the period that matters now, the recurrence's date range, and
  * whether it is done.
  *
  * Amounts resolve through {@see AmountLines::resolve()} (the same resolver the
- * generator uses), so a row shows exactly what its next generated transaction moves.
+ * plan uses), so a row shows exactly what its next occurrence moves. (Recurring
+ * income lives on the customer, as payment lines.)
  */
 class RecurringOverview
 {
-    public const GROUPS = ['payroll', 'contractors', 'expenses', 'income'];
+    public const GROUPS = ['payroll', 'contractors', 'expenses'];
 
     /**
      * @return list<array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, excluded: bool, done: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}>
@@ -33,40 +33,30 @@ class RecurringOverview
             ->orderBy('id')
             ->get();
 
-        // Whether each recurrence's last generated transaction is reconciled.
-        $lastReconciled = Transaction::query()
-            ->whereIn('recurrence_id', $recurrences->modelKeys())
-            ->orderBy('date')
-            ->orderBy('id')
-            ->get(['recurrence_id', 'is_reconciled'])
-            ->keyBy('recurrence_id')
-            ->map(fn (Transaction $t): bool => $t->is_reconciled);
+        // The recurrences that still have an occurrence open in the plan.
+        $open = Plan::nonTaxItems()
+            ->filter(fn (PlanItem $i): bool => $i->kind === 'recurrence' && ! $i->isDone())
+            ->map(fn (PlanItem $i): ?int => $i->template->recurrence_id)
+            ->flip();
 
         return array_values($recurrences
-            ->map(fn (Recurrence $r): array => self::row($r, $lastReconciled->get($r->id)))
+            ->map(fn (Recurrence $r): array => self::row($r, $open->has($r->id)))
             ->all());
     }
 
     /**
-     * A recurrence is **done** once it has an end date and its last generated
-     * transaction has been reconciled (or it never generated one). An open-ended
+     * A recurrence is **done** once it has an end date and nothing of it is still
+     * open in the plan (every occurrence paid or cancelled). An open-ended
      * recurrence is never done. The page hides done ones unless "Show all".
      */
-    public static function isDone(Recurrence $recurrence, ?bool $lastReconciled): bool
+    public static function isDone(Recurrence $recurrence, bool $hasOpen): bool
     {
-        return $recurrence->end_date !== null && ($lastReconciled ?? true);
+        return $recurrence->end_date !== null && ! $hasOpen;
     }
 
-    /**
-     * Which group a recurrence belongs to. Income is its own group whatever the
-     * entity; an expense goes by the entity's type.
-     */
+    /** Which group a recurrence belongs to, by the entity's type. */
     public static function group(Recurrence $recurrence): string
     {
-        if ($recurrence->type === 'income') {
-            return 'income';
-        }
-
         return match ($recurrence->entity?->type) {
             'employee' => 'payroll',
             'contractor' => 'contractors',
@@ -90,7 +80,7 @@ class RecurringOverview
     /**
      * @return array{id: int, group: string, entity: array{id: int, name: string, type: string}, recurrence: array<string, mixed>, description: string, active: bool, excluded: bool, done: bool, start_date: string, end_date: string|null, net: float, vat: float, withheld: float, fmy: float, efka_employee: float, efka_employer: float, total: float, cost: float}
      */
-    private static function row(Recurrence $recurrence, ?bool $lastReconciled): array
+    private static function row(Recurrence $recurrence, bool $hasOpen): array
     {
         $amounts = self::amounts(self::currentEntry($recurrence), $recurrence->is_payroll, $recurrence);
 
@@ -107,7 +97,7 @@ class RecurringOverview
             'description' => $recurrence->description,
             'active' => $recurrence->active,
             'excluded' => $recurrence->is_excluded,
-            'done' => self::isDone($recurrence, $lastReconciled),
+            'done' => self::isDone($recurrence, $hasOpen),
             'start_date' => $recurrence->start_date->toDateString(),
             'end_date' => $recurrence->end_date?->toDateString(),
             ...$amounts,

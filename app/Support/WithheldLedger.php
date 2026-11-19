@@ -38,11 +38,8 @@ class WithheldLedger
     {
         $byMonth = [];
 
-        Transaction::query()
-            ->counted()
-            ->where('type', 'expense')
-            ->where('withheld_amount', '>', 0)
-            ->get(['invoice_date', 'withheld_amount'])
+        Books::rows(withTaxes: false)
+            ->filter(fn (Transaction $t): bool => $t->type === 'expense' && (float) $t->withheld_amount > 0)
             ->each(function (Transaction $t) use (&$byMonth): void {
                 $key = substr((string) $t->invoice_date, 0, 7);
                 $byMonth[$key] = ($byMonth[$key] ?? 0.0) + (float) $t->withheld_amount;

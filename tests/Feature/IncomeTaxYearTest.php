@@ -7,17 +7,17 @@ test('an active user can view the income tax page', function () {
     $user = User::factory()->create();
     IncomeTaxYear::factory()->create();
 
-    $this->actingAs($user)->get('/taxes/income')->assertOk();
+    $this->actingAs($user)->get('/planning/taxes/income')->assertOk();
 });
 
 test('a guest cannot view income tax', function () {
-    $this->get('/taxes/income')->assertRedirect(route('login'));
+    $this->get('/planning/taxes/income')->assertRedirect(route('login'));
 });
 
 test('an active user can create an income tax year, months normalized to the 1st', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user)->post('/taxes/income', [
+    $this->actingAs($user)->post('/planning/taxes/income', [
         'year' => '2025',
         'revenue_before_tax' => '100000',
         'total_tax' => '22000',
@@ -38,7 +38,7 @@ test('the same year cannot be entered twice', function () {
     $user = User::factory()->create();
     IncomeTaxYear::factory()->create(['year' => 2025]);
 
-    $this->actingAs($user)->post('/taxes/income', [
+    $this->actingAs($user)->post('/planning/taxes/income', [
         'year' => '2025',
         'revenue_before_tax' => '1',
         'total_tax' => '1',
@@ -51,7 +51,7 @@ test('the same year cannot be entered twice', function () {
 test('the last installment month must not precede the first', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user)->post('/taxes/income', [
+    $this->actingAs($user)->post('/planning/taxes/income', [
         'year' => '2025',
         'revenue_before_tax' => '1',
         'total_tax' => '1',
@@ -66,7 +66,7 @@ test('an active user can soft-delete an income tax year', function () {
     $record = IncomeTaxYear::factory()->create();
 
     $this->actingAs($user)
-        ->delete("/taxes/income/{$record->id}")
+        ->delete("/planning/taxes/income/{$record->id}")
         ->assertRedirect();
 
     expect(IncomeTaxYear::find($record->id))->toBeNull();

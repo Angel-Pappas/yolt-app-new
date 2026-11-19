@@ -45,7 +45,7 @@ export default function TaxesEfka({
 
 TaxesEfka.layout = {
     breadcrumbs: [
-        { title: 'Taxes', href: '/taxes' },
-        { title: 'EFKA', href: '/taxes/efka' },
+        { title: 'Taxes', href: '/planning/taxes' },
+        { title: 'EFKA', href: '/planning/taxes/efka' },
     ],
 };

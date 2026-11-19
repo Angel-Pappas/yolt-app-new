@@ -1,7 +1,5 @@
 export type TransactionType = 'income' | 'expense' | 'transfer';
 
-export type IncomeStatus = 'agreed' | 'invoiced' | 'paid' | 'dropped';
-
 type Related = { id: number; name: string } | null;
 type VatLine = { net: string; vat_rate_id: number | null; position: number };
 type WithheldLine = {
@@ -32,8 +30,8 @@ export type Transaction = {
     /** Switched off: listed, but counts for nothing. */
     is_excluded: boolean;
     /** An income's hand-set tag; null on expenses and transfers. */
-    income_status: IncomeStatus | null;
-    project_id: number | null;
+    /** The plan item this row pays, if any (`recurrence:…`, `tax:…`, `planned:…`). */
+    managed_key: string | null;
     project?: Related;
     /** 'recurrence' | 'tax' for generated rows; null when typed in. */
     source: string | null;
@@ -72,11 +70,11 @@ export function transactionTotal(t: Transaction): number {
 }
 
 /**
- * Whether a row counts toward balances, the projection and taxes: not switched off
- * and not a dropped income. Mirrors `Transaction::counts()` on the server.
+ * Whether a row counts toward balances, the projection and taxes: not switched off.
+ * Mirrors `Transaction::counts()` on the server.
  */
 export function transactionCounts(
-    t: Pick<Transaction, 'is_excluded' | 'income_status'>,
+    t: Pick<Transaction, 'is_excluded'>,
 ): boolean {
-    return !t.is_excluded && t.income_status !== 'dropped';
+    return !t.is_excluded;
 }

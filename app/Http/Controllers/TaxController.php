@@ -9,7 +9,6 @@ use App\Support\EfkaLedger;
 use App\Support\FmyLedger;
 use App\Support\IncomeTaxLedger;
 use App\Support\TaxObligation;
-use App\Support\TaxSync;
 use App\Support\VatLedger;
 use App\Support\WithheldLedger;
 use Illuminate\Database\Eloquent\Builder;
@@ -86,7 +85,6 @@ class TaxController extends Controller
         ]);
 
         Setting::current()->update(['tax_wallet_id' => $data['tax_wallet_id'] ?? null]);
-        TaxSync::run();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Tax wallet updated.')]);
 

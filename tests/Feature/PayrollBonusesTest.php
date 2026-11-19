@@ -9,7 +9,6 @@ use App\Models\Transaction;
 use App\Support\EfkaLedger;
 use App\Support\FmyLedger;
 use App\Support\PayrollBonuses;
-use App\Support\RecurrenceGenerator;
 use Illuminate\Support\Carbon;
 
 beforeEach(function () {
@@ -89,7 +88,7 @@ test('a pay day on a public holiday moves to the previous working day', function
 test('a full year earns the full bonuses, with FMY and EFKA scaled alike', function () {
     $recurrence = payroll([['2026-01-01', null, 1000, 80, 150, 250]]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $easter = bonusRow($recurrence, 'easter', 2027);
     expect($easter->description)->toBe('Easter bonus');
@@ -113,7 +112,7 @@ test('a full year earns the full bonuses, with FMY and EFKA scaled alike', funct
 test('a February start pro-rates Easter and leave, but Christmas stays full', function () {
     $recurrence = payroll([['2027-02-02', null, 1000]]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     // Easter: 88 days of 1 Jan–30 Apr → 88/120 of ½ salary.
     expect((float) bonusRow($recurrence, 'easter', 2027)->net)->toBe(366.67);
@@ -128,7 +127,7 @@ test('a raise part-way counts each period for the days it covers', function () {
         ['2027-07-01', null, 1500],
     ]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     // Easter accrues only on the 1,000 period.
     expect((float) bonusRow($recurrence, 'easter', 2027)->net)->toBe(500.0);
@@ -141,7 +140,7 @@ test('a raise part-way counts each period for the days it covers', function () {
 test('leaving early cuts the bonuses and pays them with the last salary', function () {
     $recurrence = payroll([['2027-01-01', '2027-03-31', 1000]]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $easter = bonusRow($recurrence, 'easter', 2027);
     expect((float) $easter->net)->toBe(375.0); // 90/120 of 500
@@ -154,12 +153,12 @@ test('leaving early cuts the bonuses and pays them with the last salary', functi
 
 test('shortening the end date lowers bonuses already generated', function () {
     $recurrence = payroll([['2027-01-01', null, 1000]]);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
     expect((float) bonusRow($recurrence, 'christmas', 2027)->net)->toBe(1041.67);
 
     $recurrence->entries()->update(['end_date' => '2027-08-31']);
     $recurrence->update(['end_date' => '2027-08-31']);
-    RecurrenceGenerator::sync($recurrence->fresh());
+    materialize($recurrence->fresh());
 
     // 123 days of May–Aug: 123/237.5 × 1,041.67.
     $christmas = bonusRow($recurrence, 'christmas', 2027);
@@ -171,7 +170,7 @@ test('shortening the end date lowers bonuses already generated', function () {
 test('starting after a pay day pays that bonus with the first salary', function () {
     $recurrence = payroll([['2027-09-01', null, 1000]]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     expect(bonusRow($recurrence, 'easter', 2027))->toBeNull();
     $leave = bonusRow($recurrence, 'leave', 2027);
@@ -183,33 +182,33 @@ test('starting after a pay day pays that bonus with the first salary', function 
 
 test('contractors and non-payroll recurrences get no bonuses', function () {
     $contractor = payroll([['2027-01-01', null, 1000]], 'contractor');
-    RecurrenceGenerator::sync($contractor);
+    materialize($contractor);
 
     expect(Transaction::where('recurrence_id', $contractor->id)->where('managed_key', 'like', '%bonus%')->count())->toBe(0);
 });
 
 test('a reconciled bonus is frozen and re-syncs leave it alone', function () {
     $recurrence = payroll([['2027-01-01', null, 1000]]);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
     bonusRow($recurrence, 'easter', 2027)->update(['is_reconciled' => true, 'net' => 510]);
 
     $recurrence->entries()->update(['net' => 2000]);
-    RecurrenceGenerator::sync($recurrence->fresh());
+    materialize($recurrence->fresh());
 
     expect((float) bonusRow($recurrence, 'easter', 2027)->net)->toBe(510.0);
     expect((float) bonusRow($recurrence, 'leave', 2027)->net)->toBe(1000.0);
 });
 
-test('a holiday added on the pay day moves the same row', function () {
+test('a holiday added on the pay day moves the same item', function () {
     $recurrence = payroll([['2027-01-01', null, 1000]]);
-    RecurrenceGenerator::sync($recurrence);
-    $id = bonusRow($recurrence, 'christmas', 2027)->id;
+    materialize($recurrence);
+    $key = bonusRow($recurrence, 'christmas', 2027)->managed_key;
 
     PublicHoliday::factory()->create(['date' => '2027-12-20']);
-    RecurrenceGenerator::sync($recurrence->fresh());
+    materialize($recurrence->fresh());
 
     $row = bonusRow($recurrence, 'christmas', 2027);
-    expect($row->id)->toBe($id);
+    expect($row->managed_key)->toBe($key);
     expect($row->date->toDateString())->toBe('2027-12-17');
 });
 
@@ -217,7 +216,7 @@ test('no bonus is generated before the managed floor or past the horizon', funct
     Setting::current()->update(['managed_from' => '2026-09-01']);
     $recurrence = payroll([['2026-01-01', null, 1000]]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     expect(bonusRow($recurrence, 'easter', 2026))->toBeNull();
     expect(bonusRow($recurrence, 'leave', 2026))->toBeNull();
@@ -230,7 +229,7 @@ test('no bonus is generated before the managed floor or past the horizon', funct
 test('bonus FMY and EFKA reach the tax ledgers', function () {
     $recurrence = payroll([['2027-01-01', null, 1000, 80, 150, 250]]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     // December 2027: the salary plus the Christmas bonus.
     expect(collect(FmyLedger::monthly())->firstWhere('month', '2027-12')['amount'])->toBe(163.33);

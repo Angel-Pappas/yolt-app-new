@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vite-plus/test';
 import {
     type AppRow,
+    nextMonth,
     pairOptions,
     signedCash,
+    stillNeeded,
     whoAndWhat,
 } from './bank-import';
 
@@ -71,5 +73,20 @@ describe('pairOptions', () => {
         expect(
             pairOptions({ date: '2026-10-05', amount: -10 }, rows, 3, 2),
         ).toHaveLength(2);
+    });
+});
+
+describe('nextMonth', () => {
+    it('keeps the day, clamped to a short month, across years', () => {
+        expect(nextMonth('2026-11-15')).toBe('2026-12-15');
+        expect(nextMonth('2026-01-31')).toBe('2026-02-28');
+        expect(nextMonth('2026-12-10')).toBe('2027-01-10');
+    });
+});
+
+describe('stillNeeded', () => {
+    it('is what the line lacks, whatever its sign', () => {
+        expect(stillNeeded(-6200, 5000)).toBe(1200);
+        expect(stillNeeded(7400, 7400)).toBe(0);
     });
 });

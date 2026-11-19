@@ -166,7 +166,7 @@ export default function TaxesIncome({ years, schedule, estimates }: Props) {
                 <CrudResource
                     title="Years"
                     singular="income tax year"
-                    baseUrl="/taxes/income"
+                    baseUrl="/planning/taxes/income"
                     items={years}
                     columns={[
                         {
@@ -279,7 +279,7 @@ export default function TaxesIncome({ years, schedule, estimates }: Props) {
 
 TaxesIncome.layout = {
     breadcrumbs: [
-        { title: 'Taxes', href: '/taxes' },
-        { title: 'Income tax', href: '/taxes/income' },
+        { title: 'Taxes', href: '/planning/taxes' },
+        { title: 'Income tax', href: '/planning/taxes/income' },
     ],
 };

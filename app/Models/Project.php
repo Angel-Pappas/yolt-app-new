@@ -11,9 +11,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * An agreed piece of work for a customer. A container only: the money is in its
- * installments, which are ordinary income transactions (`transactions.project_id`).
- * `is_excluded` switches every unreconciled installment off at once.
+ * A piece of work for a customer (a placeholder customer when the real one isn't
+ * known yet): its value is the sum of its **deliverables**. The money it brings is
+ * planned on the customer, as payment lines that can cover several projects
+ * together ({@see PlannedTransaction}).
  *
  * @property int $id
  * @property int|null $user_id
@@ -43,9 +44,15 @@ class Project extends Model
         return $this->belongsTo(Entity::class);
     }
 
-    /** @return HasMany<Transaction, $this> */
-    public function transactions(): HasMany
+    /** @return HasMany<ProjectDeliverable, $this> */
+    public function deliverables(): HasMany
     {
-        return $this->hasMany(Transaction::class);
+        return $this->hasMany(ProjectDeliverable::class)->orderBy('position')->orderBy('id');
+    }
+
+    /** The project's value: the sum of its deliverables (net). */
+    public function totalValue(): float
+    {
+        return round((float) $this->deliverables->sum(fn (ProjectDeliverable $d): float => (float) $d->net), 2);
     }
 }

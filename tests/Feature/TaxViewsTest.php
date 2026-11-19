@@ -15,7 +15,7 @@ test('the taxes index exposes the payment-schedule obligations', function () {
         'type' => 'income', 'vat_amount' => 100, 'invoice_date' => '2026-08-15',
     ]);
 
-    $this->actingAs($user)->get('/taxes')
+    $this->actingAs($user)->get('/planning/taxes')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('taxes/index')
@@ -36,7 +36,7 @@ test('the VAT page lists only its contributing transactions', function () {
         'type' => 'expense', 'vat_amount' => 0, 'invoice_date' => '2026-08-15',
     ]);
 
-    $this->actingAs($user)->get('/taxes/vat')
+    $this->actingAs($user)->get('/planning/taxes/vat')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('taxes/vat')
@@ -52,7 +52,7 @@ test('the withholding page lists only withholding transactions', function () {
         'type' => 'expense', 'withheld_amount' => 0, 'invoice_date' => '2026-08-15',
     ]);
 
-    $this->actingAs($user)->get('/taxes/withheld')
+    $this->actingAs($user)->get('/planning/taxes/withheld')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
 });
@@ -67,11 +67,11 @@ test('the FMY and EFKA pages list their contributing transactions', function () 
         'invoice_date' => '2026-08-15',
     ]);
 
-    $this->actingAs($user)->get('/taxes/fmy')
+    $this->actingAs($user)->get('/planning/taxes/fmy')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
 
-    $this->actingAs($user)->get('/taxes/efka')
+    $this->actingAs($user)->get('/planning/taxes/efka')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page->has('transactions', 1));
 });

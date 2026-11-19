@@ -75,8 +75,9 @@ use `RefreshDatabase` (which wipes the schema) — keep both guards.
   token or OAuth login). The repo has a ruleset **"Protect all branches"** blocking
   force-pushes and branch deletion on every branch (no bypass) — push normal commits
   only. The VM's SSH key is not on GitHub, so don't switch the remote back to
-  `git@github.com:`. The Laravel scheduler (daily `managed:sync`) runs from
-  the `ploi` user's crontab: `* * * * * cd <app> && php artisan schedule:run`.
+  `git@github.com:`. The Laravel scheduler runs from the `ploi` user's crontab
+  (`* * * * * cd <app> && php artisan schedule:run`); nothing is scheduled since the
+  plan is computed live (2026-11-19).
 - _Historical:_ the app was on Laravel Cloud until 2026-09-30. Angel **deleted the
   Laravel Cloud app on 2026-10-01** — there is no Laravel Cloud fallback any more.
 - GitHub Actions CI runs tests + formatting on every push — **keep it green**.
@@ -167,14 +168,34 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
   the form, Reconcile and the Bank import — and
   `App\Support\AmountLines::resolve()` (**VAT is always computed server-side from
   the rate's current % — never trusted from the client**; the one resolver shared
-  with `RecurrenceGenerator`, so generated rows match typed ones). Form:
+  with `RecurrenceGenerator`, so planned occurrences match typed rows). Form:
   `transaction-form-dialog.tsx` (create + edit; the list remounts it via a `key`
   bump for a fresh form). Its amount area (VAT lines, W toggle, Net/Total, summary,
   payroll fields) is `components/transactions/amount-lines.tsx`, shared with the
   recurrence form — change it there, not per form. Lists of transactions are ordered
   with `->inBankOrder()` (date, then the bank statement's order within the day).
-- **Recurrences:** one form, `components/recurrences/recurrence-form-dialog.tsx`, used
-  by the entity page's panel (entity fixed) and Finance ▸ Recurring (`entity={null}`
+- **The plan (2026-11-19):** never write future rows into Transactions. What is
+  expected comes from `App\Support\Plan` — `PlanItem`s from recurrences
+  (`RecurrenceGenerator::items()`, computed live), taxes (computed from the ledgers)
+  and **planned rows** (`PlannedTransaction`: the `transactions` table with
+  `is_planned`, hidden from every `Transaction` query by the `real` global scope —
+  query planned rows only through `PlannedTransaction`). A real row pays an item by
+  carrying its key in `managed_key`. Forward-looking figures read
+  `Books::rows()` (real counted rows + the plan's open share) — never
+  `Transaction::query()` alone. The plan is memoised per request and flushed on any
+  Eloquent save; tests that change data between reads call `Plan::flush()`. To look
+  at a recurrence's occurrences as rows in a test, use the `materialize()` helper
+  (`tests/Pest.php`); tax payments: `taxPayments()` / `taxPayment($key)`.
+- **Bank import draft:** decisions on an open statement go through
+  `StatementDraft` (pieces per line, one `bank_statement_steps` row per action);
+  never pair or create rows before `StatementDraft::conclude()`. The add form posts to
+  `/transactions` with `bank_line_id` and lands in the draft.
+- **Tabbed pages:** `PageTabs` (links, one address per tab, remembered for the
+  sidebar via `lastTab`) or `SubTabs` (in-page), passed as a list's `heading` so the
+  tabs sit in the title spot — never a title repeating the active tab.
+- **Recurrences:** one form, `components/recurrences/recurrence-form-dialog.tsx`
+  (expenses only — recurring income is on the customer), used by the entity page's
+  panel (entity fixed) and Planning ▸ Recurring (`entity={null}`
   shows an entity picker). What a new recurrence starts as comes from
   `lib/recurring.ts`'s `recurrenceDefaults`; the Recurring page's grouping and amounts
   come from `App\Support\RecurringOverview`; payment days from
@@ -192,10 +213,9 @@ Users is admin-only (filtered out of the config nav/tiles for non-admins and
       auto-generated) never count there; nor does a reconciled future-dated row.
     - `runningFor()` — the **Transactions balance view**: **every** row of the wallet,
       in date order, whatever its date or reconciled state, so each row's effect shows.
-- **What counts:** read transactions for any figure through
-  `Transaction::query()->counted()` (not switched off, not a dropped income) — never
-  the bare table. Generators set `is_excluded` / `income_status` only on a row's
-  first creation (`RecurrenceGenerator::newRowDefaults`), so hand changes survive.
+- **What counts:** read real transactions for any figure through
+  `Transaction::query()->counted()` (not switched off) — never the bare table — and
+  add the plan with `Books::rows()` where the future matters.
 - **Dated rules:** a percentage or law figure is never read "as of now" for a dated
   thing — use `Rates::vat($id, $date)` / `Rates::withheld()` (the invoice date) and
   `TaxRules::at($date)`; pass the date to `AmountLines::resolve(…, $date)`. After any

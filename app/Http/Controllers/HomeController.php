@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Agreement;
-use App\Models\Transaction;
 use App\Models\Wallet;
+use App\Support\Plan;
+use App\Support\PlanItem;
 use App\Support\Projection;
 use App\Support\WalletBalances;
 use Illuminate\Support\Carbon;
@@ -14,8 +15,9 @@ use Inertia\Response;
 
 /**
  * Home: what needs attention today, each figure linking to the page behind it —
- * the money really in the wallets, income due and overdue, taxes to pay this month,
- * rows waiting to be reconciled, agreements about to end, and the year ahead.
+ * the money really in the wallets, customer payments due and overdue, taxes to pay
+ * this month, planned items nothing has matched in a concluded period, agreements
+ * about to end, and the year ahead. Income and taxes come from the plan.
  */
 class HomeController extends Controller
 {
@@ -29,21 +31,13 @@ class HomeController extends Controller
         $wallets = Wallet::query()->orderBy('name')->get(['id', 'name'])
             ->map(fn (Wallet $w): array => ['id' => $w->id, 'name' => $w->name, 'balance' => $balances[$w->id] ?? 0.0]);
 
-        // Income still open (agreed or invoiced) that counts.
-        $openIncome = Transaction::query()->counted()
-            ->where('type', 'income')
-            ->whereIn('income_status', ['agreed', 'invoiced'])
-            ->whereDate('date', '<=', $monthEnd)
-            ->get(['date', 'net', 'vat_amount', 'withheld_amount', 'fmy_amount', 'efka_employee_amount']);
-        $overdue = $openIncome->filter(fn (Transaction $t) => $t->date->toDateString() < $today->toDateString());
-        $thisMonth = $openIncome->filter(fn (Transaction $t) => $t->date->toDateString() >= $monthStart);
-
-        $taxes = Transaction::query()
-            ->where('source', 'tax')
-            ->where('is_reconciled', false)
-            ->whereDate('date', '>=', $monthStart)
-            ->whereDate('date', '<=', $monthEnd)
-            ->get(['net']);
+        // Customer payment lines still owed (switched on), as planned.
+        $open = Plan::items()->filter(fn (PlanItem $i): bool => ! $i->isDone() && ! $i->isExcluded());
+        $owed = $open->filter(fn (PlanItem $i): bool => $i->kind === 'payment' && $i->date()->toDateString() <= $monthEnd);
+        $overdue = $owed->filter(fn (PlanItem $i): bool => $i->date()->toDateString() < $monthStart);
+        $thisMonth = $owed->filter(fn (PlanItem $i): bool => $i->date()->toDateString() >= $monthStart);
+        $taxes = $open->filter(fn (PlanItem $i): bool => $i->kind === 'tax'
+            && $i->date()->toDateString() >= $monthStart && $i->date()->toDateString() <= $monthEnd);
 
         return Inertia::render('home', [
             'wallets' => $wallets,
@@ -51,12 +45,8 @@ class HomeController extends Controller
                 'overdue' => self::tally($overdue),
                 'this_month' => self::tally($thisMonth),
             ],
-            'taxes_this_month' => round((float) $taxes->sum(fn (Transaction $t) => (float) $t->net), 2),
-            'to_reconcile' => Transaction::query()
-                ->where('is_reconciled', false)
-                ->where('is_excluded', false)
-                ->whereDate('date', '<', $today->toDateString())
-                ->count(),
+            'taxes_this_month' => round((float) $taxes->sum(fn (PlanItem $i): float => $i->open()), 2),
+            'not_matched' => Plan::notMatched()->count(),
             'agreements_ending' => array_values(collect(AgreementController::rows(Agreement::query()))
                 ->where('state', 'ending')
                 ->map(fn (array $a): array => collect($a)->only(['id', 'title', 'entity', 'end_date', 'days_left'])->all())
@@ -70,14 +60,14 @@ class HomeController extends Controller
     }
 
     /**
-     * @param  Collection<int, Transaction>  $rows
+     * @param  Collection<string, PlanItem>  $items
      * @return array{count: int, total: float}
      */
-    private static function tally(Collection $rows): array
+    private static function tally(Collection $items): array
     {
         return [
-            'count' => $rows->count(),
-            'total' => round((float) $rows->sum(fn (Transaction $t) => WalletBalances::cashTotal($t)), 2),
+            'count' => $items->count(),
+            'total' => round((float) $items->sum(fn (PlanItem $i): float => $i->open()), 2),
         ];
     }
 }

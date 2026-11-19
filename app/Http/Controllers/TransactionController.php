@@ -7,8 +7,8 @@ use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\Wallet;
 use App\Support\AmountLines;
-use App\Support\BankReconciler;
-use App\Support\TaxSync;
+use App\Support\Plan;
+use App\Support\StatementDraft;
 use App\Support\TransactionWriter;
 use App\Support\WalletBalances;
 use Illuminate\Http\RedirectResponse;
@@ -160,35 +160,69 @@ class TransactionController extends Controller
             // A bank fee paid with it, added as its own row (see addBankFee()).
             'bank_fee' => ['nullable', 'numeric', 'gt:0'],
         ]);
-        $line = isset($extra['bank_line_id']) ? BankLine::query()->findOrFail((int) $extra['bank_line_id']) : null;
-        // A line already paired takes a further row only while its rows don't add
-        // up to it yet (the missing part of one bank line that is several rows).
-        if ($line !== null && ! $line->isPending() && abs($line->pairedCash() - abs((float) $line->amount)) < 0.005) {
-            throw ValidationException::withMessages(['bank_line_id' => __('That bank line is already done.')]);
+        $line = isset($extra['bank_line_id']) ? BankLine::query()->with('statement')->findOrFail((int) $extra['bank_line_id']) : null;
+        if ($line !== null) {
+            // From a bank line of an open statement: a decision of its draft — the row
+            // is only added when the statement is concluded.
+            if ($line->statement === null || ! $line->statement->isOpen()) {
+                throw ValidationException::withMessages(['bank_line_id' => __('That bank line is already done.')]);
+            }
+            $fee = isset($extra['bank_fee']) ? round((float) $extra['bank_fee'], 2) : null;
+            StatementDraft::addPiece($line->statement, $line, [
+                't' => 'new',
+                'data' => $data,
+                'fee' => $fee,
+                'amount' => StatementDraft::cashOf($data, $fee),
+            ], __('Added a row'), $request->user()->id);
+
+            return back();
         }
 
-        DB::transaction(function () use ($data, $extra, $line, $request) {
+        DB::transaction(function () use ($data, $extra, $request) {
             $transaction = new Transaction;
             $transaction->user_id = $request->user()->id;
             TransactionWriter::persist($transaction, $data);
-            $fee = isset($extra['bank_fee'])
-                ? $this->addBankFee($transaction, round((float) $extra['bank_fee'], 2), $request->user()->id)
-                : null;
-            if ($line !== null) {
-                // From a bank line: the new row is that line — together with its bank
-                // fee when one was added (the bank books them as one line).
-                match (true) {
-                    ! $line->isPending() => BankReconciler::pair($line, $transaction),
-                    $fee !== null => BankReconciler::accept($line, [$transaction, $fee]),
-                    default => BankReconciler::link($line, $transaction),
-                };
+            self::paysPlanItem($transaction, $data);
+            if (isset($extra['bank_fee'])) {
+                $this->addBankFee($transaction, round((float) $extra['bank_fee'], 2), $request->user()->id);
             }
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction added.')]);
 
         return back();
+    }
+
+    /**
+     * Tie a real row to the plan item it pays (or untie it): it carries the item's
+     * key, and a recurrence's or a tax's row says where it came from. A key the plan
+     * doesn't know is refused — unless the row already carried it.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected static function paysPlanItem(Transaction $transaction, array $data): void
+    {
+        if (! array_key_exists('managed_key', $data)) {
+            return;
+        }
+        $key = $data['managed_key'] ?: null;
+        if ($key === $transaction->managed_key) {
+            return;
+        }
+        if ($key !== null && Plan::find($key) === null) {
+            throw ValidationException::withMessages(['managed_key' => __('That planned item is no longer open.')]);
+        }
+
+        $item = $key !== null ? Plan::find($key) : null;
+        $transaction->forceFill([
+            'managed_key' => $key,
+            'source' => match ($item?->kind) {
+                'recurrence' => 'recurrence',
+                'tax' => 'tax',
+                default => null,
+            },
+            'recurrence_id' => $item?->template->recurrence_id,
+        ])->save();
     }
 
     /**
@@ -226,7 +260,7 @@ class TransactionController extends Controller
 
         DB::transaction(function () use ($transaction, $data) {
             TransactionWriter::persist($transaction, $data);
-            TaxSync::run();
+            self::paysPlanItem($transaction, $data);
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction updated.')]);
@@ -238,7 +272,6 @@ class TransactionController extends Controller
     {
         DB::transaction(function () use ($transaction) {
             $transaction->delete();
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction deleted.')]);
@@ -267,8 +300,6 @@ class TransactionController extends Controller
             ->where('type', $category->type)
             ->update(['category_id' => $category->id]);
 
-        TaxSync::run();
-
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => trans_choice(':count transaction moved to :name.|:count transactions moved to :name.', $moved, ['count' => $moved, 'name' => $category->name]),
@@ -288,8 +319,6 @@ class TransactionController extends Controller
         ]);
 
         $deleted = Transaction::query()->whereIn('id', $data['ids'])->delete();
-
-        TaxSync::run();
 
         Inertia::flash('toast', [
             'type' => 'success',
@@ -349,7 +378,6 @@ class TransactionController extends Controller
             }
 
             $transaction->save();
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Transaction reconciled.')]);
@@ -401,7 +429,7 @@ class TransactionController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function validateTransaction(Request $request): array
+    protected function validateTransaction(Request $request): array
     {
         $rules = [
             'type' => ['required', Rule::in(['income', 'expense', 'transfer'])],
@@ -409,16 +437,9 @@ class TransactionController extends Controller
             'invoice_date' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:255'],
             'wallet_id' => ['required', 'integer', 'exists:wallets,id'],
-            // Sent only by the One-offs page's add form; absent means "leave as is".
-            'is_one_off' => ['sometimes', 'boolean'],
+            // The plan item this real row pays ("Pays planned item"); absent = leave.
+            'managed_key' => ['sometimes', 'nullable', 'string', 'max:255'],
         ];
-
-        if ($request->input('type') === 'income') {
-            // An income's hand-set tag and (optionally) the project it belongs to.
-            // Absent means "leave as is" (a new income starts as agreed).
-            $rules['income_status'] = ['sometimes', Rule::in(Transaction::INCOME_STATUSES)];
-            $rules['project_id'] = ['sometimes', 'nullable', 'integer', 'exists:projects,id'];
-        }
 
         if ($request->input('type') === 'transfer') {
             $rules['to_wallet_id'] = ['required', 'integer', 'different:wallet_id', 'exists:wallets,id'];
@@ -448,14 +469,14 @@ class TransactionController extends Controller
     }
 
     /** Whether the request's selected category is the payroll category. */
-    private function isPayrollRequest(Request $request): bool
+    protected function isPayrollRequest(Request $request): bool
     {
         $categoryId = $request->input('category_id');
 
         return $categoryId !== null && $this->isPayrollCategory((int) $categoryId);
     }
 
-    private function isPayrollCategory(int $categoryId): bool
+    protected function isPayrollCategory(int $categoryId): bool
     {
         return AmountLines::isPayrollCategory($categoryId);
     }
@@ -480,28 +501,9 @@ class TransactionController extends Controller
 
         DB::transaction(function () use ($transaction, $excluded) {
             $transaction->update(['is_excluded' => $excluded]);
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => $excluded ? __('Transaction excluded.') : __('Transaction included.')]);
-
-        return back();
-    }
-
-    /**
-     * Set an income's status tag by hand. It never touches the reconciled flag (and
-     * reconciling never touches it); only "dropped" changes the numbers, because a
-     * dropped income counts for nothing.
-     */
-    public function status(Request $request, Transaction $transaction): RedirectResponse
-    {
-        abort_unless($transaction->type === 'income', 422);
-        $data = $request->validate(['status' => ['required', Rule::in(Transaction::INCOME_STATUSES)]]);
-
-        DB::transaction(function () use ($transaction, $data) {
-            $transaction->update(['income_status' => $data['status']]);
-            TaxSync::run();
-        });
 
         return back();
     }

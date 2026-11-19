@@ -12,6 +12,51 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-19** — **Books, plan and income.** Three designs agreed with Angel the same
+  day, built together (full plan, kept in `docs/archive/Plan - books, plan and
+income.md`):
+    - **The plan beside the books.** Angel does the books about once a month; 500+
+      generated future rows clogged Transactions. Transactions is now only what
+      happened. The future is a **plan**: recurrence occurrences and tax payments are
+      computed live (no more `managed:sync`, no sync after saves); one-offs and
+      customer payment lines are **planned rows** of the same table (`is_planned`,
+      hidden by a global scope — reusing the table reuses the whole amount machinery).
+      A real row carrying an item's key pays it, in part or in full. Each wallet has a
+      **concluded** date; an item dated in a concluded period that nothing paid is
+      **not matched yet** and counts from today. Projection, the tax ledgers and the
+      income tax estimate read `Books::rows()` (real + open plan).
+    - **Bank import as a draft.** Uploads are statements; each decision is a saved,
+      undoable step and nothing changes until **Conclude**, which re-checks
+      everything, compares the closing balance and applies it all at once. Planned
+      items are suggested (10 days ahead, oldest of equals) and can be paid in part
+      (the rest gets a new date). Statements history, hand conclusions for wallets
+      without statements, and the Not matched yet list (link, move, cancel) live
+      there; the sidebar shows "!".
+    - **Income.** Projects have deliverables (value = their sum) and a required
+      customer; **payment lines** belong to the customer (several projects can share
+      one plan), with net · VAT · total, an invoice date that follows the payment date
+      until issued or part-paid, and an Issued mark; recurring income lives on the
+      customer. Planning ▸ Income lists what is owed in green with "!" for earlier
+      months, by date or by customer. The old income status (agreed/invoiced/paid/
+      dropped) and project instalments are gone; the columns stay, unused.
+    - **Layout.** Sidebar Finance (Planning, Projection, Projects) / Accounting
+      (Transactions, Bank import, Wallets, Entities, Agreements, De minimis,
+      Configuration). Planning and Entities are tabbed pages (tabs in the title spot,
+      names only — counts removed everywhere); old addresses redirect.
+    - **Decisions taken while building** (Angel away; he'll say if any doesn't fit):
+      a part-paid line keeps its invoice date; payment lines and one-offs have the
+      on/off switch, projects lose it; a future date in the transaction form is
+      allowed with a warning; "Pays planned item" in the transaction form so typed rows
+      fulfil the plan; the shared column filter wraps long names instead of cutting
+      them; the plan's floor stays `managed_from`.
+    - **Speed:** building the plan takes about a second (employees' bonuses are
+      computed day by day), so it is cached as plain data under one key, stamped by a
+      version every save and form submission bumps (the database cache refuses to
+      restore objects); a cached read takes about 60 ms.
+    - **Cutover** (migration `move_to_the_plan`): the unconfirmed generated rows are
+      soft-deleted (Angel's yes); open one-offs become planned; agreed totals become a
+      deliverable; existing bank lines become a concluded statement up to the day
+      before the first waiting line, the rest an open statement.
 - **2026-11-19** — **The "next" build goes live.** Angel tested the copy and said go:
   branch `next` was merged into `main` and deployed to the live app (its new tables
   and columns only add to the data; nothing existing is dropped or rewritten). The live

@@ -15,6 +15,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { formatAmount, formatDate, formatMonthYear } from '@/lib/format';
+import { PageTabs, PLANNING_TABS } from '@/components/page-tabs';
 
 type Amount = number | string;
 
@@ -41,11 +42,11 @@ type Props = {
 
 /** Label + per-tax page for each tax key. */
 const TAX_META: Record<string, { label: string; href: string }> = {
-    vat: { label: 'VAT', href: '/taxes/vat' },
-    withheld: { label: 'Withholding tax', href: '/taxes/withheld' },
-    fmy: { label: 'FMY', href: '/taxes/fmy' },
-    efka: { label: 'EFKA', href: '/taxes/efka' },
-    income: { label: 'Income tax', href: '/taxes/income' },
+    vat: { label: 'VAT', href: '/planning/taxes/vat' },
+    withheld: { label: 'Withholding tax', href: '/planning/taxes/withheld' },
+    fmy: { label: 'FMY', href: '/planning/taxes/fmy' },
+    efka: { label: 'EFKA', href: '/planning/taxes/efka' },
+    income: { label: 'Income tax', href: '/planning/taxes/income' },
 };
 
 /** Shift a "YYYY-MM" month by a number of months. */
@@ -108,7 +109,7 @@ export default function TaxesIndex({
 
     function setTaxWallet(value: string) {
         router.patch(
-            '/taxes/wallet',
+            '/planning/taxes/wallet',
             { tax_wallet_id: Number(value) },
             { preserveScroll: true },
         );
@@ -182,7 +183,11 @@ export default function TaxesIndex({
         <>
             <Head title="Taxes" />
             <div className="flex h-full flex-1 flex-col gap-6 p-4">
-                <h1 className="text-2xl font-semibold">Taxes</h1>
+                <PageTabs
+                    group="planning"
+                    tabs={PLANNING_TABS}
+                    active="/planning/taxes"
+                />
 
                 <Card>
                     <CardHeader>
@@ -263,7 +268,7 @@ export default function TaxesIndex({
                     <h2 className="text-lg font-semibold">Tax types</h2>
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <TaxCard
-                            href="/taxes/vat"
+                            href="/planning/taxes/vat"
                             title="VAT"
                             primary={{
                                 label: 'Payable this month',
@@ -275,7 +280,7 @@ export default function TaxesIndex({
                             }}
                         />
                         <TaxCard
-                            href="/taxes/withheld"
+                            href="/planning/taxes/withheld"
                             title="Withholding tax"
                             primary={{
                                 label: 'Payable this month',
@@ -287,7 +292,7 @@ export default function TaxesIndex({
                             }}
                         />
                         <TaxCard
-                            href="/taxes/fmy"
+                            href="/planning/taxes/fmy"
                             title="FMY (payroll tax)"
                             primary={{
                                 label: 'Payable this month',
@@ -299,7 +304,7 @@ export default function TaxesIndex({
                             }}
                         />
                         <TaxCard
-                            href="/taxes/efka"
+                            href="/planning/taxes/efka"
                             title="EFKA (social security)"
                             primary={{
                                 label: 'Payable this month',
@@ -311,7 +316,7 @@ export default function TaxesIndex({
                             }}
                         />
                         <TaxCard
-                            href="/taxes/income"
+                            href="/planning/taxes/income"
                             title="Income tax"
                             primary={{
                                 label: 'Payable this month',
@@ -330,5 +335,5 @@ export default function TaxesIndex({
 }
 
 TaxesIndex.layout = {
-    breadcrumbs: [{ title: 'Taxes', href: '/taxes' }],
+    breadcrumbs: [{ title: 'Taxes', href: '/planning/taxes' }],
 };

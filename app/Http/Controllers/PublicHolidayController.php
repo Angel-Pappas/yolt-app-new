@@ -3,8 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\PublicHoliday;
-use App\Support\RecurrenceGenerator;
-use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,8 +35,6 @@ class PublicHolidayController extends Controller
 
         DB::transaction(function () use ($holiday) {
             $holiday->save();
-            RecurrenceGenerator::syncAll();
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Public holiday created.')]);
@@ -52,8 +48,6 @@ class PublicHolidayController extends Controller
 
         DB::transaction(function () use ($publicHoliday, $data) {
             $publicHoliday->update($data);
-            RecurrenceGenerator::syncAll();
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Public holiday updated.')]);
@@ -65,8 +59,6 @@ class PublicHolidayController extends Controller
     {
         DB::transaction(function () use ($publicHoliday) {
             $publicHoliday->delete();
-            RecurrenceGenerator::syncAll();
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Public holiday deleted.')]);

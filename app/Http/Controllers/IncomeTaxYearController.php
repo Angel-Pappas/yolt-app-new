@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\IncomeTaxYear;
 use App\Support\IncomeTaxEstimate;
 use App\Support\IncomeTaxLedger;
-use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -50,7 +49,6 @@ class IncomeTaxYearController extends Controller
 
         DB::transaction(function () use ($record) {
             $record->save();
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Income tax year created.')]);
@@ -64,7 +62,6 @@ class IncomeTaxYearController extends Controller
 
         DB::transaction(function () use ($incomeTaxYear, $data) {
             $incomeTaxYear->update($data);
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Income tax year updated.')]);
@@ -76,7 +73,6 @@ class IncomeTaxYearController extends Controller
     {
         DB::transaction(function () use ($incomeTaxYear) {
             $incomeTaxYear->delete();
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Income tax year deleted.')]);

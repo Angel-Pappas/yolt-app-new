@@ -11,4 +11,8 @@ export type NavItem = {
     href: NonNullable<InertiaLinkProps['href']>;
     icon?: LucideIcon | null;
     isActive?: boolean;
+    /** Also active on every page under this path (a tabbed page, detail pages). */
+    section?: string;
+    /** A small "!" beside the title: something there needs attention. */
+    attention?: boolean;
 };

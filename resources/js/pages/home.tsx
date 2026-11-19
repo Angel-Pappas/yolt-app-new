@@ -11,7 +11,7 @@ type Props = {
     wallets: { id: number; name: string; balance: number }[];
     income: { overdue: Tally; this_month: Tally };
     taxes_this_month: number;
-    to_reconcile: number;
+    not_matched: number;
     agreements_ending: {
         id: number;
         title: string;
@@ -75,7 +75,7 @@ export default function Home({
     wallets,
     income,
     taxes_this_month,
-    to_reconcile,
+    not_matched,
     agreements_ending,
     projection,
     current_month,
@@ -102,7 +102,7 @@ export default function Home({
                             .join(' · ')}
                     />
                     <Tile
-                        href="/income"
+                        href="/planning/income"
                         label="Income due this month"
                         value={formatAmount(income.this_month.total)}
                         hint={
@@ -121,16 +121,16 @@ export default function Home({
                         }
                     />
                     <Tile
-                        href="/taxes"
+                        href="/planning/taxes"
                         label="Taxes to pay this month"
                         value={formatAmount(taxes_this_month)}
                     />
                     <Tile
-                        href="/transactions?unreconciled=1&all=1"
-                        label="To reconcile"
-                        value={to_reconcile}
-                        tone={to_reconcile > 0 ? 'warn' : undefined}
-                        hint="Past transactions not yet checked"
+                        href="/bank-import?tab=not-matched"
+                        label="Not matched yet"
+                        value={not_matched}
+                        tone={not_matched > 0 ? 'warn' : undefined}
+                        hint="Planned items nothing paid in a concluded period"
                     />
                 </div>
 

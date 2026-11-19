@@ -4,6 +4,7 @@ import {
     type CrudItem,
     CrudResource,
 } from '@/components/crud/crud-resource';
+import { ENTITY_TABS, PageTabs } from '@/components/page-tabs';
 
 type Entity = {
     id: number;
@@ -16,9 +17,16 @@ type Props = {
     entities: Entity[];
     title: string;
     singular: string;
+    /** This list's tab, e.g. `/entities/suppliers`. */
+    tab: string;
 };
 
-export default function EntitiesList({ entities, title, singular }: Props) {
+export default function EntitiesList({
+    entities,
+    title,
+    singular,
+    tab,
+}: Props) {
     const fields: CrudField[] = [
         { key: 'name', label: 'Name', type: 'text', required: true },
         { key: 'vat_number', label: 'VAT number (optional)', type: 'text' },
@@ -30,6 +38,13 @@ export default function EntitiesList({ entities, title, singular }: Props) {
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <CrudResource
                     title={title}
+                    heading={
+                        <PageTabs
+                            group="entities"
+                            tabs={ENTITY_TABS}
+                            active={tab}
+                        />
+                    }
                     singular={singular}
                     baseUrl="/entities"
                     items={entities}

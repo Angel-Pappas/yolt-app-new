@@ -42,7 +42,6 @@ type Settings = {
     back: number;
     ahead: number;
     wallets: number[] | null;
-    pending: boolean;
 };
 
 type Props = {
@@ -109,7 +108,6 @@ export default function ProjectionIndex({
             {
                 back: next.back,
                 ahead: next.ahead,
-                pending: next.pending ? 1 : 0,
                 // An empty list means every wallet.
                 wallets: next.wallets ?? [],
             },
@@ -252,20 +250,6 @@ export default function ProjectionIndex({
                             ))}
                         </PopoverContent>
                     </Popover>
-
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        aria-pressed={settings.pending}
-                        title="Count transactions dated before today that are not reconciled yet (still expected). Off: the past is only what was reconciled."
-                        className={cn(
-                            'ml-auto',
-                            settings.pending && 'text-primary border-primary',
-                        )}
-                        onClick={() => apply({ pending: !settings.pending })}
-                    >
-                        Unreconciled past
-                    </Button>
                 </div>
                 <Card>
                     <CardContent className="grid min-w-0 gap-4">

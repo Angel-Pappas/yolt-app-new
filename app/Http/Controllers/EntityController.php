@@ -5,14 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Agreement;
 use App\Models\Entity;
 use App\Models\LeaveEntry;
-use App\Models\Recurrence;
+use App\Models\Project;
+use App\Models\RecurringIncome;
 use App\Models\Transaction;
 use App\Support\Leave;
-use App\Support\RecurrenceGenerator;
-use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,8 +20,8 @@ use Inertia\Response;
  * shared company data with a created-by `user_id` audit field.
  *
  * Entities live under the sidebar's "Entities" section, one list per type; every
- * entity has a type. "State" is a separate concern (the tax pages), so it is not a
- * user-managed list here.
+ * entity has a type. Each type is one tab of the Entities page, State included (its
+ * tax pages live in Planning ▸ Taxes).
  */
 class EntityController extends Controller
 {
@@ -34,6 +32,7 @@ class EntityController extends Controller
         'contractors' => 'contractor',
         'employees' => 'employee',
         'shareholders' => 'shareholder',
+        'state' => 'state',
     ];
 
     /** A bare `/entities` visit lands on the first list. */
@@ -51,7 +50,8 @@ class EntityController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'type', 'vat_number']),
             'title' => ucfirst($slug),
-            'singular' => rtrim($slug, 's'),
+            'singular' => $slug === 'state' ? 'state' : rtrim($slug, 's'),
+            'tab' => "/entities/{$slug}",
         ]);
     }
 
@@ -69,9 +69,8 @@ class EntityController extends Controller
             ->inBankOrder()
             ->get();
 
-        // Where the back link goes: the entity's own list, or the tax pages for the
-        // State (it has no entity list of its own).
-        $slug = array_search($entity->type, self::SLUGS, true);
+        // Where the back link goes: the entity's own tab of the Entities page.
+        $slug = (string) array_search($entity->type, self::SLUGS, true);
 
         return Inertia::render('entities/show', [
             'entity' => $entity->only(['id', 'name', 'type', 'vat_number']),
@@ -91,9 +90,37 @@ class EntityController extends Controller
                     ]),
                 'years' => [Leave::summary($entity, now()->year), Leave::summary($entity, now()->year - 1)],
             ] : null,
-            'listHref' => $slug !== false ? "/entities/{$slug}" : '/taxes',
-            'listTitle' => $slug !== false ? ucfirst($slug) : 'State',
+            'customer' => $entity->type === 'customer' ? self::customerData($entity) : null,
+            'listHref' => "/entities/{$slug}",
+            'listTitle' => ucfirst($slug),
         ]);
+    }
+
+    /**
+     * A customer's projects, payment lines and recurring income, and how much of
+     * its projects' value the payment lines cover (both net).
+     *
+     * @return array<string, mixed>
+     */
+    private static function customerData(Entity $entity): array
+    {
+        $projects = Project::query()->with(['entity:id,name', 'deliverables'])->where('entity_id', $entity->id)
+            ->orderBy('name')->get()->map(fn (Project $p): array => ProjectController::row($p))->values();
+        $payments = PaymentController::rows($entity->id);
+
+        return [
+            'projects' => $projects,
+            'payments' => $payments,
+            'recurring' => RecurringIncome::query()->where('entity_id', $entity->id)->orderByDesc('start_date')->get()
+                ->map(fn (RecurringIncome $r): array => [
+                    ...$r->only(['id', 'entity_id', 'wallet_id', 'vat_rate_id', 'category_id', 'description', 'day_of_month']),
+                    'net' => (float) $r->net,
+                    'start_date' => $r->start_date->toDateString(),
+                    'end_date' => $r->end_date?->toDateString(),
+                ])->values(),
+            'value' => round((float) $projects->sum('value'), 2),
+            'planned' => round((float) collect($payments)->sum('net'), 2),
+        ];
     }
 
     /**
@@ -130,20 +157,11 @@ class EntityController extends Controller
 
     /**
      * A type change can change when its recurrences are paid (contractors and
-     * employees on the last working day of the month), so their transactions — and
-     * the taxes they feed — are re-synced.
+     * employees on the last working day of the month); the plan follows by itself.
      */
     public function update(Request $request, Entity $entity): RedirectResponse
     {
-        DB::transaction(function () use ($request, $entity) {
-            $entity->update($this->validateEntity($request));
-
-            if ($entity->wasChanged('type')) {
-                $entity->recurrences()->with('entries.lines')->get()
-                    ->each(fn (Recurrence $r) => RecurrenceGenerator::sync($r));
-                TaxSync::run();
-            }
-        });
+        $entity->update($this->validateEntity($request));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Entity updated.')]);
 
@@ -152,7 +170,7 @@ class EntityController extends Controller
 
     /**
      * An employee's details for payroll, leave and severance. Children and birth
-     * date change the tax withheld, so the employee's recurrences are re-synced.
+     * date change the tax withheld; the planned salaries follow by themselves.
      */
     public function updateEmployee(Request $request, Entity $entity): RedirectResponse
     {
@@ -168,13 +186,7 @@ class EntityController extends Controller
             'leave_days_override' => ['nullable', 'integer', 'min:0', 'max:60'],
         ]);
 
-        DB::transaction(function () use ($entity, $data) {
-            $entity->employeeProfile()->updateOrCreate([], $data);
-            $entity->unsetRelation('employeeProfile');
-            $entity->recurrences()->with('entries.lines')->get()
-                ->each(fn (Recurrence $r) => RecurrenceGenerator::sync($r));
-            TaxSync::run();
-        });
+        $entity->employeeProfile()->updateOrCreate([], $data);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Employee details saved.')]);
 

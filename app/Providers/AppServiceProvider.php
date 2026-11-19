@@ -3,11 +3,13 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Support\Plan;
 use App\Support\Rates;
 use App\Support\TaxRules;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -31,6 +33,10 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureAuthorization();
+
+        // The plan is built once per request and thrown away whenever anything is
+        // saved, so a page always shows it as the data now stands.
+        Event::listen(['eloquent.saved: *', 'eloquent.deleted: *', 'eloquent.restored: *'], fn () => Plan::flush());
     }
 
     /**

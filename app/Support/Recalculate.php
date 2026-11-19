@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\PlannedTransaction;
 use App\Models\Transaction;
 
 /**
@@ -9,11 +10,11 @@ use App\Models\Transaction;
  * VAT/withholding rate, the tax rules, an employee's details): the future is
  * recalculated, the past is left as it happened.
  *
- *  - Hand-entered transactions that are **not reconciled** get their VAT and
- *    withholding re-derived from their lines at the rate in force on their invoice
- *    date. Reconciled rows are frozen.
- *  - Every recurrence is re-synced (its unreconciled rows follow the new rules).
- *  - The tax payments are rebuilt from the result.
+ *  - Hand-entered transactions that are **not reconciled**, and the planned rows
+ *    (one-offs, payment lines), get their VAT and withholding re-derived from their
+ *    lines at the rate in force on their invoice date. Reconciled rows are frozen.
+ *  - Recurrence occurrences and tax payments are computed live ({@see Plan}), so
+ *    they follow the new rules by themselves.
  */
 class Recalculate
 {
@@ -28,8 +29,11 @@ class Recalculate
             ->get()
             ->each(fn (Transaction $t) => self::reapplyRates($t));
 
-        RecurrenceGenerator::syncAll();
-        TaxSync::run();
+        PlannedTransaction::query()
+            ->whereHas('vatLines')
+            ->with(['vatLines', 'withheldLines'])
+            ->get()
+            ->each(fn (PlannedTransaction $t) => self::reapplyRates($t));
     }
 
     /**

@@ -182,7 +182,10 @@ export function RecurrenceFormDialog({
     );
     const defaults = recurrenceDefaults(entity?.type);
     // The State's payments are generated from the taxes, never set up by hand.
-    const pickableEntities = entities.filter((e) => e.type !== 'state');
+    // Recurring expenses only: a customer's recurring income lives on its page.
+    const pickableEntities = entities.filter(
+        (e) => e.type !== 'state' && e.type !== 'customer',
+    );
 
     const form = useForm(
         editing
@@ -244,10 +247,6 @@ export function RecurrenceFormDialog({
     const isPayroll = selectedCategory?.name === PAYROLL_CATEGORY;
 
     const errors = form.errors as Record<string, string | undefined>;
-
-    function changeType(value: string) {
-        form.setData((data) => ({ ...data, type: value, category_id: '' }));
-    }
 
     // Picking the entity sets what the recurrence is: its type, and the Payroll
     // category for an employee. A category that still fits is kept.
@@ -403,32 +402,12 @@ export function RecurrenceFormDialog({
                                     : 'New recurring transaction'}
                             </DialogTitle>
                             <DialogDescription>
-                                Generates this transaction on a schedule. Add a
-                                period whenever the amounts change.
+                                Plans this expense on a schedule. Add a period
+                                whenever the amounts change.
                             </DialogDescription>
                         </DialogHeader>
 
                         <div className="grid gap-4 py-4 sm:grid-cols-2">
-                            <div className="grid gap-2 sm:col-span-2">
-                                <Label htmlFor="rec_type">Type</Label>
-                                <Select
-                                    value={form.data.type}
-                                    onValueChange={changeType}
-                                >
-                                    <SelectTrigger id="rec_type">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="income">
-                                            Income
-                                        </SelectItem>
-                                        <SelectItem value="expense">
-                                            Expense
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
                             <div className="grid gap-2">
                                 <Label htmlFor="rec_entity">Entity</Label>
                                 {entity ? (

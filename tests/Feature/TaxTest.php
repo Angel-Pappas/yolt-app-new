@@ -9,7 +9,7 @@ test('a finance user can view the taxes index with current-month figures', funct
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->get('/taxes')
+        ->get('/planning/taxes')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('taxes/index')
@@ -26,7 +26,7 @@ test('the VAT page renders the monthly ledger', function () {
     ]);
 
     $this->actingAs($user)
-        ->get('/taxes/vat')
+        ->get('/planning/taxes/vat')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('taxes/vat')
@@ -37,7 +37,7 @@ test('the withholding page renders the monthly ledger', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->get('/taxes/withheld')
+        ->get('/planning/taxes/withheld')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('taxes/withheld')
@@ -45,7 +45,7 @@ test('the withholding page renders the monthly ledger', function () {
 });
 
 test('a guest cannot view taxes', function () {
-    $this->get('/taxes')->assertRedirect(route('login'));
-    $this->get('/taxes/vat')->assertRedirect(route('login'));
-    $this->get('/taxes/withheld')->assertRedirect(route('login'));
+    $this->get('/planning/taxes')->assertRedirect(route('login'));
+    $this->get('/planning/taxes/vat')->assertRedirect(route('login'));
+    $this->get('/planning/taxes/withheld')->assertRedirect(route('login'));
 });

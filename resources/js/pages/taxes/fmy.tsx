@@ -43,7 +43,7 @@ export default function TaxesFmy({
 
 TaxesFmy.layout = {
     breadcrumbs: [
-        { title: 'Taxes', href: '/taxes' },
-        { title: 'FMY', href: '/taxes/fmy' },
+        { title: 'Taxes', href: '/planning/taxes' },
+        { title: 'FMY', href: '/planning/taxes/fmy' },
     ],
 };

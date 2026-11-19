@@ -10,7 +10,6 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\VatRate;
 use App\Models\WithheldTaxRate;
-use App\Support\RecurrenceGenerator;
 use Illuminate\Support\Carbon;
 
 beforeEach(function () {
@@ -69,7 +68,7 @@ function monthlyRecurrence(array $overrides = [], float $net = 100): Recurrence
 test('a monthly recurrence generates one transaction per month across the horizon', function () {
     $recurrence = monthlyRecurrence();
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     // Jan 2026 through Jan 2028 (today + 24 months = 2028-01-15) = 25 months.
     expect(Transaction::where('recurrence_id', $recurrence->id)->count())->toBe(25);
@@ -87,7 +86,7 @@ test('the amount in force follows the dated periods', function () {
     addPeriod($recurrence, '2026-01-01', '2026-12-31', [[100]]);
     addPeriod($recurrence, '2027-01-01', null, [[120]], position: 1);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-06-01")->value('net'))->toBe(100.0);
     expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2027-06-01")->value('net'))->toBe(120.0);
@@ -104,7 +103,7 @@ test('a later dated change supersedes an open-ended earlier period', function ()
     addPeriod($recurrence, '2026-01-01', null, [[100]]);
     addPeriod($recurrence, '2026-06-01', null, [[200]], position: 1);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-05-10")->value('net'))->toBe(100.0);
     expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-06-10")->value('net'))->toBe(200.0);
@@ -117,7 +116,7 @@ test('VAT and withholding are computed from the current rates', function () {
     $recurrence = Recurrence::factory()->create(['start_date' => '2026-01-01', 'day_of_month' => 1]);
     addPeriod($recurrence, '2026-01-01', null, [[100, $vat->id, $withheld->id]]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $row = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-03-01")->first();
     expect((float) $row->vat_amount)->toBe(24.0);
@@ -138,7 +137,7 @@ test('a period with several lines generates the full VAT and withholding breakdo
         [300, $vat6->id],
     ]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $row = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-02-01")->first();
     expect((float) $row->net)->toBe(1300.0);
@@ -159,7 +158,7 @@ test('each period carries its own lines and amounts over time', function () {
     addPeriod($recurrence, '2026-01-01', '2026-12-31', [[1000, $vat->id, $withheld->id], [300, $vat->id]]);
     addPeriod($recurrence, '2027-01-01', null, [[1100, $vat->id, $withheld->id], [350, $vat->id]], position: 1);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $y1 = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-12-01")->first();
     $y2 = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2027-01-01")->first();
@@ -175,7 +174,7 @@ test('a Total-mode period reconstructs the exact typed total, like the transacti
     $recurrence = Recurrence::factory()->create(['start_date' => '2026-01-01', 'day_of_month' => 1]);
     addPeriod($recurrence, '2026-01-01', null, [[29.99, $vat->id], [123.45, $vat->id, $withheld->id]], mode: 'total');
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $row = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-01-01")->first();
     $cash = round((float) $row->net + (float) $row->vat_amount - (float) $row->withheld_amount, 2);
@@ -199,7 +198,7 @@ test('a payroll recurrence stores the FMY and EFKA amounts', function () {
         'efka_employer_amount' => 250,
     ]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $row = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-01-25")->first();
     expect((float) $row->net)->toBe(1000.0);
@@ -211,7 +210,7 @@ test('a payroll recurrence stores the FMY and EFKA amounts', function () {
 
 test('re-syncing after an amount change updates unreconciled rows but freezes reconciled ones', function () {
     $recurrence = monthlyRecurrence(net: 100);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     // Reconcile one occurrence with a corrected amount.
     $frozen = Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-03-01")->first();
@@ -219,7 +218,7 @@ test('re-syncing after an amount change updates unreconciled rows but freezes re
 
     // Raise the amount and re-sync.
     RecurrenceEntryLine::query()->update(['amount' => 200]);
-    RecurrenceGenerator::sync($recurrence->fresh());
+    materialize($recurrence->fresh());
 
     expect((float) Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-04-01")->value('net'))->toBe(200.0);
     // The reconciled row keeps its corrected amount.
@@ -228,11 +227,11 @@ test('re-syncing after an amount change updates unreconciled rows but freezes re
 
 test('shortening the end date removes future unreconciled occurrences', function () {
     $recurrence = monthlyRecurrence();
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
     expect(Transaction::where('recurrence_id', $recurrence->id)->count())->toBe(25);
 
     $recurrence->update(['end_date' => '2026-06-30']);
-    RecurrenceGenerator::sync($recurrence->fresh());
+    materialize($recurrence->fresh());
 
     // Jan–Jun 2026 = 6 occurrences remain.
     expect(Transaction::where('recurrence_id', $recurrence->id)->count())->toBe(6);
@@ -241,10 +240,10 @@ test('shortening the end date removes future unreconciled occurrences', function
 
 test('deactivating a recurrence removes its unreconciled rows', function () {
     $recurrence = monthlyRecurrence();
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $recurrence->update(['active' => false]);
-    RecurrenceGenerator::sync($recurrence->fresh());
+    materialize($recurrence->fresh());
 
     expect(Transaction::where('recurrence_id', $recurrence->id)->count())->toBe(0);
 });
@@ -259,7 +258,7 @@ test('the day-of-month clamps on short months without drifting', function () {
     ]);
     addPeriod($recurrence, '2026-01-01', null, [[50]]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $keys = Transaction::where('recurrence_id', $recurrence->id)
         ->orderBy('date')->pluck('managed_key')->all();
@@ -276,7 +275,7 @@ test('the managed floor excludes occurrences dated before it', function () {
     Setting::current()->update(['managed_from' => '2026-09-01']);
     $recurrence = monthlyRecurrence(); // start 2026-01-01, monthly on the 1st
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     expect(Transaction::where('recurrence_id', $recurrence->id)->where('date', '<', '2026-09-01')->count())->toBe(0);
     expect(Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-09-01")->exists())->toBeTrue();
@@ -285,13 +284,13 @@ test('the managed floor excludes occurrences dated before it', function () {
 
 test('setting a floor purges pre-floor unreconciled rows but keeps reconciled ones', function () {
     $recurrence = monthlyRecurrence();
-    RecurrenceGenerator::sync($recurrence); // no floor yet — generates from 2026-01
+    materialize($recurrence); // no floor yet — generates from 2026-01
 
     Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-03-01")
         ->first()->update(['is_reconciled' => true]);
 
     Setting::current()->update(['managed_from' => '2026-09-01']);
-    RecurrenceGenerator::sync($recurrence->fresh());
+    materialize($recurrence->fresh());
 
     // Feb (unreconciled, pre-floor) is gone; March (reconciled) is kept as history.
     expect(Transaction::where('managed_key', "recurrence:{$recurrence->id}:2026-02-01")->exists())->toBeFalse();
@@ -308,7 +307,7 @@ test('a weekly recurrence steps by whole weeks from the start date', function ()
     ]);
     addPeriod($recurrence, '2026-01-01', null, [[30]]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $keys = Transaction::where('recurrence_id', $recurrence->id)
         ->orderBy('date')->pluck('managed_key')->all();
@@ -330,7 +329,7 @@ test('an expense due on a weekend is paid the next working day', function () {
     // 2026-01-10 is a Saturday.
     $recurrence = monthlyRecurrence(['day_of_month' => 10]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $row = slotRow($recurrence, '2026-01-10');
     expect($row->date->toDateString())->toBe('2026-01-12');
@@ -343,7 +342,7 @@ test('an expense due on a public holiday is paid the next working day', function
     PublicHoliday::factory()->create(['date' => '2026-03-25']); // a Wednesday
     $recurrence = monthlyRecurrence(['day_of_month' => 25]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     expect(slotRow($recurrence, '2026-03-25')->date->toDateString())->toBe('2026-03-26');
 });
@@ -354,7 +353,7 @@ test('contractors and employees are paid on the last working day of the month', 
         'day_of_month' => 5,
     ]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     // Jan 2026 ends Sat 31 -> Fri 30; Mar 2026 ends Tue 31. Still one row per month,
     // keyed by its scheduled slot.
@@ -367,7 +366,7 @@ test('the last-working-day rule skips public holidays', function () {
     PublicHoliday::factory()->create(['date' => '2026-03-31']);
     $recurrence = monthlyRecurrence(['entity_id' => Entity::factory()->contractor()->create()->id]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     expect(slotRow($recurrence, '2026-03-01')->date->toDateString())->toBe('2026-03-30');
 });
@@ -379,7 +378,7 @@ test('income from a contractor is not moved to the month end', function () {
         'day_of_month' => 10,
     ]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     expect(slotRow($recurrence, '2026-01-10')->date->toDateString())->toBe('2026-01-12');
 });
@@ -395,18 +394,19 @@ test('a weekly contractor recurrence moves only off weekends and holidays', func
     ]);
     addPeriod($recurrence, '2026-01-03', null, [[50]]);
 
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     expect(slotRow($recurrence, '2026-01-03')->date->toDateString())->toBe('2026-01-05');
 });
 
 test('adding a public holiday moves the recurring payments on it', function () {
     $recurrence = monthlyRecurrence(['day_of_month' => 25]);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
     expect(slotRow($recurrence, '2026-03-25')->date->toDateString())->toBe('2026-03-25');
 
     $this->actingAs(User::factory()->create())
         ->post('/configuration/public-holidays', ['date' => '2026-03-25', 'name' => 'Independence Day']);
+    materialize($recurrence);
 
     expect(slotRow($recurrence, '2026-03-25')->date->toDateString())->toBe('2026-03-26');
 });
@@ -414,11 +414,12 @@ test('adding a public holiday moves the recurring payments on it', function () {
 test('reclassifying the entity as a contractor moves its payments but not reconciled ones', function () {
     $supplier = Entity::factory()->supplier()->create();
     $recurrence = monthlyRecurrence(['entity_id' => $supplier->id, 'day_of_month' => 2]);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
     slotRow($recurrence, '2026-02-02')->update(['is_reconciled' => true]);
 
     $this->actingAs(User::factory()->create())
         ->patch("/entities/{$supplier->id}", ['name' => $supplier->name, 'type' => 'contractor']);
+    materialize($recurrence);
 
     // Reconciled: frozen on its old date, and not duplicated.
     expect(slotRow($recurrence, '2026-02-02')->date->toDateString())->toBe('2026-02-02');

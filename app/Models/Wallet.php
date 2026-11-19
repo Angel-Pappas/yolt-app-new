@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $fee_category_id
  * @property string|null $statement_balance
  * @property Carbon|null $statement_date
+ * @property Carbon|null $concluded_until
  */
 #[Fillable(['name', 'starting_balance', 'fee_entity_id', 'fee_category_id'])]
 class Wallet extends Model
@@ -31,6 +32,7 @@ class Wallet extends Model
             'starting_balance' => 'decimal:2',
             'statement_balance' => 'decimal:2',
             'statement_date' => 'date',
+            'concluded_until' => 'date',
         ];
     }
 

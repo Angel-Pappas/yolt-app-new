@@ -35,10 +35,8 @@ class FmyLedger
     {
         $byMonth = [];
 
-        Transaction::query()
-            ->counted()
-            ->where('fmy_amount', '>', 0)
-            ->get(['invoice_date', 'fmy_amount'])
+        Books::rows(withTaxes: false)
+            ->filter(fn (Transaction $t): bool => (float) $t->fmy_amount > 0)
             ->each(function (Transaction $t) use (&$byMonth): void {
                 $key = substr((string) $t->invoice_date, 0, 7);
                 $byMonth[$key] = ($byMonth[$key] ?? 0.0) + (float) $t->fmy_amount;

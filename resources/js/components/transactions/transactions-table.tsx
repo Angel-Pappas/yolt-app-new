@@ -16,7 +16,6 @@ import { ReconcileModal } from '@/pages/transactions/reconcile-modal';
 import { TransactionFormDialog } from '@/pages/transactions/transaction-form-dialog';
 import { useFinanceLookups } from './lookups';
 import { DescriptionButton, DescriptionDialog } from './description-cell';
-import { INCOME_STATUSES, IncomeStatusBadge } from './income-status';
 import {
     TransactionTypeIcon,
     transactionTypeOptions,
@@ -46,6 +45,8 @@ type Props = {
     ) => ReactNode;
     // DataTable chrome — omit what a given page doesn't need.
     title?: string;
+    /** Shown in the title's place (a page's tab bar). */
+    heading?: ReactNode;
     searchPlaceholder?: string;
     controls?: ReactNode;
     toolbar?: ReactNode;
@@ -58,11 +59,6 @@ type Props = {
     editing?: Transaction | null;
     /** Extra classes per row (passed to the DataTable). */
     rowClassName?: (t: Transaction) => string | undefined;
-    /**
-     * Show the income Status column (the tag, changeable in place). On for lists
-     * that are about income; off by default so expense lists carry no empty column.
-     */
-    showStatus?: boolean;
     /**
      * Columns to leave out because they'd say the same on every row here (e.g.
      * `type` on an income-only list, `entity` on one customer's project).
@@ -105,6 +101,7 @@ export function TransactionsTable({
     enableSelection = false,
     renderBulkActions,
     title,
+    heading,
     searchPlaceholder,
     controls,
     toolbar,
@@ -114,7 +111,6 @@ export function TransactionsTable({
     showTotals = true,
     editing = null,
     rowClassName,
-    showStatus = false,
     hideColumns = [],
 }: Props) {
     const { wallets, entities, categories } = useFinanceLookups();
@@ -290,30 +286,6 @@ export function TransactionsTable({
                 </span>
             ),
         },
-        ...(showStatus
-            ? [
-                  {
-                      id: 'status',
-                      accessorFn: (row: Transaction) => row.income_status ?? '',
-                      meta: {
-                          filter: {
-                              type: 'select' as const,
-                              options: INCOME_STATUSES,
-                          },
-                      },
-                      header: ({ column }) => (
-                          <ColumnHeader column={column} title="Status" />
-                      ),
-                      cell: ({ row }) =>
-                          row.original.income_status ? (
-                              <IncomeStatusBadge
-                                  transactionId={row.original.id}
-                                  status={row.original.income_status}
-                              />
-                          ) : null,
-                  } as ColumnDef<Transaction>,
-              ]
-            : []),
         {
             id: 'net',
             accessorFn: (row) => Number(row.net),
@@ -402,11 +374,9 @@ export function TransactionsTable({
                                 label="transaction"
                                 excluded={!transactionCounts(t)}
                                 disabledReason={
-                                    t.income_status === 'dropped'
-                                        ? 'A dropped income counts for nothing — change its status to bring it back'
-                                        : t.is_reconciled
-                                          ? 'A reconciled transaction always counts'
-                                          : undefined
+                                    t.is_reconciled
+                                        ? 'A reconciled transaction always counts'
+                                        : undefined
                                 }
                             />
                         )}
@@ -476,6 +446,7 @@ export function TransactionsTable({
                 columns={columns}
                 data={transactions}
                 title={title}
+                heading={heading}
                 searchPlaceholder={searchPlaceholder}
                 emptyMessage={emptyMessage}
                 pageSize={pageSize}

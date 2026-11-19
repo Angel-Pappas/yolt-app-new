@@ -14,6 +14,8 @@ declare module '@inertiajs/core' {
             auth: Auth;
             sidebarOpen: boolean;
             financeLookups: FinanceLookups;
+            /** What needs attention, for the sidebar ("!" on Bank import). */
+            attention: { not_matched: number } | null;
             [key: string]: unknown;
         };
     }

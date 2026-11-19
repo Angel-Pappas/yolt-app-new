@@ -11,7 +11,14 @@ import {
     type SortingState,
     useReactTable,
 } from '@tanstack/react-table';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    Fragment,
+    type ReactNode,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -49,6 +56,8 @@ type Props<TData, TValue> = {
     data: TData[];
     /** Page heading, rendered at the left of the toolbar row. */
     title?: string;
+    /** Shown in the title's place (e.g. a page's tab bar); `title` still names the table. */
+    heading?: ReactNode;
     /**
      * Names this table when remembering its setup (search, column filters, sorting,
      * scroll) for the tab's session. Defaults to the title; a table with neither
@@ -68,6 +77,11 @@ type Props<TData, TValue> = {
     initialColumnFilters?: ColumnFiltersState;
     /** Called when a row is clicked (e.g. to open it). */
     onRowClick?: (row: TData) => void;
+    /**
+     * Expandable rows: clicking a row opens this content in a full-width row under
+     * it (and clicking again closes it). Used instead of `onRowClick`.
+     */
+    renderExpanded?: (row: TData) => ReactNode;
     /**
      * A link target for each row — makes rows openable in a new tab (middle /
      * Ctrl/⌘-click) via a stretched anchor, while a plain left-click still calls
@@ -143,6 +157,7 @@ export function DataTable<TData, TValue>({
     columns,
     data,
     title,
+    heading,
     stateKey,
     searchPlaceholder,
     toolbar,
@@ -150,6 +165,7 @@ export function DataTable<TData, TValue>({
     controls,
     initialColumnFilters,
     onRowClick,
+    renderExpanded,
     rowHref,
     rowClassName,
     enableTotals = false,
@@ -298,6 +314,15 @@ export function DataTable<TData, TValue>({
     }
 
     const visibleRows = rows.slice(0, visibleCount);
+    const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+    function toggleExpanded(id: string) {
+        setExpanded((current) => {
+            const next = new Set(current);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }
     const leading = leadingRow && rows[0] ? leadingRow(rows[0].original) : null;
     const leadingColumns = table.getVisibleLeafColumns();
     const leadingSpan = leading
@@ -374,7 +399,7 @@ export function DataTable<TData, TValue>({
     const showCountLine = rows.length > 0 && !enableTotals;
 
     const showRightCluster = Boolean(searchPlaceholder || toolbar || action);
-    const showHeader = Boolean(title || showRightCluster);
+    const showHeader = Boolean(title || heading || showRightCluster);
 
     return (
         <div ref={rootRef} className="flex flex-col">
@@ -387,9 +412,12 @@ export function DataTable<TData, TValue>({
             >
                 {showHeader && (
                     <div className="flex flex-wrap items-center gap-2">
-                        {title && (
-                            <h1 className="text-2xl font-semibold">{title}</h1>
-                        )}
+                        {heading ??
+                            (title && (
+                                <h1 className="text-2xl font-semibold">
+                                    {title}
+                                </h1>
+                            ))}
                         {showRightCluster && (
                             <div className="ml-auto flex flex-wrap items-center gap-2">
                                 {searchPlaceholder && (
@@ -491,68 +519,100 @@ export function DataTable<TData, TValue>({
                         {visibleRows.length ? (
                             visibleRows.map((row) => {
                                 const href = rowHref?.(row.original);
+                                const isOpen = expanded.has(row.id);
                                 return (
-                                    <TableRow
-                                        key={row.id}
-                                        onClick={
-                                            !href && onRowClick
-                                                ? () => onRowClick(row.original)
-                                                : undefined
-                                        }
-                                        className={cn(
-                                            (href || onRowClick) &&
-                                                'cursor-pointer',
-                                            // Positioning context for the row's
-                                            // stretched link overlay.
-                                            href && 'relative',
-                                            rowClassName?.(row.original),
-                                        )}
-                                    >
-                                        {row
-                                            .getVisibleCells()
-                                            .map((cell, i) => (
-                                                <TableCell
-                                                    key={cell.id}
-                                                    className={cn(
-                                                        cellAlign(
+                                    <Fragment key={row.id}>
+                                        <TableRow
+                                            aria-expanded={
+                                                renderExpanded
+                                                    ? isOpen
+                                                    : undefined
+                                            }
+                                            onClick={
+                                                renderExpanded
+                                                    ? () =>
+                                                          toggleExpanded(row.id)
+                                                    : !href && onRowClick
+                                                      ? () =>
+                                                            onRowClick(
+                                                                row.original,
+                                                            )
+                                                      : undefined
+                                            }
+                                            className={cn(
+                                                (href ||
+                                                    onRowClick ||
+                                                    renderExpanded) &&
+                                                    'cursor-pointer',
+                                                // Positioning context for the row's
+                                                // stretched link overlay.
+                                                href && 'relative',
+                                                rowClassName?.(row.original),
+                                            )}
+                                        >
+                                            {row
+                                                .getVisibleCells()
+                                                .map((cell, i) => (
+                                                    <TableCell
+                                                        key={cell.id}
+                                                        className={cn(
+                                                            cellAlign(
+                                                                cell.column
+                                                                    .columnDef
+                                                                    .meta,
+                                                            ),
+                                                        )}
+                                                    >
+                                                        {href && i === 0 && (
+                                                            <a
+                                                                href={href}
+                                                                aria-label="Open"
+                                                                className="absolute inset-0"
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
+                                                                    // Modified clicks
+                                                                    // (new tab/window)
+                                                                    // go to the browser;
+                                                                    // a plain click opens
+                                                                    // in place.
+                                                                    if (
+                                                                        e.metaKey ||
+                                                                        e.ctrlKey ||
+                                                                        e.shiftKey ||
+                                                                        e.altKey
+                                                                    )
+                                                                        return;
+                                                                    e.preventDefault();
+                                                                    onRowClick?.(
+                                                                        row.original,
+                                                                    );
+                                                                }}
+                                                            />
+                                                        )}
+                                                        {flexRender(
                                                             cell.column
-                                                                .columnDef.meta,
-                                                        ),
-                                                    )}
+                                                                .columnDef.cell,
+                                                            cell.getContext(),
+                                                        )}
+                                                    </TableCell>
+                                                ))}
+                                        </TableRow>
+                                        {renderExpanded && isOpen && (
+                                            <TableRow className="hover:bg-transparent">
+                                                <TableCell
+                                                    colSpan={
+                                                        tableColumns.length
+                                                    }
+                                                    className="bg-muted/30 p-0"
                                                 >
-                                                    {href && i === 0 && (
-                                                        <a
-                                                            href={href}
-                                                            aria-label="Open"
-                                                            className="absolute inset-0"
-                                                            onClick={(e) => {
-                                                                // Modified clicks
-                                                                // (new tab/window)
-                                                                // go to the browser;
-                                                                // a plain click opens
-                                                                // in place.
-                                                                if (
-                                                                    e.metaKey ||
-                                                                    e.ctrlKey ||
-                                                                    e.shiftKey ||
-                                                                    e.altKey
-                                                                )
-                                                                    return;
-                                                                e.preventDefault();
-                                                                onRowClick?.(
-                                                                    row.original,
-                                                                );
-                                                            }}
-                                                        />
-                                                    )}
-                                                    {flexRender(
-                                                        cell.column.columnDef
-                                                            .cell,
-                                                        cell.getContext(),
+                                                    {renderExpanded(
+                                                        row.original,
                                                     )}
                                                 </TableCell>
-                                            ))}
-                                    </TableRow>
+                                            </TableRow>
+                                        )}
+                                    </Fragment>
                                 );
                             })
                         ) : (

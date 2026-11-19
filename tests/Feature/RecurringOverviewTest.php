@@ -10,7 +10,7 @@ use App\Models\User;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
-use App\Support\RecurrenceGenerator;
+use App\Support\Plan;
 use App\Support\RecurringOverview;
 use Illuminate\Support\Carbon;
 
@@ -69,13 +69,11 @@ test('recurrences are grouped by who they are with', function () {
     $contractor = overviewRecurrence('contractor', [['2026-01-01', null, [[100]]]]);
     $supplier = overviewRecurrence('supplier', [['2026-01-01', null, [[100]]]]);
     $shareholder = overviewRecurrence('shareholder', [['2026-01-01', null, [[100]]]]);
-    $customer = overviewRecurrence('customer', [['2026-01-01', null, [[100]]]], ['type' => 'income']);
 
     expect(overviewRow($employee)['group'])->toBe('payroll');
     expect(overviewRow($contractor)['group'])->toBe('contractors');
     expect(overviewRow($supplier)['group'])->toBe('expenses');
     expect(overviewRow($shareholder)['group'])->toBe('expenses');
-    expect(overviewRow($customer)['group'])->toBe('income');
 });
 
 test('a row shows the VAT, withholding and cash total of its lines', function () {
@@ -178,22 +176,27 @@ test('an open-ended recurrence has no end date', function () {
 
 test('an open-ended recurrence is never done, even with everything reconciled', function () {
     $recurrence = overviewRecurrence('supplier', [['2026-01-01', null, [[100]]]]);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
     Transaction::where('recurrence_id', $recurrence->id)->update(['is_reconciled' => true]);
 
     expect(overviewRow($recurrence)['done'])->toBeFalse();
 });
 
-test('an ended recurrence is done once its last transaction is reconciled', function () {
+test('an ended recurrence is done once every occurrence is paid', function () {
     $recurrence = overviewRecurrence('supplier', [['2026-01-01', '2026-08-31', [[100]]]]);
-    RecurrenceGenerator::sync($recurrence);
-    $rows = Transaction::where('recurrence_id', $recurrence->id)->orderBy('date')->get();
+    $items = Plan::nonTaxItems()->filter(fn ($i) => $i->template->recurrence_id === $recurrence->id)->values();
+    $pay = fn ($item) => Transaction::factory()->create([
+        'type' => 'expense', 'date' => $item->date(), 'invoice_date' => $item->date(), 'net' => 100,
+        'vat_amount' => 0, 'withheld_amount' => 0, 'wallet_id' => $recurrence->wallet_id,
+        'is_reconciled' => true, 'source' => 'recurrence', 'recurrence_id' => $recurrence->id,
+        'managed_key' => $item->key,
+    ]);
 
     // Last one (August) still open: active.
-    $rows->slice(0, -1)->each->update(['is_reconciled' => true]);
+    $items->slice(0, -1)->each($pay);
     expect(overviewRow($recurrence)['done'])->toBeFalse();
 
-    $rows->last()->update(['is_reconciled' => true]);
+    $pay($items->last());
     expect(overviewRow($recurrence)['done'])->toBeTrue();
 });
 
@@ -201,7 +204,7 @@ test('an ended recurrence that never generated a transaction is done', function 
     // Entirely before the managed floor, so nothing was generated.
     Setting::current()->update(['managed_from' => '2026-09-01']);
     $recurrence = overviewRecurrence('supplier', [['2026-01-01', '2026-03-31', [[100]]]]);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     expect(Transaction::where('recurrence_id', $recurrence->id)->count())->toBe(0);
     expect(overviewRow($recurrence)['done'])->toBeTrue();
@@ -218,7 +221,7 @@ test('an active user sees the Recurring page', function () {
     overviewRecurrence('supplier', [['2026-02-01', null, [[100]]]]);
 
     $this->actingAs(User::factory()->create())
-        ->get('/recurring')
+        ->get('/planning/recurring')
         ->assertOk()
         ->assertInertia(
             fn ($page) => $page
@@ -232,7 +235,7 @@ test('the Recurring page deep-links a recurrence into its edit form', function (
     $recurrence = overviewRecurrence('supplier', [['2026-02-01', null, [[100]]]]);
 
     $this->actingAs(User::factory()->create())
-        ->get("/recurring?edit={$recurrence->id}")
+        ->get("/planning/recurring?edit={$recurrence->id}")
         ->assertInertia(fn ($page) => $page->where('editId', $recurrence->id));
 });
 
@@ -241,7 +244,7 @@ test('a recurrence can be added from the Recurring page by picking its entity', 
     $contractor = Entity::factory()->contractor()->create();
 
     $this->actingAs(User::factory()->create())
-        ->from('/recurring')
+        ->from('/planning/recurring')
         ->post('/recurrences', [
             'entity_id' => $contractor->id,
             'type' => 'expense',
@@ -255,7 +258,7 @@ test('a recurrence can be added from the Recurring page by picking its entity', 
                 'lines' => [['amount' => 500]],
             ]],
         ])
-        ->assertRedirect('/recurring');
+        ->assertRedirect('/planning/recurring');
 
     $recurrence = Recurrence::where('entity_id', $contractor->id)->sole();
     expect(overviewRow($recurrence)['group'])->toBe('contractors');
@@ -280,5 +283,5 @@ test('adding a recurrence without an entity is refused', function () {
 });
 
 test('a guest cannot see the Recurring page', function () {
-    $this->get('/recurring')->assertRedirect(route('login'));
+    $this->get('/planning/recurring')->assertRedirect(route('login'));
 });

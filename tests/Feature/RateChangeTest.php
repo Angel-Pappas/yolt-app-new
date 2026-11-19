@@ -9,7 +9,6 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\VatRate;
 use App\Models\Wallet;
-use App\Support\RecurrenceGenerator;
 use Illuminate\Support\Carbon;
 
 beforeEach(function () {
@@ -66,7 +65,7 @@ test('a recurrence generates each occurrence with the rate in force on its date'
     $entry = RecurrenceEntry::factory()->create(['recurrence_id' => $recurrence->id, 'start_date' => '2026-12-01', 'end_date' => '2027-01-31', 'amount_mode' => 'net']);
     $entry->lines()->create(['amount' => 100, 'vat_rate_id' => $vat->id, 'withheld_rate_id' => null, 'position' => 0]);
 
-    RecurrenceGenerator::sync($recurrence->fresh());
+    materialize($recurrence->fresh());
 
     $rows = Transaction::query()->where('recurrence_id', $recurrence->id)->orderBy('date')->get();
     expect($rows->pluck('vat_amount')->all())->toBe(['24.00', '25.00']);

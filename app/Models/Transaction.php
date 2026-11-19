@@ -42,6 +42,12 @@ use Illuminate\Support\Carbon;
  * @property string|null $source
  * @property int|null $recurrence_id
  * @property string|null $managed_key
+ * @property bool $is_planned
+ * @property bool $is_issued
+ * @property bool $invoice_pinned
+ * @property bool $is_edited
+ * @property int|null $recurring_income_id
+ * @property string|null $recurring_slot
  */
 #[Fillable([
     'date',
@@ -70,11 +76,28 @@ use Illuminate\Support\Carbon;
     'source',
     'recurrence_id',
     'managed_key',
+    'is_issued',
+    'invoice_pinned',
+    'is_edited',
+    'recurring_income_id',
+    'recurring_slot',
 ])]
 class Transaction extends Model
 {
     /** @use HasFactory<TransactionFactory> */
     use HasFactory, SoftDeletes;
+
+    /**
+     * Only what really happened: planned rows (one-offs and customer payment lines
+     * still expected — {@see PlannedTransaction}) share this table but are never part
+     * of the books, so every query on Transaction leaves them out.
+     */
+    protected static function booted(): void
+    {
+        if (static::class === self::class) {
+            static::addGlobalScope('real', fn (Builder $q) => $q->where('transactions.is_planned', false));
+        }
+    }
 
     /** The hand-set tags an income can carry. Independent of reconciling. */
     public const INCOME_STATUSES = ['agreed', 'invoiced', 'paid', 'dropped'];
@@ -147,6 +170,10 @@ class Transaction extends Model
             'is_reconciled' => 'boolean',
             'is_one_off' => 'boolean',
             'is_excluded' => 'boolean',
+            'is_planned' => 'boolean',
+            'is_issued' => 'boolean',
+            'invoice_pinned' => 'boolean',
+            'is_edited' => 'boolean',
             'invoice_not_required' => 'boolean',
             'invoice_month' => 'integer',
             'bank_position' => 'integer',
@@ -205,15 +232,21 @@ class Transaction extends Model
         return $this->belongsTo(Recurrence::class);
     }
 
+    /** @return BelongsTo<RecurringIncome, $this> */
+    public function recurringIncome(): BelongsTo
+    {
+        return $this->belongsTo(RecurringIncome::class);
+    }
+
     /** @return HasMany<TransactionVatLine, $this> */
     public function vatLines(): HasMany
     {
-        return $this->hasMany(TransactionVatLine::class);
+        return $this->hasMany(TransactionVatLine::class, 'transaction_id');
     }
 
     /** @return HasMany<TransactionWithheldLine, $this> */
     public function withheldLines(): HasMany
     {
-        return $this->hasMany(TransactionWithheldLine::class);
+        return $this->hasMany(TransactionWithheldLine::class, 'transaction_id');
     }
 }

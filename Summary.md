@@ -42,14 +42,24 @@ the dated what/why in `History.md`. Docs map:
 ## Layout & navigation
 
 - Login lands on **Home** (`/`): a dashboard of what needs attention — money really
-  in the wallets, income due this month and overdue, taxes to pay this month, past
-  rows not yet reconciled, the year ahead (graph + lowest balance), agreements ending
-  soon. Every figure links to its page.
-- Sidebar: Home · **Finance** (Projection, Transactions, Wallets, Bank import, Income, Projects,
-  Recurring, One-offs, Agreements, De minimis) · **Entities**
-  (Customers, Suppliers, Contractors, Employees, Shareholders, **State** = the Taxes
-  area) · Configuration. Inside `/configuration/*` the sidebar
-  swaps to the setup lists + "Back to app".
+  in the wallets, customer payments due this month and owed from earlier months,
+  taxes to pay this month, planned items **not matched yet**, the year ahead (graph +
+  lowest balance), agreements ending soon. Every figure links to its page.
+- Sidebar (Angel, 2026-11-19), split by purpose: Home · **Finance** — what is
+  discussed with the CEO: **Planning**, **Projection**, **Projects** · **Accounting**
+  — the books, kept monthly: **Transactions**, **Bank import** (a **!** while planned
+  items wait unmatched), **Wallets**, **Entities**, **Agreements**, **De minimis**,
+  **Configuration**. Inside `/configuration/*` the sidebar swaps to the setup lists +
+  "Back to app".
+- **Tabbed pages** show their tabs where a list's title goes (`PageTabs`, names only,
+  no counts anywhere): **Planning** = Income · Recurring · One-offs · Taxes
+  (`/planning/{tab}`; the old `/income`, `/recurring`, `/one-offs`, `/taxes/…`
+  redirect); **Entities** = Customers · Suppliers · Contractors · Employees ·
+  Shareholders · State (`/entities/{type}`). Each tab is its own address; the sidebar
+  link reopens the tab last used. A customer's page has its own tabs (Payments ·
+  Projects · Recurring income · Agreements · Transactions; `?tab=` deep-links).
+- Phone: decent, not polished — tabs wrap, wide tables scroll inside their box; a
+  proper mobile pass is on the roadmap.
 
 ## Lists (every table behaves the same)
 
@@ -73,18 +83,16 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   opens it in a new tab — entities, projects, rates, categories, wallets (→ their
   transactions with running balance), recurrences, transactions, projection months.
 
-## Counting or not: the on/off switch and dropped incomes
+## Counting or not: the on/off switch
 
-- Everything is entered as real. Any item can be **switched off** (the eye button):
-  it stays in its normal list, struck through, and **counts for nothing** — balances,
-  the projection, every tax. This is how "what if" is tried.
-- The switch is on a **transaction**, a **recurrence** (flips all its unreconciled
-  rows; rows it generates later start the same way) and a **project** (same). A row
-  switched by hand keeps that through later syncs. A **reconciled** row always counts
-  (reconciling switches it back on); a generated **tax payment** can't be switched.
-- One rule, one place: `Transaction::scopeCounted()` / `counts()` (client twin
-  `transactionCounts`) — not excluded and not a dropped income. Every ledger, balance,
-  estimate and the projection read through it. Totals rows skip what doesn't count.
+- Any item can be **switched off** (the eye button): it stays in its list, struck
+  through, and **counts for nothing** — balances, the projection, every tax. This is
+  how "what if" is tried. The switch is on a **transaction**, a **recurrence** (all
+  its occurrences), a **planned one-off** and a **customer payment line**. A
+  **reconciled** transaction always counts; a tax payment can't be switched.
+- One rule for real rows: `Transaction::scopeCounted()` / `counts()` (client twin
+  `transactionCounts`). Old rows tagged as a dropped income (from before 2026-11-19)
+  still count for nothing; the tag is no longer offered.
 
 ## Transactions (`/transactions`)
 
@@ -103,6 +111,14 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   Total cost = Net + EFKA er).
 - **Cash a transaction moves** = `net + VAT − withheld − FMY − EFKA employee`
   (employer EFKA never touches a wallet).
+- **Transactions is history** (Angel, 2026-11-19): only what really happened. The
+  future lives in the plan (see **The plan beside the books**). A date after today
+  is still allowed, with a note that something expected belongs in Planning; editing
+  a row dated in a wallet's concluded period says so (allowed).
+- **Pays planned item:** a hand-typed row can say which open planned item it pays
+  (the entity's items, same direction); picking the entity of a new row preselects
+  the one item it most likely pays (closest within 45 days, if only one). The row
+  then carries the item's key (`managed_key`) and the item is paid by that much.
 - **Add form:** defaults to Expense; buttons **Add**, **Add + New** (keep open,
   reset), **Add + Same** (keep open, keep everything but amounts). Entity and Category
   have a **+** to create one in place (auto-selected). The entity picker shows the
@@ -132,47 +148,79 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   the balance just before it. The view stays on through date/preset/toggle changes;
   only its × exits.
 
-## Income, status and Projects
+## The plan beside the books (Angel, 2026-11-19)
 
-- An income carries a hand-set **status**: Agreed (default) → Invoiced → Paid, or
-  **Dropped** (the deal fell through: kept on record, counts for nothing). Status and
-  reconciling **never touch each other** (Angel). Change it from the badge in the row
-  or in the form. Expenses have no status.
-- **Finance ▸ Income** (`/income`): every income with its status. Open ones (agreed,
-  invoiced) by default; **Show all** brings back paid (green) and dropped. Buttons
-  narrow by payment date: All · Overdue · This month · Next month.
-- **A project** (`/projects`, `/projects/{id}`) is a container: customer, name,
-  optional agreed total (net), notes, on/off switch. Its **installments are ordinary
-  income transactions** (`project_id`), added from its page with the shared form — so
-  VAT, taxes and the projection follow by themselves. The list and page show
-  Scheduled · Invoiced · Paid · Outstanding · Next due (and "Not yet scheduled" against
-  the agreed total), net, from `App\Support\ProjectOverview`. A project is done when
-  every installment is paid or dropped (hidden unless Show all). Deleting a project
-  keeps its installments.
-- The **invoice date** follows the payment date until it is changed by hand — in the
-  form, and on reconcile (it moves along only while the two are still equal).
+- **Real** = the transactions that happened. **The plan** = everything still
+  expected (`App\Support\Plan`, one shape: `PlanItem`):
+    - **recurrence occurrences** (salaries and bonuses included), **computed live**,
+      never stored — key `recurrence:{id}:{slot}` (bonuses `…:bonus-…`);
+    - **tax payments**, computed live from the tax ledgers over the books and the rest
+      of the plan — key `tax:{tax}:{period}`;
+    - **planned one-offs** and **customer payment lines** — kept as **planned rows** of
+      the `transactions` table (`PlannedTransaction`, `is_planned`), hidden from every
+      real query by a global scope — key `planned:{id}`.
+- **Paid by key:** a real row carrying an item's key (`managed_key`) pays it; the
+  item's **open amount = its cash − what real rows with its key moved**. Open ≤ 0 →
+  done. A computed item can be **moved** or **cancelled** by hand
+  (`plan_adjustments`); a planned row is just edited or deleted.
+- **Concluded dates:** each wallet has a **concluded-up-to** date
+  (`wallets.concluded_until`; Alpha's moves when a statement is concluded, any other
+  wallet is concluded by hand; history in `wallet_conclusions`). An open item dated
+  **after** its wallet's concluded date counts on its own date; one dated **on or
+  before** it is **not matched yet** — it counts **from today** (its invoice date
+  too, unless issued or part-paid) and is listed in Bank import ▸ Not matched yet.
+- **What counts** for the projection, the taxes and the income tax estimate
+  (`App\Support\Books::rows()`): every counted real row + the open share of every
+  switched-on planned item. Nothing before the floor `managed_from` (2026-09-01 on
+  live, `php artisan managed:from`) is planned; recurrences reach 24 months ahead.
+- The plan is kept in the cache as plain data under one fixed key, stamped with a
+  version and the day; any save (a listener in `AppServiceProvider`) or form
+  submission (`FlushPlanAfterWrites`) bumps the version, so every page shows it as
+  the data now stands. A rebuild takes about a second (employees' bonuses are worked
+  out day by day); a cached read about 60 ms.
+
+## Income: customers, projects, payment lines (Angel, 2026-11-19)
+
+- **Projects** (Finance ▸ Projects, `/projects/{id}`): name, **customer** (required —
+  a placeholder customer while the real one isn't known), notes and **deliverables**
+  (name + net, one or more); value = the sum. Not a project tracker: no statuses.
+- **Payment lines** belong to the **customer**, not a project (one plan can cover
+  several projects): payment date, invoice date, **net · VAT · total** at one VAT
+  rate (24 % by default, none for sales abroad; type net or total), wallet, category,
+  description, **Issued** mark, on/off switch. The **invoice date follows the
+  payment date** until the invoice is issued or part of the line is paid — then it
+  stays put (still editable). **Paid** is derived (open amount 0); a line paid in full
+  at the bank becomes **issued** too. A part-paid line can't be deleted (lower its
+  amount instead); otherwise lines are deleted, not cancelled (`PaymentController`).
+- **Recurring income** (rare, on the customer's page): description, net, VAT, day of
+  month, from/to, wallet → creates the customer's monthly payment lines
+  (`RecurringIncomeLines`); a change rebuilds only lines nobody touched (edited,
+  issued or paid ones stay).
+- **The customer's page** tabs: **Payments** (with "Planned X of Y net (its
+  projects)") · **Projects** · **Recurring income** · Agreements · Transactions.
+- **Planning ▸ Income** (`/planning/income`): every **unpaid** line by payment date,
+  in **green** (money owed to us); a line from an **earlier month** carries a **!**
+  (chase the customer, move the date); issued ones say "issued". **Show all** adds
+  the paid ones (muted). **By customer**: customers with what they owe, each row
+  opening to all its lines.
 
 ## Projection (`/projection`)
 
 - Month by month: starting balance, income, expenses (other / payroll / contractors /
-  taxes), net, ending balance — cash amounts by payment date, counted rows only — with
-  a graph (income and expense bars, balance line, current month marked) and the lowest
-  balance ahead. `App\Support\Projection`. A month opens its transactions.
+  taxes), net, ending balance — cash by payment date, from the books and the plan
+  (`Books::rows()`) — with a graph (income and expense bars, balance line, current
+  month marked) and the lowest balance ahead. `App\Support\Projection`.
 - Controls, remembered per user (`users.preferences`): from/to month (kept relative
-  to the current month, default 3 back → 12 ahead), which wallets (transfers across
-  the selection's edge then show as their own column), and **Unreconciled past** —
-  whether rows dated before today that aren't reconciled still count (on) or the past
-  is only what was reconciled (off).
+  to the current month, default 3 back → 12 ahead) and which wallets (transfers
+  across the selection's edge then show as their own column).
 
-## One-offs (`/one-offs`)
+## One-offs (`/planning/one-offs`)
 
-- One-off expenses, seen apart from the day-to-day list. A one-off is an ordinary
-  transaction tagged `is_one_off`, set when it's added from this page's **+** (the
-  same transaction form, `oneOff`); editing it anywhere keeps the tag. Same table,
-  row click and row actions (reconcile, invoice month, delete) as Transactions.
-- Only **open** (unreconciled) one-offs show; **Show all** brings back the
-  reconciled ones, in green (`DONE_ROW_CLASS` + `ShowAllToggle`, shared with
-  Recurring).
+- Expenses expected once — **planned rows** (`is_one_off`), made with the usual
+  transaction form (`/one-offs`). Each counts in the plan until paid, and is done once
+  real rows carrying its key cover it (matched at the bank, or "Pays planned item").
+  Open ones show; **Show all** brings back the done ones, in green; a **!** marks one
+  not matched in a concluded period.
 
 ## De minimis (`/de-minimis`)
 
@@ -187,63 +235,42 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
 
 ## Bank import (`/bank-import`)
 
-- **The bank and the app side by side** for a wallet and a period (Angel's design,
-  2026-11-17): the left half is the bank statement, the right half the app's rows,
-  paired on one line each, in the bank's order (`App\Support\BankComparison`). An
-  empty side means it exists only on the other. **One bank line can be several app
-  rows** (`transactions.bank_line_id`): Alpha books e.g. a credit-line repayment and
-  its cost as one −25.003,78 line, while the app has the €25.000 transfer and the €3,78
-  fee — the further rows show just under the line ("↳ same bank line"), each keeping
-  its own amount. Each line has a verdict:
-    - ✓ **Match**: paired, same day, same amount, reconciled — nothing to do.
-    - ⚠ **Differs**: the app thinks it is the same movement, but the app row's date
-      or amount (shown in amber) differs, or the pair isn't confirmed yet. **Accept**
-      makes the row like the bank.
-    - ✕ **Missing from the app** (bank only): **Add** opens the add form filled from
-      the line (shaped like the row it looks like, when there is one); a bank charge
-      has **Add fee**.
-    - ✕ **Not at the bank** (app only): a leftover automatic row, or something not
-      paid yet — open it or delete it from ⋯.
-- **Pair by hand:** drag an app row (by its grip) onto a bank line, or ⋯ ▸ **Pair
-  with another row** (the app-only rows going the same way, closest amount first).
-  The row keeps its own amount and takes the line's day; it **joins** the line's rows
-  while they don't add up to the line yet, otherwise it **replaces** them. ⋯ ▸ **Add a
-  row for the missing X** opens the add form for the rest; **Take this row out** /
-  **Unpair** undo (the rows stay reconciled). Accept on a single row also gives it the
-  bank's amount. Ticking several lines and **Accept
-  N suggestions** accepts the pairs and adds the missing rows as suggested.
-- **Period:** from/to dates with This month · Last month. It opens from the start of
-  the month of the earliest unpaired line (or the statement's month) to the
-  statement's day. App rows shown: the wallet's counted rows dated in the period.
-- **Upload** a statement — **Alpha Bank CSV** (web banking ▸ Κινήσεις ▸ export CSV;
-  `App\Support\AlphaStatement`). Each line is stored once (`bank_lines`, by a
-  fingerprint of date, reference, text and amount), so overlapping exports are safe;
-  the date used is the **booking date** (the day the money shows at the bank). The
-  upload **settles what needs no decision** (`BankReconciler::settle`): a line whose
-  suggested row has its very amount on its very day (or suggested rows on that day
-  adding up to it) is paired, and the bank's own charges (ΕΞΟΔΑ …, ΕΞΔ…) are added as
-  fee rows. The closing balance is kept on the
-  wallet and compared with the app's checked balance on that day.
-- **How the app guesses** (`App\Support\BankReconciler::suggestions`): same wallet and
-  direction and the same cash amount (unreconciled within 15 days, or already
-  reconciled within 3), or the one unreconciled row whose entity the bank text names,
-  within 3 days and of a similar size. Among equal amounts the one naming the entity,
-  on the same day or already reconciled wins; still equal = no guess. Failing one row,
-  **two or three rows within 3 days that add up to the line exactly** (the
-  combination on the line's day if only one is, else the only one). A row is never
-  guessed for two lines. A missing row looks like what the same bank text became last
-  time, or the latest row of the entity the text names (a refund becomes income from
-  the supplier; payroll is never copied). The add form from a bank line has the
-  **Bank fee** field too: the row and its fee then make the line together.
-- **Pairing** leaves the row **reconciled, dated on the bank's day** (the invoice date
-  follows only while it still equals the date), **moving exactly the bank's amount**
-  (`TransactionWriter::toCash`: VAT lines rescaled, last cent in the VAT; payroll
-  moves its net; a transfer takes it) and placed in the bank's order. Deleting a
-  paired row puts its line back to missing.
+Three views (Angel, 2026-11-19), tabs in the title spot:
+
+- **Statements:** every upload (wallet, dates, Open/Concluded, lines, who, when) and
+  every wallet **concluded by hand**, newest first, plus each wallet's "complete up
+  to" date with a **conclude up to…** button (for wallets without statements).
+  **Upload** a statement for a wallet — **Alpha Bank CSV**
+  (`App\Support\AlphaStatement`); one **open** statement per wallet at a time. Each
+  line is stored once (fingerprint), so overlapping exports are safe: a line already
+  in an earlier statement keeps its place there.
+- **Working on a statement** — a **draft** (`App\Support\StatementDraft`): the bank
+  and the app side by side for its dates (`BankComparison`). Every decision is a
+  saved **step** (`bank_statement_steps`, the whole decision set as JSON) and
+  **Undo** takes the last one back; **nothing in the books changes until Conclude**.
+  A line's decision is **pieces adding up to it**: an existing row, a **planned item**
+  (all or part — a part asks when the rest is now due), a **new row** from the add
+  form (with its bank fee), a row **like** an earlier one, or the **bank fee**.
+  Suggestions, in order: existing rows (as before), then **open planned items** of
+  the wallet going the same way with the line's open amount, dated up to **10 days
+  after** the line, any month before it (two alike → the **oldest**), then the fee,
+  groups and "add like…". The upload decides the sure ones (same-day exact row or
+  planned item, the bank's charges) as the draft's first step. Lines show ✓ match
+  (done before), ⚠ differs, ✕ missing on a side, ● decided, ◌ part decided.
+- **Conclude** needs every line decided; re-checks each decision (a row deleted,
+  paired elsewhere or edited since, a planned item no longer that open → those lines
+  are cleared for a second look and nothing is applied); compares the app's balance
+  with the bank's closing balance (a difference must be confirmed); then applies
+  everything in one database transaction — pairs rows (reconciled, bank day, bank
+  amount), creates new rows and the real rows of planned items (`BankReconciler::
+fromPlan`, carrying their keys), sets the rest's new date, issues fully paid payment
+  lines — and moves the wallet's concluded date to the statement's end. No reopen
+  (re-upload instead); **Discard** drops an open statement and its lines.
+- **Not matched yet:** planned items dated in a concluded period that nothing paid.
+  Each still counts from today until it is **linked** to the real transaction that
+  paid it, **moved** to a new date, or **cancelled** (`PlanItemController`).
 - Bank text is compared folded (`App\Support\BankText`): the bank mixes Greek and
-  Latin look-alike capitals and appends changing codes, so "FΑCΕΒΚ *WRJΖΝΕ6ΕV4" and
-  "FACEBK *CPDCMC6EV4" read the same ("FACEBK").
-- On a phone each side is one stacked cell, with the buttons under the app side.
+  Latin look-alike capitals and appends changing codes.
 
 ## Wallets (`/wallets`)
 
@@ -252,7 +279,8 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   reconciled AND dated ≤ today** (owner decision 2026-10-01: unverified or future rows
   aren't real yet). The Transactions balance view counts **every** row, so each row's
   effect shows. Balances are always computed live, never stored
-  (`App\Support\WalletBalances`).
+  (`App\Support\WalletBalances`). Each wallet's **concluded-up-to** date is kept by
+  Bank import (statements, or by hand).
 
 ## Entities
 
@@ -260,57 +288,42 @@ All lists render through the shared `DataTable` (rules in `AGENTS.md`):
   contractor, employee, state, shareholder (both-sided: dividends out / investment
   in). The type is **required** (validation and database) — including when an entity
   is created inline from the transaction form.
-- Each type has its own list; each entity has a page (`/entities/{id}`) with an edit
-  form, its transactions and its **recurrences**.
+- Entities is one page with a tab per type (State included); each entity has a page
+  (`/entities/{id}`) with an edit form, its transactions and its recurrences — a
+  customer's page has the income tabs instead (see Income).
 
-## Recurring & managed transactions
+## Recurring (`/planning/recurring`)
 
-- A **recurrence** (added on an entity's page or on Finance ▸ Recurring) is a transaction template (type
-  income/expense, category, wallet, description) + cadence (every N weeks/months/years
-  on a day of month) + **periods**, each with its own full amount lines (or payroll
-  amounts). Its start/end come from the periods.
-- **Payment day** (Angel, 2026-10-23): **contractors and employees** (expenses) are
-  paid on the **last working day of each month**, whatever day is set (the form shows
-  "Last working day"); **anything else** on its day, or the **next working day** if
-  that is a weekend or public holiday (Configuration ▸ Public holidays). A weekly
-  cadence always uses its own day. Each generated row stays keyed by its scheduled
-  slot (`managed_key`) and is only _dated_ on the payment day, so a moved date updates
-  the same row; reconciled rows stay frozen. Adding/changing a holiday or an entity's
-  type re-syncs straight away. Rule: `Recurrence::paysOnLastWorkingDay()` (client twin
-  `paysOnLastWorkingDay` in `lib/recurring.ts`), dates via `App\Support\WorkingDays`.
-- `App\Support\RecurrenceGenerator` turns recurrences into real transactions over a
-  rolling **24-month horizon**; generated ("managed") rows are ordinary transactions
-  marked with `source`/`managed_key`, kept in sync until **reconciled** (then frozen).
-- **Floor date** `managed_from` (2026-09-01 in prod, `php artisan managed:from`):
-  nothing managed is generated before it. `managed:sync` runs daily at 02:00.
-- **Finance ▸ Recurring** (`/recurring`, `App\Support\RecurringOverview`): every
-  recurrence in one list, switched by group buttons with counts — **Payroll** (entity
-  is an employee), **Contractors**, **Expenses** (any other expense), **Income**. It
-  opens on the first group with rows and remembers the chosen group on Back. Columns:
-  Entity · Description (with a **Paused** marker) · From · To (or "Ongoing") ·
-  amounts. Only **active** recurrences show: open-ended, or with an end date but its
-  last generated transaction still unreconciled. **Show all** brings back the
-  **done** ones (ended and last transaction reconciled), in green; the group counts
-  follow what's shown. Payroll shows Net · FMY · EFKA employee · EFKA employer ·
-  To pay · Total cost; Contractors Net · VAT · Withheld · Total; Expenses/Income
-  Net · VAT · Total (Total = cash moved, as on Transactions). Amounts are one
-  occurrence of the period in force today (else the next to start, else the last),
-  resolved like the generator does. **+** adds one: the shared recurrence form opens
-  with no entity; picking one sets the type (customer → income, else expense) and,
-  for an employee, the Payroll category (`recurrenceDefaults`, the same rule as on an
-  entity's page), and after saving the page shows the group it landed in. Clicking a
-  row opens that form to edit it (middle-click: `?edit=<id>` in a new tab); the row's
-  bin deletes it. Either way it is the entity's own recurrence, shown on its page too.
+- A **recurrence** (added on an entity's page or on Planning ▸ Recurring) is an
+  **expense** template (category, wallet, description) + cadence (every N
+  weeks/months/years on a day of month) + **periods**, each with its own full amount
+  lines (or payroll amounts). Recurring income lives on the customer instead.
+- **Payment day** (Angel, 2026-10-23): **contractors and employees** are paid on the
+  **last working day of each month**; anything else on its day, or the **next working
+  day** after a weekend or public holiday. A weekly cadence uses its own day. Each
+  occurrence is keyed by its scheduled slot and only _dated_ on the payment day. Rule:
+  `Recurrence::paysOnLastWorkingDay()` (client twin in `lib/recurring.ts`), dates via
+  `App\Support\WorkingDays`.
+- Occurrences are **plan items computed live** (`RecurrenceGenerator::items()`), never
+  stored; a real row with the slot's key pays one.
+- **Planning ▸ Recurring** (`App\Support\RecurringOverview`): every recurrence in
+  one list, switched by group buttons (no counts) — **Payroll** (an employee),
+  **Contractors**, **Other**. Only **active** ones show (open-ended, or still with an
+  open occurrence); **Show all** brings back the **done** ones (ended, nothing open),
+  in green. Payroll shows Net · FMY · EFKA employee · EFKA employer · To pay · Total
+  cost; Contractors Net · VAT · Withheld · Total; Other Net · VAT · Total. Amounts are
+  one occurrence of the period in force today. **+** adds one (the entity sets the
+  Payroll category for an employee); a row opens its form (`?edit=<id>`).
 
 ### Payroll bonuses
 
 An **employee's** monthly payroll recurrence (Payroll category, entity type employee —
-never contractors) also generates three bonus rows, described **Easter bonus**,
+never contractors) also plans three bonus items, described **Easter bonus**,
 **Leave allowance** and **Christmas bonus**, with Net, FMY and EFKA ee/er all scaled
 alike (an estimate; the payslip figure is set on reconciling). Their FMY/EFKA reach
 the tax pages like a salary's. Rule: `App\Support\PayrollBonuses`; keys
 `recurrence:{id}:bonus-{easter|leave|christmas}:{year}`, so a moved date updates the
-same row; reconciled rows are frozen; same floor and horizon as salaries.
+same item; same floor and horizon as salaries.
 
 | Bonus     | Accrues        | Full amount                 | Partial                          | Paid (Angel's dates)                           |
 | --------- | -------------- | --------------------------- | -------------------------------- | ---------------------------------------------- |
@@ -364,31 +377,26 @@ same row; reconciled rows are frozen; same floor and horizon as salaries.
   halved with notice), unused leave (days × monthly ÷ 25), and the leave allowance and
   running bonus earned so far if not yet paid. Gross, an estimate for planning.
 
-## Taxes — "State" (`/taxes`)
+## Taxes (`/planning/taxes`)
 
 - Each tax is a **bucket** per (invoice month, tax) that emits payment **obligations**
-  `{amount, due date}`. All taxes attribute by **`invoice_date`**. Monthly taxes are
-  due on the **last working day of the following month** (weekends + Configuration ▸
-  Public holidays excluded).
+  `{amount, due date}`, computed from the books **and the plan** (`Books::rows(false)`).
+  All taxes attribute by **`invoice_date`**. Monthly taxes are due on the **last
+  working day of the following month** (weekends + public holidays excluded).
 - **VAT:** output − input per month; a credit rolls forward; a debit is paid in one go.
 - **Withholding, FMY, EFKA:** amounts collected in a month, paid the next month.
-- **Income tax:** **estimated** per fiscal year from the transactions until the
+- **Income tax:** **estimated** per fiscal year from the books and the plan until the
   accountant's figure is entered (`App\Support\IncomeTaxEstimate`): profit = income
   net − expense net − employer EFKA (by invoice date; tax payments, transfers,
   shareholder rows and categories with "counts toward profit" off are left out); tax =
   22 % of a positive profit + business levy; plus the advance toward next year (80 %),
   less the advance already paid; in 8 monthly installments from July of the next
-  year, each on that month's last working day. Entering a year at `/taxes/income`
-  (its installments, and optionally the advance it contains) replaces the estimate
-  for the payments starting that year. A year with no activity isn't estimated; losses
-  aren't carried forward.
-- `/taxes` opens on a **month-by-month payment schedule** (what's due that month),
-  then a card per tax and the **tax wallet** selector; each tax page shows its ledger
-  and the transactions feeding it.
-- **Tax payments become transactions automatically** (`App\Support\TaxSync`): each
-  positive obligation is a managed expense (entity State, category Taxes, dated on the
-  due date, in the tax wallet), recomputed after every transaction/recurrence/income
-  tax/holiday write and daily; deleted if the amount drops to zero.
+  year. Entering a year at `/planning/taxes/income` replaces the estimate.
+- Planning ▸ Taxes opens on a **month-by-month payment schedule**, then a card per tax
+  and the **tax wallet** selector; each tax page shows its ledger and the transactions
+  feeding it.
+- **Tax payments are planned items** (State, category Taxes, on the due date, in the
+  tax wallet) — matched at the bank like any other.
 
 ## Agreements (`/agreements`, and on every entity's page)
 

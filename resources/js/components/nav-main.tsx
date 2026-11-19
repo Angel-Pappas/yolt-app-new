@@ -16,7 +16,12 @@ export function NavMain({
     items: NavItem[];
     label?: string;
 }) {
-    const { isCurrentUrl } = useCurrentUrl();
+    const { isCurrentUrl, currentUrl } = useCurrentUrl();
+    const active = (item: NavItem) =>
+        isCurrentUrl(item.href) ||
+        (item.section !== undefined &&
+            (currentUrl === item.section ||
+                currentUrl.startsWith(`${item.section}/`)));
 
     return (
         <SidebarGroup className="px-2 py-0">
@@ -26,12 +31,21 @@ export function NavMain({
                     <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton
                             asChild
-                            isActive={isCurrentUrl(item.href)}
+                            isActive={active(item)}
                             tooltip={{ children: item.title }}
                         >
                             <Link href={item.href} prefetch>
                                 {item.icon && <item.icon />}
                                 <span>{item.title}</span>
+                                {item.attention && (
+                                    <span
+                                        className="ml-auto font-bold text-amber-600 dark:text-amber-400"
+                                        title="Needs attention"
+                                        aria-label="Needs attention"
+                                    >
+                                        !
+                                    </span>
+                                )}
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

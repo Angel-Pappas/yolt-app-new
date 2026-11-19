@@ -2,15 +2,12 @@
 
 use App\Models\IncomeTaxYear;
 use App\Models\PublicHoliday;
-use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Support\TaxSync;
 use Illuminate\Support\Carbon;
 
-// Income tax installments and public holidays both feed the generated tax payments
-// (amounts and due dates), so editing either must re-sync them immediately — not
-// leave them stale until the nightly `managed:sync`.
+// Income tax installments and public holidays both feed the planned tax payments
+// (amounts and due dates); the plan is computed live, so a change shows at once.
 
 beforeEach(function () {
     Carbon::setTestNow('2026-03-10');
@@ -35,25 +32,24 @@ function incomeTaxYearPayload(string $amount): array
     ];
 }
 
-/** @return array<string, float> managed_key => net */
+/** @return array<string, float> plan key => amount */
 function incomeTaxRows(): array
 {
-    return Transaction::where('managed_key', 'like', 'tax:income:%')
-        ->orderBy('managed_key')
-        ->pluck('net', 'managed_key')
-        ->map(fn ($net): float => (float) $net)
-        ->all();
+    $rows = array_filter(taxPayments(), fn (string $key): bool => str_starts_with($key, 'tax:income:'), ARRAY_FILTER_USE_KEY);
+    ksort($rows);
+
+    return $rows;
 }
 
 function juneIncomeTaxDate(): string
 {
-    return Transaction::where('managed_key', 'tax:income:2026-06')->firstOrFail()->date->format('Y-m-d');
+    return taxPayment('tax:income:2026-06')->date()->format('Y-m-d');
 }
 
-test('creating an income tax year generates its installment payments immediately', function () {
+test('creating an income tax year plans its installment payments at once', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user)->post('/taxes/income', incomeTaxYearPayload('1000'))->assertRedirect();
+    $this->actingAs($user)->post('/planning/taxes/income', incomeTaxYearPayload('1000'))->assertRedirect();
 
     expect(incomeTaxRows())->toBe([
         'tax:income:2026-06' => 1000.0,
@@ -62,13 +58,13 @@ test('creating an income tax year generates its installment payments immediately
     ]);
 });
 
-test('editing an income tax year updates its installment payments immediately', function () {
+test('editing an income tax year updates its installment payments at once', function () {
     $user = User::factory()->create();
-    $this->actingAs($user)->post('/taxes/income', incomeTaxYearPayload('1000'));
+    $this->actingAs($user)->post('/planning/taxes/income', incomeTaxYearPayload('1000'));
     $record = IncomeTaxYear::where('year', 2025)->firstOrFail();
 
     $this->actingAs($user)
-        ->patch("/taxes/income/{$record->id}", incomeTaxYearPayload('1200'))
+        ->patch("/planning/taxes/income/{$record->id}", incomeTaxYearPayload('1200'))
         ->assertRedirect();
 
     expect($record->refresh()->monthly_installment_amount)->toBe('1200.00');
@@ -79,16 +75,15 @@ test('editing an income tax year updates its installment payments immediately', 
     ]);
 });
 
-test('deleting an income tax year removes its installment payments immediately', function () {
+test('deleting an income tax year removes its installment payments at once', function () {
     $user = User::factory()->create();
     $record = IncomeTaxYear::factory()->create([
         'first_installment_month' => '2026-06-01',
         'last_installment_month' => '2026-08-01',
     ]);
-    TaxSync::run();
     expect(incomeTaxRows())->toHaveCount(3);
 
-    $this->actingAs($user)->delete("/taxes/income/{$record->id}")->assertRedirect();
+    $this->actingAs($user)->delete("/planning/taxes/income/{$record->id}")->assertRedirect();
 
     expect(incomeTaxRows())->toBe([]);
 });
@@ -99,7 +94,6 @@ test('public holiday changes move tax due dates immediately', function () {
         'first_installment_month' => '2026-06-01',
         'last_installment_month' => '2026-06-01',
     ]);
-    TaxSync::run();
     // 30 June 2026 is a Tuesday: the month's last working day.
     expect(juneIncomeTaxDate())->toBe('2026-06-30');
 
@@ -127,19 +121,4 @@ test('public holiday changes move tax due dates immediately', function () {
     expect(juneIncomeTaxDate())->toBe('2026-06-29');
     $this->actingAs($user)->delete("/configuration/public-holidays/{$holiday->id}")->assertRedirect();
     expect(juneIncomeTaxDate())->toBe('2026-06-30');
-});
-
-test('the nightly managed:sync command generates the tax payments', function () {
-    IncomeTaxYear::factory()->create([
-        'first_installment_month' => '2026-06-01',
-        'last_installment_month' => '2026-07-01',
-        'monthly_installment_amount' => 500,
-    ]);
-
-    $this->artisan('managed:sync')->assertSuccessful();
-
-    expect(incomeTaxRows())->toBe([
-        'tax:income:2026-06' => 500.0,
-        'tax:income:2026-07' => 500.0,
-    ]);
 });

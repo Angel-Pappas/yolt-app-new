@@ -4,17 +4,23 @@ namespace Database\Seeders;
 
 use App\Models\Agreement;
 use App\Models\BankLine;
+use App\Models\BankStatement;
 use App\Models\Category;
 use App\Models\Entity;
 use App\Models\LeaveEntry;
+use App\Models\PlannedTransaction;
 use App\Models\Project;
 use App\Models\Recurrence;
+use App\Models\RecurringIncome;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
 use App\Support\BankReconciler;
+use App\Support\RecurringIncomeLines;
+use App\Support\StatementDraft;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -34,6 +40,9 @@ class DemoSeeder extends Seeder
             'name' => 'Demo User',
             'email' => 'demo@example.com',
         ]);
+
+        // The plan starts two months back, as on live (nothing planned before it).
+        Setting::current()->update(['managed_from' => Carbon::now()->subMonthsNoOverflow(2)->startOfMonth()->toDateString()]);
 
         $bank = Wallet::create(['name' => 'Alpha Bank', 'starting_balance' => 12500]);
         $cash = Wallet::create(['name' => 'Cash', 'starting_balance' => 300]);
@@ -101,14 +110,14 @@ class DemoSeeder extends Seeder
 
         $this->recurrences($bank, $suppliers, $customers, $expense, $income, $vat24->id, $withheld20->id);
 
-        // One-offs: two still open, one done (reconciled).
+        // One-offs: two still planned, one done (paid, so a real transaction).
         foreach ([
             ['New laptop', 1450, $expense['Office'], -20, true],
             ['Trade fair stand', 2300, $expense['Marketing'], 5, false],
             ['Office chairs', 640, $expense['Office'], 12, false],
         ] as [$description, $net, $category, $days, $reconciled]) {
             $date = Carbon::now()->addDays($days)->toDateString();
-            Transaction::create([
+            ($reconciled ? new Transaction : new PlannedTransaction)->forceFill([
                 'date' => $date,
                 'invoice_date' => $date,
                 'description' => $description,
@@ -123,10 +132,11 @@ class DemoSeeder extends Seeder
                 'is_reconciled' => $reconciled,
                 'is_one_off' => true,
                 'invoice_not_required' => false,
-            ]);
+            ])->save();
         }
 
         $this->projects($bank, $customers, $income['Services Sold'], $vat24->id);
+        $this->recurringIncome($bank, $customers, $income['Services Sold'], $vat24->id);
 
         // Agreements: one running, one about to end, one open-ended, one over.
         foreach ([
@@ -206,44 +216,62 @@ class DemoSeeder extends Seeder
             'text' => 'ΧΟΡ989003070512345', 'amount' => -1002.50, 'reference' => 'two', 'fingerprint' => hash('sha256', 'demo-two'),
         ]);
         $bank->forceFill(['statement_balance' => 14321.09, 'statement_date' => $to->toDateString()])->save();
-        BankReconciler::settle($bank, $user->id);
+        // An open statement being worked on; the month before it is concluded, so
+        // what nothing paid then shows under Not matched yet.
+        $statement = new BankStatement(['wallet_id' => $bank->id, 'from_date' => $from->toDateString(), 'to_date' => $to->toDateString(), 'closing_balance' => 14321.09]);
+        $statement->user_id = $user->id;
+        $statement->save();
+        BankLine::query()->where('wallet_id', $bank->id)->update(['bank_statement_id' => $statement->id]);
+        StatementDraft::concludeWallet($bank, $from->copy()->subDay()->toDateString(), $user->id);
+        StatementDraft::settle($statement, $user->id);
     }
 
     /**
-     * Projects with installments in every state: one part-paid, one all still to
-     * come (switched off — a "what if"), one finished.
+     * Projects with their deliverables, and their customers' payment lines in every
+     * state: paid, part-paid, owed since last month ("!"), issued, still to come,
+     * switched off.
      *
      * @param  Collection<int, Entity>  $customers
      */
     private function projects(Wallet $bank, Collection $customers, Category $category, int $vat24): void
     {
         foreach ([
-            ['Webshop rebuild', $customers[0], 30000, false, [[-40, 10000, 'paid'], [-5, 10000, 'invoiced'], [25, 10000, 'agreed']]],
-            ['Mobile app (proposal)', $customers[1], 24000, true, [[20, 8000, 'agreed'], [50, 8000, 'agreed'], [80, 8000, 'agreed']]],
-            ['Brand refresh', $customers[2], 6000, false, [[-70, 3000, 'paid'], [-35, 3000, 'paid']]],
-            ['Booking platform', $customers[0], 18000, false, [[10, 6000, 'agreed'], [40, 6000, 'agreed'], [70, 2000, 'dropped']]],
-        ] as [$name, $customer, $total, $excluded, $installments]) {
-            $project = Project::create(['name' => $name, 'entity_id' => $customer->id, 'agreed_total' => $total, 'is_excluded' => $excluded]);
+            ['Webshop rebuild', $customers[0], [['Design', 8000], ['Build', 22000]]],
+            ['Mobile app (proposal)', $customers[1], [['App', 24000]]],
+            ['Brand refresh', $customers[2], [['Identity', 6000]]],
+            ['Booking platform', $customers[0], [['Platform', 16000]]],
+        ] as [$name, $customer, $deliverables]) {
+            $project = Project::create(['name' => $name, 'entity_id' => $customer->id]);
+            foreach ($deliverables as $i => [$what, $net]) {
+                $project->deliverables()->create(['name' => $what, 'net' => $net, 'position' => $i]);
+            }
+        }
 
-            foreach ($installments as $i => [$days, $net, $status]) {
-                $date = Carbon::now()->addDays($days)->toDateString();
-                Transaction::create([
-                    'date' => $date,
-                    'invoice_date' => $date,
-                    'description' => $name.' — installment '.($i + 1),
-                    'type' => 'income',
-                    'net' => $net,
-                    'vat_amount' => round($net * 0.24, 2),
-                    'withheld_amount' => 0,
-                    'vat_rate_id' => $vat24,
-                    'entity_id' => $customer->id,
-                    'category_id' => $category->id,
-                    'wallet_id' => $bank->id,
-                    'is_reconciled' => $status === 'paid',
-                    'is_excluded' => $excluded,
-                    'income_status' => $status,
-                    'project_id' => $project->id,
-                    'invoice_not_required' => false,
+        // [customer, description, days from today, net, paid (0–1), issued, switched off]
+        foreach ([
+            [$customers[0], 'Webshop — deposit', -40, 10000, 1, true, false],
+            [$customers[0], 'Webshop — design delivered', -25, 10000, 0, true, false],
+            [$customers[0], 'Webshop — launch', 25, 10000, 0, false, false],
+            [$customers[1], 'App — kick-off', 20, 8000, 0, false, true],
+            [$customers[2], 'Brand refresh', -45, 6000, 0.5, true, false],
+            [$customers[0], 'Booking platform — phase 1', 10, 8000, 0, false, false],
+            [$customers[0], 'Booking platform — phase 2', 70, 8000, 0, false, false],
+        ] as [$customer, $description, $days, $net, $paid, $issued, $excluded]) {
+            $date = Carbon::now()->addDays($days)->toDateString();
+            $line = PlannedTransaction::query()->create([
+                'type' => 'income', 'date' => $date, 'invoice_date' => $date, 'description' => $description,
+                'net' => $net, 'vat_amount' => round($net * 0.24, 2), 'withheld_amount' => 0, 'vat_rate_id' => $vat24,
+                'entity_id' => $customer->id, 'category_id' => $category->id, 'wallet_id' => $bank->id,
+                'is_excluded' => $excluded,
+            ]);
+            $line->forceFill(['is_issued' => $issued])->save();
+            $line->vatLines()->create(['net' => $net, 'vat_rate_id' => $vat24, 'vat_amount' => round($net * 0.24, 2), 'position' => 0]);
+            if ($paid > 0) {
+                Transaction::query()->create([
+                    'type' => 'income', 'date' => $date, 'invoice_date' => $date, 'description' => $description,
+                    'net' => round($net * $paid, 2), 'vat_amount' => round($net * $paid * 0.24, 2), 'withheld_amount' => 0,
+                    'vat_rate_id' => $vat24, 'entity_id' => $customer->id, 'category_id' => $category->id,
+                    'wallet_id' => $bank->id, 'is_reconciled' => true, 'managed_key' => $line->planKey(),
                 ]);
             }
         }
@@ -312,9 +340,6 @@ class DemoSeeder extends Seeder
             [$suppliers[5], 'expense', $expense['Office'], 'Old server', [
                 [$month->copy()->subYear(), $month->copy()->subMonths(2)->endOfMonth(), 14, $vat24, null],
             ]],
-            [$customers[2], 'income', $income['Services Sold'], 'Support contract', [
-                [$month->copy()->subMonths(4), null, 2500, $vat24, null],
-            ]],
         ];
         foreach ($plans as [$entity, $type, $category, $description, $periods]) {
             $recurrence = $this->recurrence($entity, $bank, $type, $category, $description, false, $periods[0][0], $periods[array_key_last($periods)][1]);
@@ -334,6 +359,21 @@ class DemoSeeder extends Seeder
                 ]);
             }
         }
+    }
+
+    /**
+     * A customer's recurring income: a support contract, monthly.
+     *
+     * @param  Collection<int, Entity>  $customers
+     */
+    private function recurringIncome(Wallet $bank, Collection $customers, Category $category, int $vat24): void
+    {
+        $income = RecurringIncome::query()->create([
+            'entity_id' => $customers[2]->id, 'wallet_id' => $bank->id, 'vat_rate_id' => $vat24,
+            'category_id' => $category->id, 'description' => 'Support contract', 'net' => 2500,
+            'day_of_month' => 5, 'start_date' => Carbon::now()->startOfMonth()->addMonth()->toDateString(), 'end_date' => null,
+        ]);
+        RecurringIncomeLines::sync($income);
     }
 
     /** A monthly recurrence on the 1st, paid from the bank. */

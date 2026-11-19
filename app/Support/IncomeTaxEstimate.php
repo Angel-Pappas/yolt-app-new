@@ -101,15 +101,11 @@ class IncomeTaxEstimate
     {
         $byYear = [];
 
-        Transaction::query()
-            ->counted()
-            ->whereIn('type', ['income', 'expense'])
-            ->where(fn ($q) => $q->whereNull('source')->orWhere('source', '!=', 'tax'))
-            ->where(fn ($q) => $q->whereNull('category_id')
-                ->orWhereHas('category', fn ($c) => $c->where('counts_for_profit', true)))
-            ->where(fn ($q) => $q->whereNull('entity_id')
-                ->orWhereHas('entity', fn ($e) => $e->where('type', '!=', 'shareholder')))
-            ->get(['type', 'invoice_date', 'net', 'efka_employer_amount'])
+        Books::rows(withTaxes: false)
+            ->filter(fn (Transaction $t): bool => in_array($t->type, ['income', 'expense'], true)
+                && $t->source !== 'tax'
+                && ($t->category_id === null || (bool) $t->category?->counts_for_profit)
+                && ($t->entity_id === null || $t->entity?->type !== 'shareholder'))
             ->each(function (Transaction $t) use (&$byYear): void {
                 $year = $t->invoice_date->year;
                 $byYear[$year] ??= ['income' => 0.0, 'expenses' => 0.0];

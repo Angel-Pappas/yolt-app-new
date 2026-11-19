@@ -11,10 +11,9 @@ use Illuminate\Support\Collection;
 
 /**
  * Bank statement lines against the app's transactions. Importing stores each new
- * line once and settles what is certain: a line with exactly one row of the same
- * amount on the same day (or rows on that day adding up to it) is paired, and the
- * bank's own charges become fee rows. Every other line gets a suggestion for the Bank
- * import page. A line is paired with one row or several (`transactions.bank_line_id`);
+ * line once (a line seen in an earlier statement keeps its place there); what to
+ * do with each is decided on a draft ({@see StatementDraft}) helped by the
+ * suggestions below, and only concluding the statement pairs lines with rows. A line is paired with one row or several (`transactions.bank_line_id`);
  * a paired row is reconciled, dated on the day the money showed at the bank, and
  * placed in the bank's order within that day.
  *
@@ -23,6 +22,9 @@ use Illuminate\Support\Collection;
  *   (unreconciled within 15 days, or already reconciled within 3 — a row typed in
  *   before the import), or the one unreconciled row whose entity's name is in the
  *   bank text (a salary that changed). Two equal candidates = no guess.
+ * - **plan**: an open planned item of the wallet going the same way whose open
+ *   amount is the line's — a salary, a tax, a customer payment line, a one-off —
+ *   dated up to 10 days after the line, any month before it; two alike → the oldest.
  * - **fee**: the bank's own charge (ΕΞΟΔΑ …) on a wallet that knows where fees go.
  * - **group**: two or three rows within 3 days that add up to the line exactly — the
  *   bank booked them as one (a repayment and its cost). Only a combination that stands
@@ -30,12 +32,15 @@ use Illuminate\Support\Collection;
  * - **like**: a new row copied from the last time this bank text was seen, or from
  *   the latest row of the one entity whose name is in the text.
  *
- * @phpstan-type Proposal array{kind: 'match', transaction_id: int}|array{kind: 'group', transaction_ids: list<int>}|array{kind: 'fee'}|array{kind: 'like', transaction_id: int}
+ * @phpstan-type Proposal array{kind: 'match', transaction_id: int}|array{kind: 'group', transaction_ids: list<int>}|array{kind: 'plan', key: string}|array{kind: 'fee'}|array{kind: 'like', transaction_id: int}
  */
 final class BankReconciler
 {
     /** Days either side of a line an unreconciled row may sit to match it. */
     private const OPEN_WINDOW = 15;
+
+    /** Days after a line a planned item may be dated and still be what it pays. */
+    public const PLAN_AHEAD = 10;
 
     /** Days either side for a row already reconciled (it was dated by the bank). */
     private const RECONCILED_WINDOW = 3;
@@ -54,7 +59,7 @@ final class BankReconciler
      * @param  array{balance: float|null, balance_date: string|null, lines: list<array{date: string, position: int, text: string, amount: float, reference: string, fingerprint: string}>}  $statement
      * @return array{added: int, known: int}
      */
-    public static function import(Wallet $wallet, array $statement, ?int $userId): array
+    public static function import(Wallet $wallet, array $statement, ?int $userId, ?int $statementId = null): array
     {
         $existing = BankLine::query()->where('wallet_id', $wallet->id)
             ->whereIn('fingerprint', array_column($statement['lines'], 'fingerprint'))
@@ -72,7 +77,7 @@ final class BankReconciler
                 continue;
             }
 
-            $new = new BankLine([...$line, 'wallet_id' => $wallet->id]);
+            $new = new BankLine([...$line, 'wallet_id' => $wallet->id, 'bank_statement_id' => $statementId]);
             $new->user_id = $userId;
             $new->save();
             $added++;
@@ -91,57 +96,16 @@ final class BankReconciler
     }
 
     /**
-     * Settle a wallet's waiting lines that need no decision: a suggested row with the
-     * line's very amount on the line's very day (or suggested rows on that day adding
-     * up to it) is paired, and the bank's own charge becomes a fee row. Returns how
-     * many lines were settled.
-     */
-    public static function settle(Wallet $wallet, ?int $userId): int
-    {
-        $lines = BankLine::query()->where('wallet_id', $wallet->id)->pending()->get();
-        $suggestions = self::suggestions($wallet, $lines);
-        $settled = 0;
-
-        foreach ($lines as $line) {
-            $proposal = $suggestions[$line->id]['proposal'] ?? null;
-            if ($proposal === null || $proposal['kind'] === 'like') {
-                continue;
-            }
-            if ($proposal['kind'] === 'fee') {
-                self::addFee($line, $wallet, $userId);
-                $settled++;
-
-                continue;
-            }
-            if ($proposal['kind'] === 'group') {
-                $rows = Transaction::query()->findMany($proposal['transaction_ids']);
-                if ($rows->every(fn (Transaction $t): bool => $t->date->isSameDay($line->date))) {
-                    self::accept($line, $rows->values()->all());
-                    $settled++;
-                }
-
-                continue;
-            }
-            $match = collect($suggestions[$line->id]['candidates'])
-                ->first(fn (array $c): bool => $c['transaction']->id === $proposal['transaction_id']);
-            if ($match !== null && $match['exact'] && $match['transaction']->date->isSameDay($line->date)) {
-                self::link($line, $match['transaction']);
-                $settled++;
-            }
-        }
-
-        return $settled;
-    }
-
-    /**
      * Every waiting line of a wallet with its candidates and suggestion. Lines are
      * taken earliest first and a suggested match is used up, so two lines never
      * suggest the same row.
      *
      * @param  Collection<int, BankLine>  $lines  pending lines of one wallet
+     * @param  array<int, true>  $usedRows  rows a draft already gave to other lines
+     * @param  array<string, float>  $usedPlan  plan key → amount a draft already used
      * @return array<int, array{candidates: list<array{transaction: Transaction, exact: bool}>, proposal: Proposal|null}>
      */
-    public static function suggestions(Wallet $wallet, Collection $lines): array
+    public static function suggestions(Wallet $wallet, Collection $lines, array $usedRows = [], array $usedPlan = []): array
     {
         if ($lines->isEmpty()) {
             return [];
@@ -151,7 +115,7 @@ final class BankReconciler
         $pool = self::pool($wallet, $lines);
         $entities = Entity::query()->get(['id', 'name']);
         $history = self::history($wallet);
-        $used = [];
+        $used = $usedRows;
         $out = [];
 
         // First every line's own row, so a row that is exactly one line's is never
@@ -170,6 +134,13 @@ final class BankReconciler
                 // Rows with this very amount exist but none stands out: the person
                 // picks — adding a new one would likely duplicate.
                 || array_filter($out[$line->id]['candidates'], fn (array $c): bool => $c['exact']) !== []) {
+                continue;
+            }
+            $planned = self::planMatch($line, $usedPlan);
+            if ($planned !== null) {
+                $usedPlan[$planned] = ($usedPlan[$planned] ?? 0.0) + abs((float) $line->amount);
+                $out[$line->id]['proposal'] = ['kind' => 'plan', 'key' => $planned];
+
                 continue;
             }
             if ($wallet->takesBankFees() && BankText::isBankCharge($line->text)) {
@@ -193,6 +164,46 @@ final class BankReconciler
         }
 
         return $out;
+    }
+
+    /**
+     * The planned item whose open amount is exactly the line's: same wallet, same
+     * way, dated no more than {@see PLAN_AHEAD} days after the line (any time
+     * before it — a late payment); of several, the oldest.
+     *
+     * @param  array<string, float>  $usedPlan
+     */
+    private static function planMatch(BankLine $line, array $usedPlan): ?string
+    {
+        $amount = abs((float) $line->amount);
+        $match = self::planCandidates($line, $usedPlan)
+            ->first(fn (array $c): bool => abs($c['open'] - $amount) < 0.005);
+
+        return $match['item']->key ?? null;
+    }
+
+    /**
+     * The open planned items a line could pay, with what is still open of each
+     * (after what a draft already used): same wallet and way, switched on, dated up
+     * to {@see PLAN_AHEAD} days after the line. Oldest first.
+     *
+     * @param  array<string, float>  $usedPlan
+     * @return Collection<int, array{item: PlanItem, open: float}>
+     */
+    public static function planCandidates(BankLine $line, array $usedPlan = []): Collection
+    {
+        $incoming = (float) $line->amount > 0;
+        $until = $line->date->addDays(self::PLAN_AHEAD)->toDateString();
+
+        return Plan::items()
+            ->filter(fn (PlanItem $i): bool => ! $i->isDone() && ! $i->isExcluded()
+                && $i->template->wallet_id === $line->wallet_id
+                && ($i->template->type === 'income') === $incoming
+                && $i->date()->toDateString() <= $until)
+            ->map(fn (PlanItem $i): array => ['item' => $i, 'open' => round($i->open() - ($usedPlan[$i->key] ?? 0.0), 2)])
+            ->filter(fn (array $c): bool => $c['open'] >= 0.005)
+            ->sortBy(fn (array $c): string => $c['item']->date()->toDateString().'|'.$c['item']->key)
+            ->values();
     }
 
     /**
@@ -563,6 +574,47 @@ final class BankReconciler
         self::link($line, $transaction);
 
         return $transaction;
+    }
+
+    /**
+     * The real row a planned item becomes when (part of) it shows at the bank: the
+     * item's whole shape — entity, category, VAT and withholding, payroll figures —
+     * carrying its key, dated on the line's day and moving `$cash`. Its invoice date
+     * is the planned one when that was set apart from the payment date, else the
+     * bank's day. Not yet paired with the line (the caller does that).
+     */
+    public static function fromPlan(BankLine $line, PlanItem $item, float $cash, ?int $userId): Transaction
+    {
+        $tpl = $item->template;
+        $t = new Transaction;
+        $t->user_id = $userId;
+        $t->forceFill([
+            'type' => $tpl->type,
+            'date' => $line->date->toDateString(),
+            'invoice_date' => $tpl->invoice_date->isSameDay($tpl->date) ? $line->date->toDateString() : $tpl->invoice_date->toDateString(),
+            'description' => $tpl->description ?? '',
+            'entity_id' => $tpl->entity_id,
+            'category_id' => $tpl->category_id,
+            'wallet_id' => $line->wallet_id,
+            'vat_rate_id' => $tpl->vat_rate_id,
+            'net' => $tpl->net,
+            'vat_amount' => $tpl->vat_amount,
+            'withheld_amount' => $tpl->withheld_amount,
+            'fmy_amount' => $tpl->fmy_amount,
+            'efka_employee_amount' => $tpl->efka_employee_amount,
+            'efka_employer_amount' => $tpl->efka_employer_amount,
+            'is_one_off' => (bool) $tpl->is_one_off,
+            'source' => $item->kind === 'recurrence' || $item->kind === 'tax' ? $item->kind : null,
+            'recurrence_id' => $tpl->recurrence_id,
+            'managed_key' => $item->key,
+        ]);
+        $t->save();
+        $t->vatLines()->createMany($tpl->vatLines->map(fn ($l) => $l->only(['net', 'vat_rate_id', 'vat_amount', 'position']))->all());
+        $t->withheldLines()->createMany($tpl->withheldLines->map(fn ($l) => $l->only(['net', 'withheld_rate_id', 'withheld_amount', 'position']))->all());
+        TransactionWriter::toCash($t, $cash);
+        $t->save();
+
+        return $t;
     }
 
     /** The cash a row moves, as a positive amount. */

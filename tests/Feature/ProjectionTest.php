@@ -2,6 +2,7 @@
 
 use App\Models\Category;
 use App\Models\Entity;
+use App\Models\PlannedTransaction;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
@@ -34,8 +35,9 @@ test('each month starts where the last one ended', function () {
 
     expect($rows)->toHaveCount(3);
     expect($rows[0])->toMatchArray(['month' => '2026-10', 'starting' => 1500.0, 'income' => 2480.0, 'expenses' => 300.0, 'net' => 2180.0, 'ending' => 3680.0]);
-    expect($rows[1])->toMatchArray(['starting' => 3680.0, 'expenses' => 700.0, 'ending' => 2980.0]);
-    expect($rows[2])->toMatchArray(['starting' => 2980.0, 'net' => 0.0, 'ending' => 2980.0]);
+    // November also pays October's VAT (480), planned by the tax ledger.
+    expect($rows[1])->toMatchArray(['starting' => 3680.0, 'expenses' => 1180.0, 'taxes' => 480.0, 'ending' => 2500.0]);
+    expect($rows[2])->toMatchArray(['starting' => 2500.0, 'net' => 0.0, 'ending' => 2500.0]);
 });
 
 test('money out is split into payroll, contractors, taxes and other', function () {
@@ -61,13 +63,20 @@ test('excluded and dropped rows are left out', function () {
     expect(Projection::monthly('2026-11', '2026-11')[0]['income'])->toBe(100.0);
 });
 
-test('unreconciled past rows can be left out; future ones always count', function () {
-    $wallet = Wallet::factory()->create(['starting_balance' => 0]);
-    projectionRow($wallet, 'income', '2026-11-02', 100, ['is_reconciled' => false]); // past, pending
-    projectionRow($wallet, 'income', '2026-11-20', 200, ['is_reconciled' => false]); // future
+test('a planned item nothing paid by its concluded date counts from today', function () {
+    $wallet = Wallet::factory()->create(['starting_balance' => 0, 'concluded_until' => '2026-10-31']);
+    $customer = Entity::factory()->customer()->create();
+    PlannedTransaction::query()->create([
+        'type' => 'income', 'date' => '2026-10-15', 'invoice_date' => '2026-10-15',
+        'description' => 'Late payment', 'net' => 100, 'vat_amount' => 0, 'withheld_amount' => 0,
+        'entity_id' => $customer->id, 'wallet_id' => $wallet->id,
+    ]);
 
-    expect(Projection::monthly('2026-11', '2026-11', null, true)[0]['income'])->toBe(300.0);
-    expect(Projection::monthly('2026-11', '2026-11', null, false)[0]['income'])->toBe(200.0);
+    $rows = Projection::monthly('2026-10', '2026-11');
+
+    // Not in concluded October (the bank never saw it) — expected from today on.
+    expect($rows[0]['income'])->toBe(0.0);
+    expect($rows[1]['income'])->toBe(100.0);
 });
 
 test('a wallet selection counts its own rows and shows transfers across its edge', function () {
@@ -91,15 +100,14 @@ test('the view someone sets up is remembered for their next visit', function () 
     $wallet = Wallet::factory()->create();
     $user = User::factory()->create();
 
-    $this->actingAs($user)->get("/projection?back=1&ahead=2&wallets[]={$wallet->id}&pending=0")->assertOk();
+    $this->actingAs($user)->get("/projection?back=1&ahead=2&wallets[]={$wallet->id}")->assertOk();
 
-    expect($user->refresh()->preferences['projection'])->toBe(['back' => 1, 'ahead' => 2, 'wallets' => [$wallet->id], 'pending' => false]);
+    expect($user->refresh()->preferences['projection'])->toBe(['back' => 1, 'ahead' => 2, 'wallets' => [$wallet->id]]);
 
     $this->actingAs($user)->get('/projection')
         ->assertInertia(fn ($page) => $page
             ->component('projection/index')
             ->has('rows', 4)
-            ->where('settings.pending', false)
             ->where('settings.wallets', [$wallet->id]));
 });
 

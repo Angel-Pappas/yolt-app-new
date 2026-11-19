@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Transaction;
-use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -91,7 +90,6 @@ class CategoryController extends Controller
         $category->update($this->validateCategory($request));
         // The flag changes the income tax estimate, and so its payments.
         if ($category->wasChanged('counts_for_profit')) {
-            TaxSync::run();
         }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Category updated.')]);

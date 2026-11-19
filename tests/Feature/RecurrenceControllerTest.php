@@ -39,7 +39,7 @@ function recurrencePayload(Entity $entity, Wallet $wallet, array $overrides = []
     ], $overrides);
 }
 
-test('creating a recurrence generates its transactions', function () {
+test('creating a recurrence plans its occurrences', function () {
     $user = User::factory()->create();
     $entity = Entity::factory()->supplier()->create();
     $wallet = Wallet::factory()->create();
@@ -49,6 +49,7 @@ test('creating a recurrence generates its transactions', function () {
         ->assertRedirect();
 
     expect(Recurrence::count())->toBe(1);
+    materializeAll();
     // Jan–Jun 2026 = 6 monthly occurrences.
     expect(Transaction::where('source', 'recurrence')->count())->toBe(6);
     expect((float) Transaction::where('source', 'recurrence')->orderBy('date')->first()->net)->toBe(100.0);
@@ -99,6 +100,7 @@ test('a period stores several VAT lines with per-line withholding and its Net/To
     expect($entry->lines[0]->withheld_rate_id)->toBe($withheld->id);
     expect($entry->lines[1]->withheld_rate_id)->toBeNull();
 
+    materializeAll();
     $row = Transaction::where('source', 'recurrence')->first();
     expect((float) $row->net)->toBe(1300.0);
     expect((float) $row->vat_amount)->toBe(312.0);
@@ -159,13 +161,14 @@ test('the Payroll category makes a recurrence payroll, taking Net/FMY/EFKA per p
 
     $recurrence = Recurrence::first();
     expect($recurrence->is_payroll)->toBeTrue();
+    materializeAll();
     $row = Transaction::where('source', 'recurrence')->first();
     expect((float) $row->net)->toBe(1000.0);
     expect((float) $row->fmy_amount)->toBe(80.0);
     expect((float) $row->vat_amount)->toBe(0.0);
 });
 
-test('updating a recurrence re-generates its unreconciled transactions', function () {
+test('updating a recurrence re-plans its occurrences', function () {
     $user = User::factory()->create();
     $entity = Entity::factory()->supplier()->create();
     $wallet = Wallet::factory()->create();
@@ -178,6 +181,7 @@ test('updating a recurrence re-generates its unreconciled transactions', functio
             'entries' => [['start_date' => '2026-01-01', 'end_date' => '2026-06-30', 'amount_mode' => 'net', 'lines' => [['amount' => 250]]]],
         ]))
         ->assertRedirect();
+    materializeAll();
 
     expect((float) Transaction::where('source', 'recurrence')->orderBy('date')->first()->net)->toBe(250.0);
 });

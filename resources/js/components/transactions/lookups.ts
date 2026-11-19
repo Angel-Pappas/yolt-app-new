@@ -5,10 +5,21 @@ export type WalletOption = {
     name: string;
     /** Set when the wallet takes bank fees: its most frequent fee amounts. */
     fee_presets?: string[] | null;
+    /** The day its books are complete up to (statement or by hand), if any. */
+    concluded_until?: string | null;
 };
 export type EntityOption = { id: number; name: string; type: string };
 export type CategoryOption = { id: number; name: string; type: string };
-export type ProjectOption = { id: number; name: string; entity_id: number };
+/** An open item of the plan a hand-typed transaction can say it pays. */
+export type PlanItemOption = {
+    key: string;
+    date: string;
+    entity_id: number | null;
+    wallet_id: number;
+    type: string;
+    description: string;
+    open: number;
+};
 export type RateOption = {
     id: number;
     name: string;
@@ -27,7 +38,7 @@ export type FinanceLookups = {
     wallets: WalletOption[];
     entities: EntityOption[];
     categories: CategoryOption[];
-    projects: ProjectOption[];
+    planItems: PlanItemOption[];
     vatRates: RateOption[];
     withheldRates: RateOption[];
 };

@@ -22,12 +22,11 @@ import {
     PayrollFields,
     PayrollSummary,
 } from '@/components/transactions/amount-lines';
-import { INCOME_STATUSES } from '@/components/transactions/income-status';
-import { type IncomeStatus } from '@/components/transactions/types';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import {
     type FinanceLookups,
+    type PlanItemOption,
     useFinanceLookups,
 } from '@/components/transactions/lookups';
 import { CategoryFormDialog } from '@/pages/categories/category-form-dialog';
@@ -51,7 +50,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { formatAmount } from '@/lib/format';
+import { formatAmount, formatDate } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 type VatLine = { net: string; vat_rate_id: number | null; position: number };
 type WithheldLine = {
@@ -77,8 +77,7 @@ export type EditableTransaction = {
     efka_employer_amount: string | null;
     vat_lines: VatLine[];
     withheld_lines: WithheldLine[];
-    income_status?: IncomeStatus | null;
-    project_id?: number | null;
+    managed_key?: string | null;
 };
 
 /** What a new row copies when added from a bank line (see the Bank import page). */
@@ -150,12 +149,11 @@ type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     editing?: EditableTransaction | null;
-    /** Adding from Finance ▸ One-offs: tag the new transaction as a one-off. */
+    /**
+     * Planning ▸ One-offs: a planned one-off expense (saved to the plan at
+     * `/one-offs`, not to Transactions).
+     */
     oneOff?: boolean;
-    /** Adding from Finance ▸ Income: the new transaction starts as an income. */
-    income?: boolean;
-    /** Adding from a project's page: an income installment of that project. */
-    project?: { id: number; entity_id: number } | null;
     /** Adding from the Bank import page: the new row confirms this line. */
     bankLine?: BankLinePrefill | null;
 };
@@ -164,18 +162,55 @@ function today(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
+/** Where the form saves: Transactions, or the plan for a one-off. */
+const urlFor = (oneOff: boolean) => (oneOff ? '/one-offs' : '/transactions');
+
+/** The open plan items of an entity going the same way (income / expense). */
+function planItemsFor(
+    items: PlanItemOption[],
+    type: string,
+    entityId: string,
+): PlanItemOption[] {
+    if (entityId === '' || type === 'transfer') return [];
+    return items.filter(
+        (i) => String(i.entity_id) === entityId && i.type === type,
+    );
+}
+
+/** The one plan item a new row most likely pays: closest within 45 days. */
+function guessPlanItem(
+    items: PlanItemOption[],
+    type: string,
+    entityId: string,
+    date: string,
+): PlanItemOption | null {
+    const day = (iso: string) => new Date(`${iso}T00:00:00`).getTime() / 864e5;
+    const near = planItemsFor(items, type, entityId)
+        .map((i) => ({ i, gap: Math.abs(day(i.date) - day(date)) }))
+        .filter((c) => c.gap <= 45)
+        .sort((a, b) => a.gap - b.gap);
+    if (near.length === 0) return null;
+    // Two equally close: no guess.
+    if (near.length > 1 && near[1].gap === near[0].gap) return null;
+    return near[0].i;
+}
+
+function planItemLabel(i: PlanItemOption): string {
+    const what = i.description || 'Planned';
+    return `${formatDate(i.date)} · ${what} · ${formatAmount(i.open)} open`;
+}
+
 export function TransactionFormDialog({
     open,
     onOpenChange,
     editing,
     oneOff = false,
-    income = false,
-    project = null,
     bankLine = null,
 }: Props) {
+    const baseUrl = urlFor(oneOff);
     // Lookups come from the globally-shared source, so this form works wherever it's
     // opened without each page having to pass them.
-    const { wallets, entities, categories, projects } = useFinanceLookups();
+    const { wallets, entities, categories, planItems } = useFinanceLookups();
 
     // Re-couple each stored VAT line with its withheld line (matched by position),
     // so an edited transaction shows the withholding toggle lit on the right lines.
@@ -228,19 +263,15 @@ export function TransactionFormDialog({
                   efka_employer: editing.efka_employer_amount ?? '',
                   amount_mode: 'net' as AmountMode,
                   lines: editingLines(),
-                  income_status: (editing.income_status ??
-                      'agreed') as IncomeStatus,
-                  project_id: editing.project_id
-                      ? String(editing.project_id)
-                      : '',
+                  managed_key: editing.managed_key ?? '',
                   bank_fee: '',
               }
             : {
-                  type: income || project ? 'income' : 'expense',
+                  type: 'expense',
                   date: today(),
                   invoice_date: today(),
                   description: '',
-                  entity_id: project ? String(project.entity_id) : '',
+                  entity_id: '',
                   category_id: '',
                   wallet_id: wallets[0] ? String(wallets[0].id) : '',
                   to_wallet_id: '',
@@ -250,8 +281,7 @@ export function TransactionFormDialog({
                   efka_employer: '',
                   amount_mode: 'net' as AmountMode,
                   lines: [emptyAmountLine()],
-                  income_status: 'agreed' as IncomeStatus,
-                  project_id: project ? String(project.id) : '',
+                  managed_key: '',
                   bank_fee: '',
                   ...(bankLine ? bankLineDefaults(bankLine) : {}),
               },
@@ -273,29 +303,46 @@ export function TransactionFormDialog({
     const [addCategoryKey, setAddCategoryKey] = useState(0);
 
     const isTransfer = form.data.type === 'transfer';
-    const isIncome = form.data.type === 'income';
 
-    // The projects offered: the chosen entity's (all of them while none is chosen).
-    // An already-selected project is always kept.
-    const availableProjects = projects.filter(
-        (p) =>
-            form.data.entity_id === '' ||
-            String(p.entity_id) === form.data.entity_id ||
-            String(p.id) === form.data.project_id,
-    );
+    // "Pays planned item": the open plan items this real transaction could be — the
+    // chosen entity's, same direction (an already-chosen one is always kept).
+    const planOptions = oneOff
+        ? []
+        : planItemsFor(planItems, form.data.type, form.data.entity_id);
+    const keptKey =
+        form.data.managed_key !== '' &&
+        !planOptions.some((i) => i.key === form.data.managed_key)
+            ? form.data.managed_key
+            : null;
 
-    // Picking a project fills in its customer when none is chosen yet.
-    function changeProject(value: string) {
-        const picked = projects.find((p) => String(p.id) === value);
+    // Picking the entity of a new row preselects the one plan item it most likely
+    // pays (same entity and direction, closest date within 45 days, if only one).
+    function changeEntity(value: string) {
         form.setData((data) => ({
             ...data,
-            project_id: value,
-            entity_id:
-                picked && data.entity_id === ''
-                    ? String(picked.entity_id)
-                    : data.entity_id,
+            entity_id: value,
+            managed_key:
+                editing || oneOff
+                    ? data.managed_key
+                    : (guessPlanItem(planItems, data.type, value, data.date)
+                          ?.key ?? ''),
         }));
     }
+
+    const todayIso = today();
+    const isFuture = !oneOff && form.data.date > todayIso;
+    // The books of this wallet are complete up to here: a change on or before it
+    // changes a concluded period (allowed, but worth knowing).
+    const concludedUntil =
+        wallets.find((w) => String(w.id) === form.data.wallet_id)
+            ?.concluded_until ?? null;
+    const touchesConcluded =
+        !oneOff &&
+        concludedUntil !== null &&
+        (form.data.date <= concludedUntil ||
+            (editing !== undefined &&
+                editing !== null &&
+                editing.date.slice(0, 10) <= concludedUntil));
 
     const availableCategories = categories.filter(
         (c) => c.type === form.data.type,
@@ -469,13 +516,6 @@ export function TransactionFormDialog({
             wallet_id: data.wallet_id,
             amount_mode: data.amount_mode,
             lines: linesPayload(data.lines),
-            // An income's tags; the server ignores them on any other type.
-            ...(data.type === 'income'
-                ? {
-                      income_status: data.income_status,
-                      project_id: data.project_id || null,
-                  }
-                : {}),
         };
     }
 
@@ -483,8 +523,10 @@ export function TransactionFormDialog({
     // an unrelated next entry; 'same' saves and keeps everything except the typed
     // amounts, for entering several similar transactions in a row.
     function doSubmit(mode: 'close' | 'new' | 'same') {
-        // A new one-off carries the tag; an edit never sends it, so it's kept.
-        const tag = oneOff && !editing ? { is_one_off: true } : {};
+        // A real transaction says which plan item it pays (none = '').
+        const tag = oneOff
+            ? {}
+            : { managed_key: form.data.managed_key || null };
         const extra = {
             ...(bankLine ? { bank_line_id: bankLine.id } : {}),
             ...(feePresets
@@ -494,7 +536,7 @@ export function TransactionFormDialog({
         form.transform((data) => ({ ...payload(data), ...tag, ...extra }));
 
         if (editing) {
-            form.patch(`/transactions/${editing.id}`, {
+            form.patch(`${baseUrl}/${editing.id}`, {
                 preserveState: true,
                 preserveScroll: true,
                 onSuccess: () => onOpenChange(false),
@@ -502,7 +544,7 @@ export function TransactionFormDialog({
             return;
         }
 
-        form.post('/transactions', {
+        form.post(baseUrl, {
             preserveState: true,
             preserveScroll: true,
             onSuccess: () => {
@@ -551,7 +593,12 @@ export function TransactionFormDialog({
                         </DialogHeader>
 
                         <div className="grid gap-4 py-4 sm:grid-cols-2">
-                            <div className="grid gap-2 sm:col-span-2">
+                            <div
+                                className={cn(
+                                    'grid gap-2 sm:col-span-2',
+                                    oneOff && 'hidden',
+                                )}
+                            >
                                 <Label htmlFor="type">Type</Label>
                                 <Select
                                     value={form.data.type}
@@ -589,6 +636,20 @@ export function TransactionFormDialog({
                                     }}
                                 />
                                 <InputError message={form.errors.date} />
+                                {isFuture && (
+                                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                                        A future date: Transactions is for what
+                                        happened — something expected belongs in
+                                        Planning (a one-off).
+                                    </p>
+                                )}
+                                {touchesConcluded && (
+                                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                                        This changes a concluded period (this
+                                        wallet is complete up to{' '}
+                                        {formatDate(concludedUntil)}).
+                                    </p>
+                                )}
                             </div>
 
                             <div className="grid gap-2">
@@ -633,9 +694,7 @@ export function TransactionFormDialog({
                                             <Combobox
                                                 id="entity_id"
                                                 value={form.data.entity_id}
-                                                onChange={(v) =>
-                                                    form.setData('entity_id', v)
-                                                }
+                                                onChange={changeEntity}
                                                 options={availableEntities.map(
                                                     (entity) => ({
                                                         value: String(
@@ -710,56 +769,45 @@ export function TransactionFormDialog({
                                 </div>
                             )}
 
-                            {isIncome && (
-                                <div className="grid gap-2">
-                                    <Label htmlFor="project_id">Project</Label>
-                                    <Combobox
-                                        id="project_id"
-                                        value={form.data.project_id}
-                                        onChange={changeProject}
-                                        options={availableProjects.map((p) => ({
-                                            value: String(p.id),
-                                            label: p.name,
-                                        }))}
-                                        placeholder="— None —"
-                                        searchPlaceholder="Search projects…"
-                                        emptyText="No projects found."
-                                        allowNone
-                                    />
-                                    <InputError
-                                        message={errors['project_id']}
-                                    />
-                                </div>
-                            )}
-
-                            {isIncome && (
-                                <div className="grid gap-2">
-                                    <Label htmlFor="income_status">
-                                        Status
+                            {planOptions.length + (keptKey ? 1 : 0) > 0 && (
+                                <div className="grid gap-2 sm:col-span-2">
+                                    <Label htmlFor="managed_key">
+                                        Pays planned item
                                     </Label>
                                     <Select
-                                        value={form.data.income_status}
+                                        value={form.data.managed_key || 'none'}
                                         onValueChange={(v) =>
                                             form.setData(
-                                                'income_status',
-                                                v as IncomeStatus,
+                                                'managed_key',
+                                                v === 'none' ? '' : v,
                                             )
                                         }
                                     >
-                                        <SelectTrigger id="income_status">
+                                        <SelectTrigger id="managed_key">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {INCOME_STATUSES.map((s) => (
+                                            <SelectItem value="none">
+                                                — Nothing planned —
+                                            </SelectItem>
+                                            {keptKey && (
+                                                <SelectItem value={keptKey}>
+                                                    The item it already pays
+                                                </SelectItem>
+                                            )}
+                                            {planOptions.map((i) => (
                                                 <SelectItem
-                                                    key={s.value}
-                                                    value={s.value}
+                                                    key={i.key}
+                                                    value={i.key}
                                                 >
-                                                    {s.label}
+                                                    {planItemLabel(i)}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    <InputError
+                                        message={errors['managed_key']}
+                                    />
                                 </div>
                             )}
 

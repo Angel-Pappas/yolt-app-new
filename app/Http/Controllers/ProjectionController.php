@@ -11,8 +11,8 @@ use Inertia\Response;
 
 /**
  * Finance ▸ Projection: the month-by-month cash flow and its graph (see
- * {@see Projection}). The view someone set up — the range, the wallets, whether
- * unreconciled past rows count — is remembered per user: a visit without settings in
+ * {@see Projection}). The view someone set up — the range and the wallets — is
+ * remembered per user: a visit without settings in
  * the URL uses their last ones. The range is kept **relative** to the current month,
  * so "three months back to a year ahead" rolls forward with time.
  */
@@ -22,7 +22,7 @@ class ProjectionController extends Controller
      * Saved settings as a well-formed set (defaults fill what is missing or odd).
      *
      * @param  array<string, mixed>  $saved
-     * @return array{back: int, ahead: int, wallets: list<int>|null, pending: bool}
+     * @return array{back: int, ahead: int, wallets: list<int>|null}
      */
     private static function settings(array $saved): array
     {
@@ -32,7 +32,6 @@ class ProjectionController extends Controller
             'back' => (int) ($saved['back'] ?? 3),
             'ahead' => (int) ($saved['ahead'] ?? 12),
             'wallets' => is_array($wallets) && $wallets !== [] ? array_values(array_map('intval', $wallets)) : null,
-            'pending' => (bool) ($saved['pending'] ?? true),
         ];
     }
 
@@ -41,19 +40,17 @@ class ProjectionController extends Controller
         $user = $request->user();
         $settings = self::settings((array) data_get($user->preferences, 'projection', []));
 
-        if ($request->hasAny(['back', 'ahead', 'wallets', 'pending'])) {
+        if ($request->hasAny(['back', 'ahead', 'wallets'])) {
             $data = $request->validate([
                 'back' => ['nullable', 'integer', 'between:0,60'],
                 'ahead' => ['nullable', 'integer', 'between:0,60'],
                 'wallets' => ['nullable', 'array'],
                 'wallets.*' => ['integer'],
-                'pending' => ['nullable', 'boolean'],
             ]);
             $settings = self::settings([
                 'back' => $data['back'] ?? $settings['back'],
                 'ahead' => $data['ahead'] ?? $settings['ahead'],
                 'wallets' => $data['wallets'] ?? null,
-                'pending' => $request->has('pending') ? $request->boolean('pending') : $settings['pending'],
             ]);
 
             $preferences = (array) $user->preferences;
@@ -67,7 +64,7 @@ class ProjectionController extends Controller
     /**
      * The projection for a set of settings — also what Home shows a short version of.
      *
-     * @param  array{back: int, ahead: int, wallets: list<int>|null, pending: bool}  $settings
+     * @param  array{back: int, ahead: int, wallets: list<int>|null}  $settings
      * @return array<string, mixed>
      */
     public static function props(array $settings): array
@@ -87,7 +84,6 @@ class ProjectionController extends Controller
                 $now->copy()->subMonths($settings['back'])->format('Y-m'),
                 $now->copy()->addMonths($settings['ahead'])->format('Y-m'),
                 $chosen,
-                $settings['pending'],
             ),
             'settings' => [...$settings, 'wallets' => $chosen],
             'wallets' => $wallets,

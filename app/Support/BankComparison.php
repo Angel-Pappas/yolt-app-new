@@ -17,20 +17,24 @@ use App\Models\Wallet;
  * - **differs**: the app believes it is the same movement, but a date or the amount
  *   differs, or the pair isn't confirmed yet (accepting makes the row like the bank);
  * - **bank_only**: at the bank, missing from the app;
- * - **app_only**: in the app, not at the bank.
+ * - **app_only**: in the app, not at the bank;
+ * - **decided**: a line of an open statement with its draft decision (nothing is
+ *   written until the statement is concluded); **partial** while the decision
+ *   doesn't cover the whole line yet.
  *
  * Rows come in the bank's order: by date, the bank's lines in their order within the
  * day, then the app's unpaired rows of that day.
  *
  * @phpstan-type Differences array{date?: string, amount?: float, unconfirmed?: true, unreconciled?: true}
- * @phpstan-type Row array{status: 'match'|'differs'|'bank_only'|'app_only', line: BankLine|null, part_of: BankLine|null, transaction: Transaction|null, linked: bool, differences: Differences, proposal: array{kind: 'fee'}|array{kind: 'like', transaction_id: int}|null}
+ * @phpstan-type Row array{status: 'match'|'differs'|'bank_only'|'app_only'|'decided'|'partial', line: BankLine|null, part_of: BankLine|null, transaction: Transaction|null, linked: bool, differences: Differences, proposal: array{kind: 'fee'}|array{kind: 'like', transaction_id: int}|array{kind: 'plan', key: string}|null, decision: list<array<string, mixed>>|null}
  */
 final class BankComparison
 {
     /**
+     * @param  array<int, list<array<string, mixed>>>  $decisions  an open statement's draft
      * @return list<Row>
      */
-    public static function rows(Wallet $wallet, string $from, string $to): array
+    public static function rows(Wallet $wallet, string $from, string $to, array $decisions = []): array
     {
         $lines = BankLine::query()
             ->where('wallet_id', $wallet->id)
@@ -39,7 +43,13 @@ final class BankComparison
             ->with('transactions.entity:id,name', 'transactions.category:id,name')
             ->orderBy('date')->orderBy('position')
             ->get();
-        $suggestions = BankReconciler::suggestions($wallet, $lines->filter(fn (BankLine $l): bool => $l->isPending()));
+        $usedRows = StatementDraft::usedRows($decisions);
+        $suggestions = BankReconciler::suggestions(
+            $wallet,
+            $lines->filter(fn (BankLine $l): bool => $l->isPending() && ! isset($decisions[$l->id])),
+            $usedRows,
+            StatementDraft::usedPlan($decisions),
+        );
         $guessed = Transaction::query()->with('entity:id,name', 'category:id,name')
             ->findMany(collect($suggestions)->pluck('proposal')->flatMap(fn (?array $p): array => match ($p['kind'] ?? null) {
                 'match' => [$p['transaction_id']],
@@ -51,8 +61,15 @@ final class BankComparison
         $rows = [];
         $paired = [];
         foreach ($lines as $line) {
-            $proposal = $suggestions[$line->id]['proposal'] ?? null;
             $linked = $line->transactions->isNotEmpty();
+            if (! $linked && isset($decisions[$line->id])) {
+                $covered = StatementDraft::covered($decisions[$line->id]);
+                $whole = abs($covered - abs((float) $line->amount)) < 0.005;
+                $rows[] = self::row($whole ? 'decided' : 'partial', $line, null, null, false, $whole ? [] : ['amount' => $covered], null, $decisions[$line->id]);
+
+                continue;
+            }
+            $proposal = $suggestions[$line->id]['proposal'] ?? null;
             $guessIds = match ($proposal['kind'] ?? null) {
                 'match' => [$proposal['transaction_id']],
                 'group' => $proposal['transaction_ids'],
@@ -87,7 +104,7 @@ final class BankComparison
             ->where(fn ($q) => $q->where('wallet_id', $wallet->id)->orWhere('to_wallet_id', $wallet->id))
             ->whereDate('date', '>=', $from)
             ->whereDate('date', '<=', $to)
-            ->whereNotIn('id', $paired)
+            ->whereNotIn('id', [...$paired, ...array_keys($usedRows)])
             ->whereNull('bank_line_id')
             ->inBankOrder()
             ->get();
@@ -125,12 +142,13 @@ final class BankComparison
     }
 
     /**
-     * @param  'match'|'differs'|'bank_only'|'app_only'  $status
+     * @param  'match'|'differs'|'bank_only'|'app_only'|'decided'|'partial'  $status
      * @param  Differences  $differences
-     * @param  array{kind: 'match', transaction_id: int}|array{kind: 'group', transaction_ids: list<int>}|array{kind: 'fee'}|array{kind: 'like', transaction_id: int}|null  $proposal
+     * @param  array{kind: 'match', transaction_id: int}|array{kind: 'group', transaction_ids: list<int>}|array{kind: 'plan', key: string}|array{kind: 'fee'}|array{kind: 'like', transaction_id: int}|null  $proposal
+     * @param  list<array<string, mixed>>|null  $decision
      * @return Row
      */
-    private static function row(string $status, ?BankLine $line, ?BankLine $partOf, ?Transaction $transaction, bool $linked, array $differences, ?array $proposal): array
+    private static function row(string $status, ?BankLine $line, ?BankLine $partOf, ?Transaction $transaction, bool $linked, array $differences, ?array $proposal, ?array $decision = null): array
     {
         return [
             'status' => $status,
@@ -139,8 +157,10 @@ final class BankComparison
             'transaction' => $transaction,
             'linked' => $linked,
             'differences' => $differences,
-            // A suggested pair is the row itself; what's left is how to add a row.
-            'proposal' => $proposal !== null && ($proposal['kind'] === 'fee' || $proposal['kind'] === 'like') ? $proposal : null,
+            // A suggested pair is the row itself; what's left is how to add a row, or
+            // the planned item it pays.
+            'proposal' => $proposal !== null && in_array($proposal['kind'], ['fee', 'like', 'plan'], true) ? $proposal : null,
+            'decision' => $decision,
         ];
     }
 

@@ -4,11 +4,12 @@ namespace App\Http\Middleware;
 
 use App\Models\Category;
 use App\Models\Entity;
-use App\Models\Project;
 use App\Models\Transaction;
 use App\Models\VatRate;
 use App\Models\Wallet;
 use App\Models\WithheldTaxRate;
+use App\Support\Plan;
+use App\Support\PlanItem;
 use App\Support\Rates;
 use App\Support\WalletBalances;
 use Illuminate\Http\Request;
@@ -50,6 +51,10 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            // A "!" on Bank import while planned items wait in a concluded period.
+            'attention' => $request->user() ? fn (): array => [
+                'not_matched' => Plan::notMatched()->count(),
+            ] : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             // The finance lookup lists the transaction edit form needs, shared on every
             // authenticated page so a transactions table can be dropped in ANYWHERE and
@@ -58,13 +63,24 @@ class HandleInertiaRequests extends Middleware
             // (e.g. after inline-creating an entity) but not on unrelated partials.
             'financeLookups' => $request->user() ? fn (): array => [
                 'wallets' => self::wallets(),
+                // The open plan items, so a transaction typed by hand can say which
+                // one it pays ("Pays planned item").
+                'planItems' => array_values(Plan::items()->filter(fn (PlanItem $i): bool => ! $i->isDone())
+                    ->map(fn (PlanItem $i): array => [
+                        'key' => $i->key,
+                        'date' => $i->date()->toDateString(),
+                        'entity_id' => $i->template->entity_id,
+                        'wallet_id' => $i->template->wallet_id,
+                        'type' => $i->template->type,
+                        'description' => $i->template->description,
+                        'open' => $i->open(),
+                    ])->all()),
                 'entities' => Entity::query()->orderBy('name')->get(['id', 'name', 'type']),
                 'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'type']),
                 // Each rate with its dated changes, so a form's preview uses the
                 // percentage in force on the row's invoice date, like the server.
                 'vatRates' => VatRate::query()->orderBy('rate')->get(['id', 'name', 'rate'])
                     ->map(fn (VatRate $r): array => [...$r->only(['id', 'name', 'rate']), 'changes' => Rates::changes('vat', $r->id)]),
-                'projects' => Project::query()->orderBy('name')->get(['id', 'name', 'entity_id']),
                 'withheldRates' => WithheldTaxRate::query()->orderBy('rate')->get(['id', 'name', 'rate'])
                     ->map(fn (WithheldTaxRate $r): array => [...$r->only(['id', 'name', 'rate']), 'changes' => Rates::changes('withheld', $r->id)]),
             ] : null,
@@ -83,6 +99,7 @@ class HandleInertiaRequests extends Middleware
             ->map(fn (Wallet $w): array => [
                 'id' => $w->id,
                 'name' => $w->name,
+                'concluded_until' => $w->concluded_until?->toDateString(),
                 'fee_presets' => $w->takesBankFees() ? self::feePresets($w) : null,
             ])->all());
     }

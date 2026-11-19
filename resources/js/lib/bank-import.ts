@@ -56,3 +56,18 @@ export function pairOptions(
         .slice(0, limit)
         .map((x) => x.t);
 }
+
+/** A month later on the same day (clamped to the month's end), ISO — the default
+ *  date the rest of a part-paid planned item is expected. */
+export function nextMonth(iso: string): string {
+    const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+    const target = new Date(Date.UTC(y, m, 1)); // first of next month
+    const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    target.setUTCDate(Math.min(d, last));
+    return target.toISOString().slice(0, 10);
+}
+
+/** What a line still needs: its amount less what its draft decision covers. */
+export function stillNeeded(lineAmount: number, covered: number): number {
+    return Math.round((Math.abs(lineAmount) - covered) * 100) / 100;
+}

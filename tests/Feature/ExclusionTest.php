@@ -7,8 +7,6 @@ use App\Models\RecurrenceEntry;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Support\RecurrenceGenerator;
-use App\Support\TaxSync;
 use App\Support\VatLedger;
 use App\Support\WalletBalances;
 use App\Support\WithheldLedger;
@@ -100,14 +98,14 @@ test('reconciling an excluded transaction includes it again', function () {
 test('excluding a transaction removes the tax payment it caused', function () {
     Wallet::factory()->create();
     $t = Transaction::factory()->create(['type' => 'income', 'invoice_date' => '2026-12-10', 'date' => '2026-12-10', 'net' => 1000, 'vat_amount' => 240]);
-    TaxSync::run();
     // Its VAT payment, and the income tax estimated on it.
-    expect(Transaction::query()->where('managed_key', 'like', 'tax:vat:%')->count())->toBe(1);
-    expect(Transaction::query()->where('managed_key', 'like', 'tax:income:%')->count())->toBe(8);
+    $keys = array_keys(taxPayments());
+    expect(array_filter($keys, fn ($k) => str_starts_with($k, 'tax:vat:')))->toHaveCount(1);
+    expect(array_filter($keys, fn ($k) => str_starts_with($k, 'tax:income:')))->toHaveCount(8);
 
     $this->actingAs(User::factory()->create())->patch("/transactions/{$t->id}/excluded", ['excluded' => true]);
 
-    expect(Transaction::query()->where('source', 'tax')->count())->toBe(0);
+    expect(taxPayments())->toBe([]);
 });
 
 /** A monthly recurrence with one open-ended period of a plain amount. */
@@ -136,7 +134,7 @@ function exclusionRecurrence(): Recurrence
 
 test('excluding a recurrence switches off its unreconciled rows only, and new rows follow', function () {
     $recurrence = exclusionRecurrence();
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
     $rows = Transaction::query()->where('recurrence_id', $recurrence->id)->orderBy('date')->get();
     expect($rows)->toHaveCount(4);
     $rows[0]->update(['is_reconciled' => true]);
@@ -151,17 +149,6 @@ test('excluding a recurrence switches off its unreconciled rows only, and new ro
 
     // A row generated later starts switched off too.
     $rows[3]->forceDelete();
-    RecurrenceGenerator::sync($recurrence->fresh());
+    materialize($recurrence->fresh());
     expect(Transaction::query()->where('recurrence_id', $recurrence->id)->orderByDesc('date')->first()->is_excluded)->toBeTrue();
-});
-
-test('a row switched off by hand stays off when its recurrence is synced again', function () {
-    $recurrence = exclusionRecurrence();
-    RecurrenceGenerator::sync($recurrence);
-    $row = Transaction::query()->where('recurrence_id', $recurrence->id)->orderBy('date')->first();
-    $row->update(['is_excluded' => true]);
-
-    RecurrenceGenerator::sync($recurrence->fresh());
-
-    expect($row->refresh()->is_excluded)->toBeTrue();
 });

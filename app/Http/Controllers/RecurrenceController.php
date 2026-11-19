@@ -4,9 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Recurrence;
 use App\Support\AmountLines;
-use App\Support\RecurrenceGenerator;
 use App\Support\RecurringOverview;
-use App\Support\TaxSync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,8 +49,6 @@ class RecurrenceController extends Controller
             $recurrence->user_id = $request->user()->id;
             $recurrence->save();
             $this->writeEntries($recurrence, $data['entries']);
-            RecurrenceGenerator::sync($recurrence);
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Recurring transaction created.')]);
@@ -72,8 +68,6 @@ class RecurrenceController extends Controller
             $recurrence->update($this->recurrenceAttributes($data));
             $recurrence->entries()->delete(); // cascades to their lines
             $this->writeEntries($recurrence, $data['entries']);
-            RecurrenceGenerator::sync($recurrence->fresh());
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Recurring transaction updated.')]);
@@ -94,7 +88,6 @@ class RecurrenceController extends Controller
         DB::transaction(function () use ($recurrence, $excluded) {
             $recurrence->update(['is_excluded' => $excluded]);
             $recurrence->transactions()->where('is_reconciled', false)->update(['is_excluded' => $excluded]);
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => $excluded ? __('Recurring transaction excluded.') : __('Recurring transaction included.')]);
@@ -107,8 +100,6 @@ class RecurrenceController extends Controller
         DB::transaction(function () use ($recurrence) {
             $recurrence->delete();
             // Trashed → the generator drops its unreconciled rows, keeps reconciled ones.
-            RecurrenceGenerator::sync($recurrence);
-            TaxSync::run();
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Recurring transaction deleted.')]);
@@ -206,7 +197,8 @@ class RecurrenceController extends Controller
         );
 
         $rules = [
-            'type' => ['required', Rule::in(['income', 'expense'])],
+            // Recurring expenses only: recurring income lives on the customer.
+            'type' => ['required', Rule::in(['expense'])],
             'description' => ['nullable', 'string', 'max:255'],
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'wallet_id' => ['required', 'integer', 'exists:wallets,id'],

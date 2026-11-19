@@ -42,10 +42,8 @@ class VatLedger
         /** @var array<string, array{income: float, expense: float}> $byMonth */
         $byMonth = [];
 
-        Transaction::query()
-            ->counted()
-            ->whereIn('type', ['income', 'expense'])
-            ->get(['type', 'invoice_date', 'vat_amount'])
+        Books::rows(withTaxes: false)
+            ->filter(fn (Transaction $t): bool => in_array($t->type, ['income', 'expense'], true))
             ->each(function (Transaction $t) use (&$byMonth): void {
                 $key = substr((string) $t->invoice_date, 0, 7);
                 $byMonth[$key] ??= ['income' => 0.0, 'expense' => 0.0];

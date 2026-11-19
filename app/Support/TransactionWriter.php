@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use App\Models\Project;
 use App\Models\Transaction;
 
 /**
@@ -23,10 +22,6 @@ final class TransactionWriter
      */
     public static function persist(Transaction $transaction, array $data): void
     {
-        if (array_key_exists('is_one_off', $data)) {
-            $transaction->is_one_off = (bool) $data['is_one_off'];
-        }
-        self::applyIncomeTags($transaction, $data);
 
         if ($data['type'] === 'transfer') {
             $transaction->fill([
@@ -119,34 +114,6 @@ final class TransactionWriter
     private static function payrollAmount(array $data, string $key): ?float
     {
         return isset($data[$key]) ? round((float) $data[$key], 2) : null;
-    }
-
-    /**
-     * The income-only tags: status (a new income starts as agreed) and project. Any
-     * other type carries neither. A new installment of a switched-off project starts
-     * switched off too.
-     *
-     * @param  array<string, mixed>  $data
-     */
-    private static function applyIncomeTags(Transaction $transaction, array $data): void
-    {
-        if ($data['type'] !== 'income') {
-            $transaction->income_status = null;
-            $transaction->project_id = null;
-
-            return;
-        }
-
-        $transaction->income_status = $data['income_status'] ?? $transaction->income_status ?? 'agreed';
-
-        if (array_key_exists('project_id', $data)) {
-            $transaction->project_id = $data['project_id'] !== null ? (int) $data['project_id'] : null;
-        }
-
-        if (! $transaction->exists && $transaction->project_id !== null
-            && Project::query()->whereKey($transaction->project_id)->value('is_excluded')) {
-            $transaction->is_excluded = true;
-        }
     }
 
     /**

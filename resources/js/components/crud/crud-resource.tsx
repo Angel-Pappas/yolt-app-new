@@ -30,6 +30,8 @@ export type CrudColumn = {
 
 type Props = {
     title: string;
+    /** Shown in the title's place (a page's tab bar), as on {@see DataTable}. */
+    heading?: ReactNode;
     singular: string;
     baseUrl: string;
     items: CrudItem[];
@@ -71,6 +73,7 @@ type Props = {
  */
 export function CrudResource({
     title,
+    heading,
     singular,
     baseUrl,
     items,
@@ -175,6 +178,7 @@ export function CrudResource({
                 columns={tableColumns}
                 data={items}
                 title={title}
+                heading={heading}
                 searchPlaceholder={`Search ${title.toLowerCase()}…`}
                 emptyMessage={`No ${title.toLowerCase()} yet.`}
                 onRowClick={onRowClick}

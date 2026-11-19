@@ -7,101 +7,60 @@ use App\Models\RecurrenceEntry;
 use App\Models\RecurrenceEntryLine;
 use App\Models\Setting;
 use App\Models\Transaction;
+use App\Models\TransactionVatLine;
+use App\Models\TransactionWithheldLine;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 
 /**
- * Turns a recurrence into real transactions and keeps them in sync. Every managed
- * row a recurrence owns is (re)built to match the current definition: occurrences
- * missing are created, drifted ones updated, unwanted ones soft-deleted — but a
- * reconciled row is frozen and never touched (a change to it is made by reconciling,
- * or by editing the recurrence, per the agreed model).
+ * A recurrence's occurrences as **plan items** — unsaved transactions built in
+ * memory, never stored (Angel, 2026-11-19: no future rows in Transactions). Each
+ * occurrence is a **slot** (its scheduled day — the item's plan key
+ * `recurrence:{id}:{Y-m-d}`) paid on a **payment day**: the last working day of the
+ * slot's month for contractors and employees, else the slot itself or the next
+ * working day after a weekend/holiday ({@see Recurrence::paysOnLastWorkingDay()}).
  *
- * Occurrences run from the recurrence's `start_date` (history included) through the
- * earlier of its `end_date` and a rolling 24-month horizon. Each occurrence is a
- * **slot** (its scheduled day — the row's `managed_key`) paid on a **payment day**:
- * the last working day of the slot's month for contractors and employees, else the
- * slot itself or the next working day after a weekend/holiday
- * ({@see Recurrence::paysOnLastWorkingDay()}). Keying by slot means a moved payment
- * day updates the same row rather than creating another. For each occurrence the
- * amount in force comes from the matching {@see RecurrenceEntry}; a date no entry
- * covers is skipped. Each period's amount lines (VAT and optional withholding per
- * line, Net/Total mode per period) are resolved server-side from the rates' current
- * percentages **on the occurrence's date** by the same {@see AmountLines} resolver as
- * a hand-entered row; a payroll period set to automatic is calculated from its gross
- * by the tax rules in force that day ({@see PayrollCalculator}). An
- * employee's payroll recurrence also generates its Easter bonus, leave allowance and
- * Christmas bonus as extra managed rows ({@see PayrollBonuses}), kept in sync the same
- * way.
+ * Occurrences run from the recurrence's start (never before the plan's floor,
+ * `managed_from`) through the earlier of its end and a rolling 24-month horizon. For
+ * each occurrence the amount in force comes from the matching {@see RecurrenceEntry};
+ * a date no entry covers is skipped. Amount lines are resolved by the same
+ * {@see AmountLines} resolver as a hand-entered row, at the rates in force on the
+ * occurrence's date; a payroll period set to automatic is calculated from its gross
+ * by the tax rules in force that day ({@see PayrollCalculator}). An employee's
+ * payroll recurrence also yields its Easter bonus, leave allowance and Christmas
+ * bonus ({@see PayrollBonuses}). Real rows that pay an occurrence carry its key
+ * ({@see Plan}).
  */
 class RecurrenceGenerator
 {
     /** How far past today occurrences are generated. */
     public const HORIZON_MONTHS = 24;
 
-    /** Sync every recurrence — the daily job, and a safety net after any change. */
-    public static function syncAll(): void
-    {
-        $holidays = WorkingDays::holidaySet();
-
-        Recurrence::query()->withTrashed()->with(['entries.lines', 'entity.employeeProfile'])->get()
-            ->each(fn (Recurrence $r) => self::sync($r, $holidays));
-    }
-
     /**
-     * Make one recurrence's generated transactions match its current definition.
+     * Every occurrence of a recurrence as an unsaved transaction, keyed by plan key.
+     * A trashed or inactive recurrence plans nothing.
+     *
+     * @param  array<string, true>  $holidays
+     * @return array<string, Transaction>
      */
-    /**
-     * @param  array<string, true>|null  $holidays  the public-holiday set (loaded when null)
-     */
-    public static function sync(Recurrence $recurrence, ?array $holidays = null): void
+    public static function items(Recurrence $recurrence, array $holidays): array
     {
-        $recurrence->loadMissing(['entries.lines', 'entity.employeeProfile']);
-        $holidays ??= WorkingDays::holidaySet();
+        $recurrence->loadMissing(['entries.lines', 'entity.employeeProfile', 'entity', 'category']);
 
-        $desired = self::desiredOccurrences($recurrence, $holidays);
+        $items = [];
+        foreach (self::desiredOccurrences($recurrence, $holidays) as $key => $occurrence) {
+            if ($occurrence['bonus'] !== null) {
+                $items[$key] = self::payrollItem($recurrence, $key, $occurrence['date'], $occurrence['bonus']['label'], $occurrence['bonus']['amounts']);
 
-        /** @var Collection<string, Transaction> $existing */
-        $existing = Transaction::query()
-            ->where('recurrence_id', $recurrence->id)
-            ->get()
-            ->keyBy('managed_key');
-
-        foreach ($desired as $key => $occurrence) {
-            $row = $existing->get($key);
-            $existing->forget($key);
-            // A reconciled occurrence is frozen; leave it exactly as it was.
-            if ($row?->is_reconciled) {
                 continue;
             }
-            $row ??= new Transaction;
-            if ($occurrence['bonus'] !== null) {
-                self::writePayroll($row, $recurrence, $key, $occurrence['date'], $occurrence['bonus']['label'], $occurrence['bonus']['amounts']);
-            } else {
-                // Resolved per occurrence: the VAT/withholding rates and the payroll
-                // rules are the ones in force on that occurrence's own date.
-                $entry = $occurrence['entry'];
-                self::write($row, $recurrence, $key, $occurrence['date'], $entry, self::resolveEntry($entry, $occurrence['date']));
-            }
+            // Resolved per occurrence: the VAT/withholding rates and the payroll rules
+            // are the ones in force on that occurrence's own date.
+            $entry = $occurrence['entry'];
+            $items[$key] = self::item($recurrence, $key, $occurrence['date'], $entry, self::resolveEntry($entry, $occurrence['date']));
         }
 
-        // Occurrences no longer wanted: drop the unreconciled ones, keep reconciled
-        // history frozen.
-        foreach ($existing as $row) {
-            if (! $row->is_reconciled) {
-                $row->delete();
-            }
-        }
-    }
-
-    /** Remove a recurrence's unreconciled generated rows (used before a hard purge). */
-    public static function removeGenerated(Recurrence $recurrence): void
-    {
-        Transaction::query()
-            ->where('recurrence_id', $recurrence->id)
-            ->where('is_reconciled', false)
-            ->delete();
+        return $items;
     }
 
     /**
@@ -308,96 +267,65 @@ class RecurrenceGenerator
     }
 
     /**
-     * Fill and save one generated transaction (and its VAT/withholding lines), dated
-     * on its payment day.
+     * One occurrence as an unsaved transaction (with its VAT/withholding lines set
+     * as in-memory relations), dated on its payment day.
      *
      * @param  array{net: float, vat_amount: float, withheld_amount: float, vat_lines: array<int, array{net: float, vat_rate_id: int|null, vat_amount: float, position: int}>, withheld_lines: array<int, array{net: float, withheld_rate_id: int, withheld_amount: float, position: int}>}|null  $resolved
      */
-    private static function write(
-        Transaction $t,
+    private static function item(
         Recurrence $r,
         string $key,
         CarbonInterface $payDate,
         RecurrenceEntry $entry,
         ?array $resolved,
-    ): void {
+    ): Transaction {
         if ($r->is_payroll || $resolved === null) {
-            self::writePayroll($t, $r, $key, $payDate, $r->description, self::payrollAmounts($r, $entry, $payDate));
-
-            return;
+            return self::payrollItem($r, $key, $payDate, $r->description, self::payrollAmounts($r, $entry, $payDate));
         }
 
-        $t->fill(self::baseFields($r, $key, $payDate, $r->description) + [
+        $t = self::base($r, $key, $payDate, $r->description);
+        $t->forceFill([
             'net' => $resolved['net'],
             'vat_amount' => $resolved['vat_amount'],
             'withheld_amount' => $resolved['withheld_amount'],
-            'fmy_amount' => null,
-            'efka_employee_amount' => null,
-            'efka_employer_amount' => null,
             // A single line keeps the (denormalized) rate; mixed rates = null.
             'vat_rate_id' => count($resolved['vat_lines']) === 1
                 ? $resolved['vat_lines'][0]['vat_rate_id']
                 : null,
         ]);
-        self::newRowDefaults($t, $r);
-        $t->save();
+        $t->setRelation('vatLines', collect($resolved['vat_lines'])->map(fn (array $l) => new TransactionVatLine($l)));
+        $t->setRelation('withheldLines', collect($resolved['withheld_lines'])->map(fn (array $l) => new TransactionWithheldLine($l)));
 
-        $t->vatLines()->delete();
-        $t->vatLines()->createMany($resolved['vat_lines']);
-        $t->withheldLines()->delete();
-        $t->withheldLines()->createMany($resolved['withheld_lines']);
+        return $t;
     }
 
     /**
-     * Fill and save a payroll row — a salary or a bonus — from its Net/FMY/EFKA
-     * amounts (no VAT or withholding lines).
+     * A payroll occurrence — a salary or a bonus — from its Net/FMY/EFKA amounts (no
+     * VAT or withholding lines).
      *
      * @param  array{net: float, fmy_amount: float|null, efka_employee_amount: float|null, efka_employer_amount: float|null}  $amounts
      */
-    private static function writePayroll(
-        Transaction $t,
+    private static function payrollItem(
         Recurrence $r,
         string $key,
         CarbonInterface $payDate,
         string $description,
         array $amounts,
-    ): void {
-        $t->fill(self::baseFields($r, $key, $payDate, $description) + $amounts + [
-            'vat_rate_id' => null,
-            'vat_amount' => 0,
-            'withheld_amount' => 0,
-        ]);
-        self::newRowDefaults($t, $r);
-        $t->save();
-        $t->vatLines()->delete();
-        $t->withheldLines()->delete();
+    ): Transaction {
+        $t = self::base($r, $key, $payDate, $description);
+        $t->forceFill($amounts + ['vat_amount' => 0, 'withheld_amount' => 0]);
+        $t->setRelation('vatLines', collect());
+        $t->setRelation('withheldLines', collect());
+
+        return $t;
     }
 
-    /**
-     * What a row gets only when it is first generated — never overwritten after, so a
-     * row switched off (or an income re-tagged) by hand keeps that through later syncs.
-     * A new row follows its recurrence's on/off switch; a new income starts as agreed.
-     */
-    private static function newRowDefaults(Transaction $t, Recurrence $r): void
-    {
-        $t->user_id = $r->user_id;
-        if ($t->exists) {
-            return;
-        }
-        $t->is_excluded = (bool) $r->is_excluded;
-        $t->income_status = $r->type === 'income' ? 'agreed' : null;
-    }
-
-    /**
-     * The fields every generated row shares.
-     *
-     * @return array<string, mixed>
-     */
-    private static function baseFields(Recurrence $r, string $key, CarbonInterface $payDate, string $description): array
+    /** What every occurrence of a recurrence shares. */
+    private static function base(Recurrence $r, string $key, CarbonInterface $payDate, string $description): Transaction
     {
         $iso = $payDate->toDateString();
-
-        return [
+        $t = new Transaction;
+        $t->forceFill([
             'type' => $r->type,
             'date' => $iso,
             'invoice_date' => $iso,
@@ -406,10 +334,19 @@ class RecurrenceGenerator
             'category_id' => $r->category_id,
             'wallet_id' => $r->wallet_id,
             'to_wallet_id' => null,
+            'vat_rate_id' => null,
+            'fmy_amount' => null,
+            'efka_employee_amount' => null,
+            'efka_employer_amount' => null,
             'is_reconciled' => false,
+            'is_excluded' => (bool) $r->is_excluded,
             'source' => 'recurrence',
             'recurrence_id' => $r->id,
             'managed_key' => $key,
-        ];
+        ]);
+        $t->setRelation('entity', $r->entity);
+        $t->setRelation('category', $r->category);
+
+        return $t;
     }
 }

@@ -120,7 +120,10 @@ export function ColumnFilter<TData, TValue>({
                     />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-56 p-0">
+            <PopoverContent
+                align="start"
+                className="w-auto max-w-[min(22rem,calc(100vw-2rem))] min-w-56 p-0"
+            >
                 {/* Bodies mount fresh each open (Radix unmounts closed content),
                     so their local state seeds from the current filter value. */}
                 {meta.type === 'select' ? (
@@ -261,7 +264,9 @@ function SelectBody<TData, TValue>({
                                         <Check className="size-3.5" />
                                     )}
                                 </span>
-                                <span className="truncate">{option.label}</span>
+                                <span className="[overflow-wrap:anywhere]">
+                                    {option.label}
+                                </span>
                             </button>
                         );
                     })

@@ -23,11 +23,11 @@ import { useStoredState } from '@/hooks/use-stored-state';
 import { formatAmount, formatDate } from '@/lib/format';
 import {
     defaultGroup,
-    groupCounts,
     RECURRING_GROUPS,
     type RecurringGroup,
 } from '@/lib/recurring';
 import { cn } from '@/lib/utils';
+import { PageTabs, PLANNING_TABS } from '@/components/page-tabs';
 
 /** One recurrence, as `App\Support\RecurringOverview` sends it. */
 type Row = {
@@ -84,11 +84,6 @@ const MONEY_COLUMNS: Record<RecurringGroup, [MoneyKey, string][]> = {
         ['total', 'Total'],
     ],
     expenses: [
-        ['net', 'Net'],
-        ['vat', 'VAT'],
-        ['total', 'Total'],
-    ],
-    income: [
         ['net', 'Net'],
         ['vat', 'VAT'],
         ['total', 'Total'],
@@ -242,7 +237,6 @@ export default function RecurringIndex({
         defaultGroup(visible),
         deepLinked?.group,
     );
-    const counts = groupCounts(visible);
     const rows = visible.filter((r) => r.group === group);
 
     // The shared add/edit form. Adding starts with no entity (it's picked in the
@@ -279,11 +273,18 @@ export default function RecurringIndex({
                     columns={columnsFor(group)}
                     data={rows}
                     title="Recurring"
+                    heading={
+                        <PageTabs
+                            group="planning"
+                            tabs={PLANNING_TABS}
+                            active="/planning/recurring"
+                        />
+                    }
                     searchPlaceholder="Search recurring…"
                     emptyMessage="No recurring transactions here."
                     enableTotals
                     onRowClick={openForm}
-                    rowHref={(r) => `/recurring?edit=${r.id}`}
+                    rowHref={(r) => `/planning/recurring?edit=${r.id}`}
                     rowClassName={(r) =>
                         cn(
                             r.excluded && EXCLUDED_ROW_CLASS,
@@ -315,9 +316,6 @@ export default function RecurringIndex({
                                     onClick={() => setGroup(g.key)}
                                 >
                                     {g.label}
-                                    <span className="text-muted-foreground tabular-nums">
-                                        {counts[g.key]}
-                                    </span>
                                 </Button>
                             ))}
                             <ShowAllToggle on={showAll} onChange={setShowAll} />
@@ -339,5 +337,5 @@ export default function RecurringIndex({
 }
 
 RecurringIndex.layout = {
-    breadcrumbs: [{ title: 'Recurring', href: '/recurring' }],
+    breadcrumbs: [{ title: 'Recurring', href: '/planning/recurring' }],
 };

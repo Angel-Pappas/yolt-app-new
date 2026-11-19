@@ -239,12 +239,15 @@ export function AgreementsTable({
     agreements,
     entityId = null,
     title = 'Agreements',
+    heading,
     controls,
     emptyMessage = 'No agreements yet.',
 }: {
     agreements: Agreement[];
     entityId?: number | null;
     title?: string;
+    /** Shown in the title's place (a page's tab bar). */
+    heading?: ReactNode;
     controls?: ReactNode;
     emptyMessage?: string;
 }) {
@@ -377,6 +380,7 @@ export function AgreementsTable({
                 columns={columns}
                 data={agreements}
                 title={title}
+                heading={heading}
                 searchPlaceholder="Search agreements…"
                 emptyMessage={emptyMessage}
                 controls={controls}

@@ -9,9 +9,10 @@ use Illuminate\Support\Collection;
 
 /**
  * The cash-flow projection: money in and out per month, and the balance it leaves —
- * the past from what happened, the future from what is planned (recurrences, project
- * installments, one-offs, and the taxes they cause). Derived live from the
- * transactions that count, by payment `date`; never stored.
+ * the past from what happened, the future from what is planned (recurrences, customer
+ * payment lines, one-offs, and the taxes they cause — {@see Plan}). Derived live
+ * from {@see Books::rows()}, by payment `date`; never stored. A planned item whose
+ * day is in a concluded period but that nothing paid counts from today.
  *
  * Money out is split the way the company looks at it: **payroll** (an employee, or
  * the Payroll category), **contractors**, **taxes** (the generated tax payments and
@@ -19,10 +20,8 @@ use Illuminate\Support\Collection;
  * wallet moves: net + VAT − withheld − FMY − employee EFKA).
  *
  * A month's starting balance is the wallets' starting balances plus everything
- * before it. Options: limit to some wallets (transfers to or from the others then
- * show as their own column), and whether rows dated before today that are still
- * unreconciled count (they are still expected) or are left out (only what really
- * happened in the past).
+ * before it. Option: limit to some wallets (transfers to or from the others then
+ * show as their own column).
  */
 class Projection
 {
@@ -32,7 +31,7 @@ class Projection
      * @param  list<int>|null  $walletIds  null = every wallet
      * @return list<array{month: string, starting: float, income: float, payroll: float, contractors: float, taxes: float, other: float, expenses: float, transfers: float, net: float, ending: float}>
      */
-    public static function monthly(string $fromMonth, string $toMonth, ?array $walletIds = null, bool $countPending = true): array
+    public static function monthly(string $fromMonth, string $toMonth, ?array $walletIds = null): array
     {
         $wallets = Wallet::query()
             ->when($walletIds !== null, fn ($q) => $q->whereIn('id', $walletIds))
@@ -40,7 +39,6 @@ class Projection
         $ids = $wallets->pluck('id')->flip();
         $balance = (float) $wallets->sum(fn (Wallet $w) => (float) $w->starting_balance);
 
-        $today = Carbon::today()->toDateString();
         $first = $fromMonth.'-01';
         $last = Carbon::createFromFormat('Y-m-d', $toMonth.'-01')->endOfMonth()->toDateString();
 
@@ -50,17 +48,11 @@ class Projection
             $months[$m->format('Y-m')] = array_fill_keys([...self::KINDS, 'transfers'], 0.0);
         }
 
-        Transaction::query()
-            ->counted()
-            ->whereDate('date', '<=', $last)
-            ->with(['entity:id,type', 'category:id,name'])
-            ->orderBy('date')
-            ->get()
-            ->each(function (Transaction $t) use (&$months, &$balance, $ids, $today, $first, $countPending): void {
+        Books::rows()
+            ->filter(fn (Transaction $t): bool => $t->date->toDateString() <= $last)
+            ->sortBy(fn (Transaction $t): string => $t->date->toDateString())
+            ->each(function (Transaction $t) use (&$months, &$balance, $ids, $first): void {
                 $date = $t->date->toDateString();
-                if (! $countPending && ! $t->is_reconciled && $date < $today) {
-                    return;
-                }
 
                 [$kind, $amount] = self::effect($t, $ids);
                 if ($amount === 0.0) {

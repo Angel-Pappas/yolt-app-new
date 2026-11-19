@@ -7,7 +7,6 @@ use App\Models\RecurrenceEntry;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\AmountLines;
-use App\Support\RecurrenceGenerator;
 use Illuminate\Support\Carbon;
 
 beforeEach(function () {
@@ -44,7 +43,7 @@ function salaryRows(Recurrence $r)
 
 test('an automatic payroll period is calculated from the gross', function () {
     $recurrence = autoPayrollRecurrence(true);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $row = salaryRows($recurrence)->first();
     expect($row->net)->toBe('920.00');
@@ -55,7 +54,7 @@ test('an automatic payroll period is calculated from the gross', function () {
 
 test('a manual payroll period keeps its typed figures', function () {
     $recurrence = autoPayrollRecurrence(false);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     $row = salaryRows($recurrence)->first();
     expect([$row->fmy_amount, $row->efka_employee_amount, $row->efka_employer_amount])->toBe(['1.00', '2.00', '3.00']);
@@ -63,20 +62,21 @@ test('a manual payroll period keeps its typed figures', function () {
 
 test('changing the employee details recalculates the automatic rows', function () {
     $recurrence = autoPayrollRecurrence(true);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     // Four children: no tax on this income.
     $this->actingAs(User::factory()->create())
         ->patch("/entities/{$recurrence->entity_id}/employee", [
             'birth_date' => '1984-06-05', 'children' => 4, 'prior_service_years' => 0, 'work_days_per_week' => 5,
         ])->assertRedirect();
+    materialize($recurrence->fresh());
 
     expect(salaryRows($recurrence)->first()->fmy_amount)->toBe('0.00');
 });
 
 test('an automatic bonus is calculated on its own amount', function () {
     $recurrence = autoPayrollRecurrence(true, '2026-01-01', null);
-    RecurrenceGenerator::sync($recurrence);
+    materialize($recurrence);
 
     // Christmas 2026: a full bonus of 920 × 25/24 = 958,33.
     $bonus = Transaction::query()->where('managed_key', "recurrence:{$recurrence->id}:bonus-christmas:2026")->sole();

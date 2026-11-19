@@ -48,135 +48,19 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
       row a pair with a verdict (match / differs / missing on one side), sure pairs
       and fees settled on upload, drag to pair; rows follow the bank's order within a
       day; Bank fee on the add form (2026-11-16, side by side 2026-11-17).
+- [x] Books, plan and income (2026-11-19): Transactions is history; the plan
+      (recurrences and taxes live, one-offs and customer payment lines as planned
+      rows) feeds Projection and Taxes; concluded dates per wallet; Bank import as an
+      undoable draft with Conclude, statement history and Not matched yet; projects
+      with deliverables; payment lines and recurring income on the customer; the
+      Finance / Accounting sidebar with tabbed Planning and Entities.
 - [x] Way of working: design principles, fast screenshots on demo data, one-command
       ship, frontend unit tests, deploy safety check.
 
 ## Next (suggested)
 
-Order agreed with Angel 2026-11-19: **the new layout first** (it gives the plan its
-final screens), then **the plan beside the books**, with **income: customers, projects
-and payments** as its income part.
-
-- [ ] **New layout: Finance and Accounting** (agreed with Angel 2026-11-19; build
-      first). Split by purpose: **Finance** is what Angel goes through with the CEO —
-      income, the two kinds of expense, then the projection; **Accounting** is the
-      monthly bookkeeping. Mostly moving and grouping existing pages.
-    - **Sidebar, in this order:** Home · **Finance**: Planning, Projection, Projects ·
-      **Accounting**: Transactions, Bank import, Wallets, Entities, Agreements,
-      De minimis, Configuration. (Finance first — Angel.)
-    - **Planning** = one page with tabs in the top bar: **Income · Recurring ·
-      One-offs · Taxes**. Recurring shows **recurring expenses only**, with a second row
-      **Payroll · Contractors · Other** (recurring income moves to Income, so nothing
-      shows twice). **Taxes** = today's `/taxes` (State) area: the month-by-month
-      schedule, with each tax's page reached from there.
-    - **Entities** = one page with tabs: **Customers · Suppliers · Contractors ·
-      Employees · Shareholders · State** (State now lists the state entities; the tax
-      pages live in Planning ▸ Taxes).
-    - **Tabs everywhere:** one shared tab bar (the Recurring page's buttons), names
-      only — **no counts anywhere** (Recurring's counts go too). Each tab keeps its own
-      address (`/entities/suppliers`, `/planning/one-offs`…); old addresses redirect to
-      the right tab; middle-click still opens a new browser tab. A page reopens on the
-      tab last used. The Add button follows the tab.
-    - **Bank import** keeps its name. Once the plan exists it also holds the **Not
-      matched yet** list (planned items whose date has passed with nothing real
-      covering them), one click from the page, and its sidebar item shows a **!** while
-      that list isn't empty.
-    - **Configuration** keeps working as now (the sidebar swaps to the setup lists +
-      Back to app).
-    - **Phone:** decent, not polished — tabs wrap; a proper mobile pass comes later.
-    - **Income** keeps today's page in the layout step; it becomes the payments view
-      described under "Income: customers, projects and payments" with the plan.
-- [ ] **The plan beside the books** (agreed with Angel 2026-11-19; build after the
-      layout). Angel
-      does the books about once a month; the 500+ generated future rows clog
-      Transactions. Transactions becomes **only what really happened**; the future is a
-      live-calculated plan that feeds Projection and Taxes and is matched at the bank
-      upload.
-    - **Transactions = history.** Nothing generates future rows any more. Future
-      one-offs and project income instalments become planned items too, so no row in
-      Transactions has a future date unless typed by hand.
-    - **The plan** = recurrences (salaries + bonuses), the taxes they cause, one-offs,
-      expected income. Calculated live, never stored. Each planned item has a fixed
-      identity (e.g. "recurrence 7, Oct 2026"); its **open amount = planned − real
-      transactions linked to it**. No "close the rest" button (Angel: a leftover is
-      settled with a correcting transaction).
-    - **Concluded date per wallet.** Alpha's moves only by concluding a statement;
-      every other wallet (no statements) gets a hand-set "Concluded up to" date. Up to
-      it only real transactions count (= the bank); after it real transactions + open
-      planned items. Statements never have gaps (Angel overlaps them on purpose).
-    - **Statement uploads page:** a list of uploads (dates covered, who/when, Open or
-      Concluded) plus the hand conclusions of other wallets, so "where do I start" is
-      at a glance. An open upload is a **draft**: saved on every click, **Undo** step by
-      step, nothing in Transactions changes while working. Only one open upload per
-      wallet (guarded).
-    - **Matching order:** lines already handled in an earlier upload show as done
-      (overlap; identical same-day lines told apart by their order) → existing
-      transactions → open planned items dated up to **10 days after** the statement's
-      end, previous months included (two exact matches → suggest the oldest) → the
-      current "add like…" suggestions. **Partial match:** linking 1k to a 2k item leaves
-      1k open and asks for its new date.
-    - **Conclude** needs every line handled, re-checks anything changed meanwhile
-      (shown for a second look, never applied blindly), then applies everything at
-      once and moves the concluded date to the statement's end. No reopen/undo after
-      (Angel: re-upload the statement if needed).
-    - **Not yet matched:** planned items dated on/before their wallet's concluded date
-      that are still open — a list in **Bank import** (its sidebar item shows a **!**
-      while the list isn't empty) to link, move or cancel each.
-      Projection counts them from today, not on their old date.
-    - Editing a transaction before a concluded date is allowed, with a note that it
-      changes a concluded period.
-    - **Projection and Taxes** run on real rows up to each concluded date + the open
-      plan after it.
-    - **Cutover:** imports already done on live are marked concluded up to their last
-      date; the generated rows nobody confirmed (525 on 2026-11-19) are deleted —
-      **Angel's yes given 2026-11-19**; confirmed ones stay as history; DB backed up
-      first.
-    - **Build order** (each shipped on its own, checked against today's figures): (1)
-      the plan calculation, Projection + Taxes moved onto it with identical numbers;
-      (2) concluded dates + the not-yet-matched list; (3) the draft upload page; (4)
-      clean-up of the old generated rows.
-- [ ] **Income: customers, projects and payments** (agreed with Angel 2026-11-19; the
-      income part of the plan above). Income is planned per **customer**; each payment
-      line is a planned item, matched at the bank like any other.
-    - **Projects** (Finance ▸ Projects): a name, a **customer (required — a dummy
-      customer when the real one isn't known yet)** and **deliverables**: one or more
-      rows of name + net amount (usually one; no status, not a project tracker). The
-      project's value = the sum of its deliverables.
-    - **The customer's page** has tabs: **Projects** (its projects with their values),
-      **Payments** (its payment plan) and **Recurring income** (rare; amount + date
-      range, which creates payment lines). Payments belong to the **customer, not to a
-      project** — one plan can cover two running projects. The customer shows how much
-      of its projects' net value its payment lines cover.
-    - **A payment line:** payment date, invoice date, **net · VAT · total**, VAT rate
-      from a dropdown (default **24%**, 0% for sales abroad; rates from Configuration),
-      type net or total. The amount is what the customer pays (VAT included in the
-      total); VAT is backed out like Total mode in Transactions.
-    - **Invoice date:** set freely (e.g. paid now, invoiced next month — confirmed by
-      Angel's accountant). While not issued, **changing the payment date sets the
-      invoice date to the same date**. Once marked **Issued**, it never moves with the
-      payment date (still editable by hand). Taxes count by invoice date, issued or
-      not, so projections include VAT on invoices still to issue.
-    - **Paid** and **Issued** are separate marks; a line matched in full at the bank is
-      marked **both**. A **partial** match leaves the rest open and asks for its new
-      date; a bank line can cover several payment lines (e.g. a 1.200 leftover + a
-      6.200 line = one 7.400 payment). Each real transaction gets its share of net and
-      VAT; the last piece takes the leftover cents, so the parts add up exactly.
-    - **No cancel — delete.** When amounts change, Angel edits amounts and deletes
-      lines no longer valid. A partly paid line can't be deleted: set its amount to
-      what was paid and it's done.
-    - **Recurring income:** creates real payment lines; changing it rebuilds only the
-      untouched lines (paid, issued or hand-edited ones stay).
-    - **Planning ▸ Income:** every **unpaid** payment line, by payment date, in
-      **green** (a happy colour — money owed to us); lines from **past months** carry a
-      **!** (chase the customer, move the date); issued ones say so. **Show all** adds
-      the paid ones (muted grey). A **By customer** view lists customers, each expanding
-      to all its lines, paid and unpaid (a new expandable list — Angel's meeting view).
-    - **Not on the Income tab:** transactions. Refunds in the Credits category and old
-      income rows never show there (today's 6 "open" incomes are real, reconciled
-      money: 4 Credits refunds + 2 customer payments; they disappear from it with this
-      change — nothing to migrate).
-- [ ] **Later — ask Angel how to make Bank import smarter** (his note, 2026-11-19):
-      raise it once the plan above is live; don't start unasked.
+- [ ] **Ask Angel how to make Bank import smarter** (his note, 2026-11-19): the plan
+      is live now — raise it with him; don't start unasked.
 - [ ] **Users page onto the shared list view** — it's the last hand-rolled table
       (`pages/users/index.tsx`), so it lacks search, column filters and sorting.
 - [ ] **Tick payroll periods to "calculated"** where wanted — existing periods kept

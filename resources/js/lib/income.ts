@@ -1,13 +1,3 @@
-/** The "when is it due" buttons on Finance ▸ Income. */
-export type DuePreset = 'all' | 'overdue' | 'this-month' | 'next-month';
-
-export const DUE_PRESETS: { key: DuePreset; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'overdue', label: 'Overdue' },
-    { key: 'this-month', label: 'This month' },
-    { key: 'next-month', label: 'Next month' },
-];
-
 /** 'YYYY-MM' of the month `offset` months after the one `iso` falls in. */
 export function monthKey(iso: string, offset = 0): string {
     const year = Number(iso.slice(0, 4));
@@ -18,18 +8,37 @@ export function monthKey(iso: string, offset = 0): string {
 }
 
 /**
- * Whether a payment date (ISO) falls under a due preset, seen from `today` (ISO):
- * overdue = before today; this/next month = in that calendar month.
+ * Whether an unpaid payment line needs chasing: its payment date is in a month
+ * before the current one (Angel: mark those with "!" — contact the customer, move
+ * the date to this month or later).
  */
-export function isDue(date: string, preset: DuePreset, today: string): boolean {
-    switch (preset) {
-        case 'all':
-            return true;
-        case 'overdue':
-            return date < today;
-        case 'this-month':
-            return date.slice(0, 7) === monthKey(today);
-        case 'next-month':
-            return date.slice(0, 7) === monthKey(today, 1);
+export function isFromPastMonth(date: string, today: string): boolean {
+    return date.slice(0, 7) < monthKey(today);
+}
+
+/**
+ * Payment lines grouped by customer (the Income tab's "By customer" view): each
+ * customer with its lines (in the order given) and what it still owes, customers
+ * by name.
+ */
+export function byCustomer<
+    T extends { entity_id: number | null; entity: string | null; open: number },
+>(rows: T[]): { id: number; name: string; owed: number; rows: T[] }[] {
+    const groups = new Map<
+        number,
+        { id: number; name: string; owed: number; rows: T[] }
+    >();
+    for (const r of rows) {
+        const id = r.entity_id ?? 0;
+        const g = groups.get(id) ?? {
+            id,
+            name: r.entity ?? '—',
+            owed: 0,
+            rows: [],
+        };
+        g.rows.push(r);
+        g.owed = Math.round((g.owed + r.open) * 100) / 100;
+        groups.set(id, g);
     }
+    return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

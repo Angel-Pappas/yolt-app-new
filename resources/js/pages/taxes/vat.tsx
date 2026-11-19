@@ -122,7 +122,7 @@ export default function TaxesVat({ rows, transactions }: Props) {
 
 TaxesVat.layout = {
     breadcrumbs: [
-        { title: 'Taxes', href: '/taxes' },
-        { title: 'VAT', href: '/taxes/vat' },
+        { title: 'Taxes', href: '/planning/taxes' },
+        { title: 'VAT', href: '/planning/taxes/vat' },
     ],
 };
