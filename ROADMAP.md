@@ -53,6 +53,55 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 
 ## Next (suggested)
 
+- [ ] **The plan beside the books** (agreed with Angel 2026-11-19; build next). Angel
+      does the books about once a month; the 500+ generated future rows clog
+      Transactions. Transactions becomes **only what really happened**; the future is a
+      live-calculated plan that feeds Projection and Taxes and is matched at the bank
+      upload.
+    - **Transactions = history.** Nothing generates future rows any more. Future
+      one-offs and project income instalments become planned items too, so no row in
+      Transactions has a future date unless typed by hand.
+    - **The plan** = recurrences (salaries + bonuses), the taxes they cause, one-offs,
+      expected income. Calculated live, never stored. Each planned item has a fixed
+      identity (e.g. "recurrence 7, Oct 2026"); its **open amount = planned − real
+      transactions linked to it**. No "close the rest" button (Angel: a leftover is
+      settled with a correcting transaction).
+    - **Concluded date per wallet.** Alpha's moves only by concluding a statement;
+      every other wallet (no statements) gets a hand-set "Concluded up to" date. Up to
+      it only real transactions count (= the bank); after it real transactions + open
+      planned items. Statements never have gaps (Angel overlaps them on purpose).
+    - **Statement uploads page:** a list of uploads (dates covered, who/when, Open or
+      Concluded) plus the hand conclusions of other wallets, so "where do I start" is
+      at a glance. An open upload is a **draft**: saved on every click, **Undo** step by
+      step, nothing in Transactions changes while working. Only one open upload per
+      wallet (guarded).
+    - **Matching order:** lines already handled in an earlier upload show as done
+      (overlap; identical same-day lines told apart by their order) → existing
+      transactions → open planned items dated up to **10 days after** the statement's
+      end, previous months included (two exact matches → suggest the oldest) → the
+      current "add like…" suggestions. **Partial match:** linking 1k to a 2k item leaves
+      1k open and asks for its new date.
+    - **Conclude** needs every line handled, re-checks anything changed meanwhile
+      (shown for a second look, never applied blindly), then applies everything at
+      once and moves the concluded date to the statement's end. No reopen/undo after
+      (Angel: re-upload the statement if needed).
+    - **Not yet matched:** planned items dated on/before their wallet's concluded date
+      that are still open — a list (note on Home) to link, move or cancel each.
+      Projection counts them from today, not on their old date.
+    - Editing a transaction before a concluded date is allowed, with a note that it
+      changes a concluded period.
+    - **Projection and Taxes** run on real rows up to each concluded date + the open
+      plan after it.
+    - **Cutover:** imports already done on live are marked concluded up to their last
+      date; the generated rows nobody confirmed (525 on 2026-11-19) are deleted —
+      **Angel's yes given 2026-11-19**; confirmed ones stay as history; DB backed up
+      first.
+    - **Build order** (each shipped on its own, checked against today's figures): (1)
+      the plan calculation, Projection + Taxes moved onto it with identical numbers;
+      (2) concluded dates + the not-yet-matched list; (3) the draft upload page; (4)
+      clean-up of the old generated rows.
+- [ ] **Later — ask Angel how to make Bank import smarter** (his note, 2026-11-19):
+      raise it once the plan above is live; don't start unasked.
 - [ ] **Users page onto the shared list view** — it's the last hand-rolled table
       (`pages/users/index.tsx`), so it lacks search, column filters and sorting.
 - [ ] **Tick payroll periods to "calculated"** where wanted — existing periods kept
