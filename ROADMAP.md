@@ -53,7 +53,41 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
 
 ## Next (suggested)
 
-- [ ] **The plan beside the books** (agreed with Angel 2026-11-19; build next). Angel
+Order agreed with Angel 2026-11-19: **the new layout first** (it gives the plan its
+final screens), then **the plan beside the books**. Income is still to be discussed (★).
+
+- [ ] **New layout: Finance and Accounting** (agreed with Angel 2026-11-19; build
+      first). Split by purpose: **Finance** is what Angel goes through with the CEO —
+      income, the two kinds of expense, then the projection; **Accounting** is the
+      monthly bookkeeping. Mostly moving and grouping existing pages.
+    - **Sidebar, in this order:** Home · **Finance**: Planning, Projection, Projects ·
+      **Accounting**: Transactions, Bank import, Wallets, Entities, Agreements,
+      De minimis, Configuration. (Finance first — Angel.)
+    - **Planning** = one page with tabs in the top bar: **Income · Recurring ·
+      One-offs · Taxes**. Recurring shows **recurring expenses only**, with a second row
+      **Payroll · Contractors · Other** (recurring income moves to Income, so nothing
+      shows twice). **Taxes** = today's `/taxes` (State) area: the month-by-month
+      schedule, with each tax's page reached from there.
+    - **Entities** = one page with tabs: **Customers · Suppliers · Contractors ·
+      Employees · Shareholders · State** (State now lists the state entities; the tax
+      pages live in Planning ▸ Taxes).
+    - **Tabs everywhere:** one shared tab bar (the Recurring page's buttons), names
+      only — **no counts anywhere** (Recurring's counts go too). Each tab keeps its own
+      address (`/entities/suppliers`, `/planning/one-offs`…); old addresses redirect to
+      the right tab; middle-click still opens a new browser tab. A page reopens on the
+      tab last used. The Add button follows the tab.
+    - **Bank import** keeps its name. Once the plan exists it also holds the **Not
+      matched yet** list (planned items whose date has passed with nothing real
+      covering them), one click from the page, and its sidebar item shows a **!** while
+      that list isn't empty.
+    - **Configuration** keeps working as now (the sidebar swaps to the setup lists +
+      Back to app).
+    - **Phone:** decent, not polished — tabs wrap; a proper mobile pass comes later.
+    - **★ Income** stays as it is for now; what the Income tab holds (recurring income,
+      project instalments, one-off income in one list?) is the next thing to discuss
+      with Angel, then this note is replaced by the decision.
+- [ ] **The plan beside the books** (agreed with Angel 2026-11-19; build after the
+      layout). Angel
       does the books about once a month; the 500+ generated future rows clog
       Transactions. Transactions becomes **only what really happened**; the future is a
       live-calculated plan that feeds Projection and Taxes and is matched at the bank
@@ -86,7 +120,8 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
       once and moves the concluded date to the statement's end. No reopen/undo after
       (Angel: re-upload the statement if needed).
     - **Not yet matched:** planned items dated on/before their wallet's concluded date
-      that are still open — a list (note on Home) to link, move or cancel each.
+      that are still open — a list in **Bank import** (its sidebar item shows a **!**
+      while the list isn't empty) to link, move or cancel each.
       Projection counts them from today, not on their old date.
     - Editing a transaction before a concluded date is allowed, with a note that it
       changes a concluded period.
@@ -108,6 +143,9 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
       their typed figures.
 
 ## Ideas / later
+
+- [ ] **A proper mobile pass** over every page (Angel, 2026-11-19: not checked yet;
+      "somewhat decent" until then).
 
 - [ ] Income tax: carry losses forward; the reduced advance for a company's first
       years.
