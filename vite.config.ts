@@ -4,7 +4,7 @@ import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
-import { bunny } from 'laravel-vite-plugin/fonts';
+import { fontsource } from 'laravel-vite-plugin/fonts';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, lazyPlugins } from 'vite-plus';
 
@@ -25,7 +25,9 @@ export default defineConfig({
                       input: ['resources/css/app.css', 'resources/js/app.tsx'],
                       refresh: true,
                       fonts: [
-                          bunny('Instrument Sans', {
+                          // Served from the installed @fontsource package, so a build never
+                          // depends on a font server being up (Bunny Fonts timed out, 2026-11-20).
+                          fontsource('Instrument Sans', {
                               weights: [400, 500, 600],
                           }),
                       ],

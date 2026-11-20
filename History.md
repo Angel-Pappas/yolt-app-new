@@ -12,6 +12,12 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-20** — **The font ships with the app.** Every build used to download
+  Instrument Sans from Bunny Fonts; Bunny timed out for GitHub's runners and CI failed
+  three times in a row, holding back a finished change. The font now comes from the
+  `@fontsource/instrument-sans` package (pinned, OFL licence), read from the installed
+  packages at build time — `fontsource()` instead of `bunny()` in `vite.config.ts`,
+  same weights (400/500/600), same look, files served from our own `/build/assets`.
 - **2026-11-20** — **Bank import: the list scrolls while dragging.** Angel couldn't
   drag an app row onto a bank line further down: the list scrolls inside its own box
   and the browser barely scrolls such a box during a drag. Now holding a dragged row

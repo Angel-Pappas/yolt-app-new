@@ -19,7 +19,7 @@ behavioural record — there is nothing left to run or fall back to.)
 
 - **Laravel 13** (PHP **8.4** locally / **8.5** in production on our VM),
   official **React starter kit**: React 19, TypeScript, **Inertia 3**,
-  **Tailwind 4**, **shadcn/ui** (new-york, neutral, **Instrument Sans**, **lucide**
+  **Tailwind 4**, **shadcn/ui** (new-york, neutral, **Instrument Sans** — bundled from `@fontsource/instrument-sans`, no font server at build time, **lucide**
   icons, light + dark), Vite (vite-plus), **Fortify** auth, **Pest** tests.
 - **Database:** MySQL 8.4 **on our own VM** (`127.0.0.1`, database `yolt_app`,
   credentials in the VM's `.env`). Migrated off the Laravel Cloud MySQL on
