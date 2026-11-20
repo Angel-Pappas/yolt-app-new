@@ -331,7 +331,7 @@ same item; same floor and horizon as salaries.
 | Bonus     | Accrues        | Full amount                 | Partial                          | Paid (Angel's dates)                           |
 | --------- | -------------- | --------------------------- | -------------------------------- | ---------------------------------------------- |
 | Easter    | 1 Jan – 30 Apr | ½ salary                    | 1/15 of it per 8 days (÷ 120)    | Friday before Holy Monday (Orthodox Easter −9) |
-| Leave     | calendar year  | ½ salary                    | days employed ÷ days in year     | last working day of June                       |
+| Leave     | calendar year  | ½ salary                    | days employed ÷ days in year     | 20 July (when the accountant pays it)          |
 | Christmas | 1 May – 31 Dec | 1 salary × 1,041666 (25/24) | 2/25 of it per 19 days (÷ 237.5) | 20 December                                    |
 
 - **Amount** = Σ (amount in force on each employed day of the period) × share ÷
@@ -339,15 +339,21 @@ same item; same floor and horizon as salaries.
   raise part-way counts for exactly the days it covers (Angel, 2026-10-23 — the law
   bases the bonus on the salary near the pay day; Angel chose day-weighting).
 - **1,041666** is the leave allowance's 1/24 share; it applies only when the leave
-  allowance is paid inside the bonus's period — June is inside Christmas's, not
+  allowance is paid inside the bonus's period — July is inside Christmas's, not
   Easter's, so only Christmas has it.
 - **Leave allowance** is Angel's rule (fraction of the year). The statutory rule for
   a first year differs: leave days accrue per month worked and the allowance is the
   pay for them capped at ½ salary, so it often reaches the full ½ after about six
   months.
+- **Employment** = the **Hired on** / **Left on** dates on the employee's page, else
+  the recurrence's start and end. A salary added to the app after the hiring still
+  earns bonuses from the hire date (at its first period's amount); bonuses are
+  planned only from the recurrence's start (and the floor) on.
 - **Pay day** on a weekend or holiday → the previous working day. If the employment
-  starts after it, the bonus is paid with the first salary (last working day of the
-  start month); if it ends before it, with the last salary.
+  starts after it, Easter and Christmas are paid with the first salary (last working
+  day of the start month) — but **no leave allowance that year** (the accountant
+  paid none to someone hired in September 2026); if it ends before it, with the last
+  salary.
 - Orthodox Easter: Meeus' Julian algorithm + 13 days (valid 1900–2099).
 - Sources (checked 2026-10-23):
   [taxheaven — Christmas bonus](https://www.taxheaven.gr/news/65881/dwro-xristoygennwn-ypologismos-kai-katabolh-toy),

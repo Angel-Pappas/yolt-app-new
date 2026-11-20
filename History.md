@@ -12,6 +12,19 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-20** — **Payroll bonuses follow the hire date and the accountant.**
+  Bank import ▸ Not matched yet showed leave allowances and a Christmas bonus dated
+  30/10 that nobody owed. Cause: bonuses took the employment from the payroll
+  recurrence, and every recurrence was added starting 01/10/2026, so the app thought
+  everyone was hired that day. The accountant's emails (read with Angel's OK) gave
+  the real dates and practice: the 2026 leave allowance was paid on **20/07**, and an
+  employee hired 01/09 got none. Now bonuses use **Hired on / Left on** from the
+  employee's page (else the recurrence's dates), the leave allowance is due **20 July**
+  (was end of June), and someone hired after it gets none that year. Checked against
+  the accountant's final settlement: hired 08/05/2025, leaving 30/10/2026 → Christmas
+  bonus 738,42 gross, exactly the app's figure. The leave allowance **amount** stays
+  Angel's rule; the accountant's first-year figure (411,75 for a 16/04 hire) follows
+  the statutory leave-days rule, not yet reproduced (one example only).
 - **2026-11-20** — **Leftover cleanup, no more Dependabot PRs.** 32 pages passed a
   `breadcrumbs` list that nothing has shown since the sidebar layout replaced the
   header; removed with the `BreadcrumbItem` type, the layout prop and the unused

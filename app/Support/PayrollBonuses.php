@@ -17,17 +17,24 @@ use Carbon\CarbonInterface;
  * - **Christmas bonus** (δώρο Χριστουγέννων): accrues 1 May – 31 Dec; full = 1 monthly
  *   salary, else 2/25 of it per 19 calendar days (full at 237.5 days), × 25/24 (the
  *   1,041666 leave-allowance share — it applies because the leave allowance is paid
- *   inside this period, in June). Paid on 20 December.
+ *   inside this period, in July). Paid on 20 December.
  * - **Leave allowance** (επίδομα αδείας): ½ monthly salary for the calendar year,
- *   pro rata to the days employed in it (Angel's rule). Paid on the last working day
- *   of June.
+ *   pro rata to the days employed in it (Angel's rule). Paid on 20 July, when the
+ *   accountant pays it (2026-11-20); someone hired after that day gets none that
+ *   year (Μπουρλάκος, hired 01/09/2026, got none in 2026).
  *
  * Amounts follow every period of the recurrence day by day: each employed day in the
  * accrual period contributes the salary in force that day, so a raise part-way
  * through counts for exactly the days it covers. Net, FMY and both EFKA shares scale
  * alike — an estimate until the payslip figure is set on reconciling. A pay day on a
  * weekend or holiday moves to the previous working day; one before the employment
- * starts moves to the first salary, one after it ends to the last salary.
+ * starts moves to the first salary (not the leave allowance — see above), one after
+ * it ends to the last salary.
+ *
+ * The employment runs from the hire date to the leaving date on the employee's page
+ * when they are entered, else from the recurrence's start to its end: a recurrence
+ * added later than the hiring still earns bonuses from the hire date, at its first
+ * period's amounts.
  *
  * @phpstan-type Kind 'easter'|'christmas'|'leave'
  */
@@ -69,11 +76,12 @@ final class PayrollBonuses
         }
 
         $out = [];
-        for ($year = $recurrence->start_date->year; $year <= $until->year; $year++) {
+        [$hired] = self::employment($recurrence);
+        for ($year = (int) substr($hired, 0, 4); $year <= $until->year; $year++) {
             foreach (array_keys(self::LABELS) as $kind) {
                 // The pay day first: a bonus outside the window isn't worked out.
                 $date = self::payDate($recurrence, $kind, $year, $holidays);
-                if ($date->lessThan($from->startOfDay()) || $date->greaterThan($until)) {
+                if ($date === null || $date->lessThan($from->startOfDay()) || $date->greaterThan($until)) {
                     continue;
                 }
                 $amounts = self::amounts($recurrence, $kind, $year);
@@ -172,19 +180,41 @@ final class PayrollBonuses
     }
 
     /**
+     * The employment's first and last day ('Y-m-d'; the last is '9999-12-31' while
+     * open): the hire and leaving dates on the employee's page when entered, else
+     * the recurrence's start and end.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public static function employment(Recurrence $recurrence): array
+    {
+        $profile = $recurrence->entity?->employeeProfile;
+        $start = $profile->hire_date ?? $recurrence->start_date;
+        $end = $profile->termination_date ?? $recurrence->end_date;
+
+        return [$start->toDateString(), $end?->toDateString() ?? '9999-12-31'];
+    }
+
+    /**
      * The days each period is in force, in order: from its start to its end, or to
-     * the day before the next period starts (a later start supersedes an open end).
+     * the day before the next period starts (a later start supersedes an open end) —
+     * kept inside the employment, the first period reaching back to the hire date.
      * Dates as 'Y-m-d' strings, so they compare as text.
      *
      * @return list<array{0: RecurrenceEntry, 1: string, 2: string}>
      */
     private static function segments(Recurrence $recurrence): array
     {
+        [$hired, $left] = self::employment($recurrence);
         $entries = $recurrence->entries->values();
         $out = [];
         foreach ($entries as $i => $entry) {
             $start = $entry->start_date->toDateString();
-            $end = $entry->end_date?->toDateString() ?? '9999-12-31';
+            if ($i === 0) {
+                $start = min($start, $hired);
+            }
+            $start = max($start, $hired);
+            $end = min($entry->end_date?->toDateString() ?? '9999-12-31', $left);
             $next = $entries->get($i + 1);
             if ($next !== null) {
                 $dayBefore = $next->start_date->subDay()->toDateString();
@@ -226,22 +256,27 @@ final class PayrollBonuses
     /**
      * The bonus's usual pay day (see {@see dueDate()}), moved to the first salary if
      * the employment starts after it, or to the last salary if it ends before it.
+     * Null for a leave allowance whose pay day comes before the hiring: none that year.
      *
      * @param  array<string, true>  $holidays
      * @param  Kind  $kind
      */
-    public static function payDate(Recurrence $recurrence, string $kind, int $year, array $holidays): CarbonImmutable
+    public static function payDate(Recurrence $recurrence, string $kind, int $year, array $holidays): ?CarbonImmutable
     {
         $date = self::dueDate($kind, $year, $holidays);
+        [$hired, $left] = self::employment($recurrence);
 
-        $start = $recurrence->start_date->startOfDay();
+        $start = CarbonImmutable::parse($hired);
         if ($start->greaterThan($date)) {
+            if ($kind === self::LEAVE) {
+                return null;
+            }
             $first = self::immutable(WorkingDays::lastWorkingDay($start->year, $start->month, $holidays));
 
             return $first->greaterThan($date) ? $first : $date;
         }
 
-        $end = $recurrence->end_date?->startOfDay();
+        $end = $left === '9999-12-31' ? null : CarbonImmutable::parse($left);
         if ($end !== null && $end->lessThan($date)) {
             $last = self::immutable(WorkingDays::lastWorkingDay($end->year, $end->month, $holidays));
 
@@ -253,8 +288,7 @@ final class PayrollBonuses
 
     /**
      * The usual pay day: Easter on the Friday before Holy Monday, Christmas on 20
-     * December (each moved back to the previous working day if off), leave on the
-     * last working day of June.
+     * December, leave on 20 July (each moved back to the previous working day if off).
      *
      * @param  array<string, true>  $holidays
      * @param  Kind  $kind
@@ -264,7 +298,7 @@ final class PayrollBonuses
         return self::immutable(match ($kind) {
             self::EASTER => WorkingDays::previousWorkingDay(self::orthodoxEaster($year)->subDays(9), $holidays),
             self::CHRISTMAS => WorkingDays::previousWorkingDay(CarbonImmutable::create($year, 12, 20), $holidays),
-            self::LEAVE => WorkingDays::lastWorkingDay($year, 6, $holidays),
+            self::LEAVE => WorkingDays::previousWorkingDay(CarbonImmutable::create($year, 7, 20), $holidays),
         });
     }
 

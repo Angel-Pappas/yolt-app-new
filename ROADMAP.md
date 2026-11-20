@@ -21,7 +21,8 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
       5 grants up to 2026-10-30), downloadable as Excel or Markdown (2026-10-30).
 - [x] Payroll bonuses: each employee's payroll recurrence also generates the Easter
       bonus, leave allowance and Christmas bonus, pro rata to the days employed and
-      the salary periods (2026-10-23).
+      the salary periods (2026-10-23); from the hire/leaving dates on the employee's
+      page, leave allowance on 20 July (2026-11-20).
 - [x] Finance ▸ One-offs (tagged one-off expenses) and "Show all" on One-offs and
       Recurring: open items by default, done ones in green (2026-10-23).
 - [x] Recurring payment days avoid weekends/holidays: contractors and employees on

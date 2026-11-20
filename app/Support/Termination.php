@@ -21,8 +21,8 @@ use Carbon\CarbonInterface;
  *     with 17+ years on 12/11/2012 is not modelled.)
  *  2. **Unused leave**: this year's remaining leave days × the daily pay
  *     (monthly ÷ 25).
- *  3. **Leave allowance** for the year so far, if not yet paid (it is paid at the
- *     end of June): ½ month × the share of the year worked.
+ *  3. **Leave allowance** for the year so far, if not yet paid (it is paid on
+ *     20 July): ½ month × the share of the year worked.
  *  4. **Christmas / Easter bonus** earned in the running accrual period (1 May–31
  *     Dec: a month × 25/24 per 237,5 days; 1 Jan–30 Apr: ½ month per 120 days), if
  *     not yet paid.

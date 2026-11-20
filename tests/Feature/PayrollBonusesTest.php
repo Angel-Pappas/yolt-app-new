@@ -66,15 +66,15 @@ test('Orthodox Easter falls on the published dates', function (int $year, string
     [2032, '2032-05-02'], [2033, '2033-04-24'], [2034, '2034-04-09'], [2035, '2035-04-29'],
 ]);
 
-test('the usual pay days: Friday before Holy Monday, 20 December, end of June', function () {
+test('the usual pay days: Friday before Holy Monday, 20 December, 20 July', function () {
     expect(PayrollBonuses::dueDate('easter', 2026, [])->toDateString())->toBe('2026-04-03');
     expect(PayrollBonuses::dueDate('easter', 2027, [])->toDateString())->toBe('2027-04-23');
     // 20 Dec 2026 is a Sunday → Friday 18; 2027 is a Monday and stays.
     expect(PayrollBonuses::dueDate('christmas', 2026, [])->toDateString())->toBe('2026-12-18');
     expect(PayrollBonuses::dueDate('christmas', 2027, [])->toDateString())->toBe('2027-12-20');
-    expect(PayrollBonuses::dueDate('leave', 2026, [])->toDateString())->toBe('2026-06-30');
-    // 30 Jun 2029 is a Saturday → Friday 29.
-    expect(PayrollBonuses::dueDate('leave', 2029, [])->toDateString())->toBe('2029-06-29');
+    expect(PayrollBonuses::dueDate('leave', 2026, [])->toDateString())->toBe('2026-07-20');
+    // 20 Jul 2025 is a Sunday → Friday 18.
+    expect(PayrollBonuses::dueDate('leave', 2025, [])->toDateString())->toBe('2025-07-18');
 });
 
 test('a pay day on a public holiday moves to the previous working day', function () {
@@ -98,7 +98,7 @@ test('a full year earns the full bonuses, with FMY and EFKA scaled alike', funct
 
     $leave = bonusRow($recurrence, 'leave', 2027);
     expect($leave->description)->toBe('Leave allowance');
-    expect($leave->date->toDateString())->toBe('2027-06-30');
+    expect($leave->date->toDateString())->toBe('2027-07-20');
     expect((float) $leave->net)->toBe(500.0);
 
     // Christmas carries the 1,041666 leave-allowance share.
@@ -167,17 +167,57 @@ test('shortening the end date lowers bonuses already generated', function () {
     expect(bonusRow($recurrence, 'easter', 2028))->toBeNull();
 });
 
-test('starting after a pay day pays that bonus with the first salary', function () {
+test('starting after the Easter pay day pays it with the first salary', function () {
+    $recurrence = payroll([['2027-04-26', null, 1000]]);
+
+    materialize($recurrence);
+
+    $easter = bonusRow($recurrence, 'easter', 2027);
+    expect((float) $easter->net)->toBe(20.83); // 5/120 of 500
+    expect($easter->date->toDateString())->toBe('2027-04-30');
+});
+
+test('someone hired after the leave allowance is paid gets none that year', function () {
     $recurrence = payroll([['2027-09-01', null, 1000]]);
 
     materialize($recurrence);
 
     expect(bonusRow($recurrence, 'easter', 2027))->toBeNull();
-    $leave = bonusRow($recurrence, 'leave', 2027);
-    expect((float) $leave->net)->toBe(167.12); // 122/365 of 500
-    expect($leave->date->toDateString())->toBe('2027-09-30');
+    expect(bonusRow($recurrence, 'leave', 2027))->toBeNull();
     expect((float) bonusRow($recurrence, 'christmas', 2027)->net)->toBe(535.09); // 122/237.5
     expect((float) bonusRow($recurrence, 'easter', 2028)->net)->toBe(500.0);
+    expect((float) bonusRow($recurrence, 'leave', 2028)->net)->toBe(500.0);
+});
+
+test('the hire date on the employee page counts, not the recurrence start', function () {
+    // Hired in April 2027, but the salary was only added to the app from October.
+    $recurrence = payroll([['2027-10-01', null, 1000]]);
+    $recurrence->entity->employeeProfile()->create(['hire_date' => '2027-04-16']);
+
+    materialize($recurrence->fresh());
+
+    // Christmas is earned over all of May–Dec at the first period's salary.
+    expect((float) bonusRow($recurrence, 'christmas', 2027)->net)->toBe(1041.67);
+    // Easter and the leave allowance were paid before the salary reached the app.
+    expect(bonusRow($recurrence, 'easter', 2027))->toBeNull();
+    expect(bonusRow($recurrence, 'leave', 2027))->toBeNull();
+    // A full year follows: the 2028 leave allowance is the whole ½ salary.
+    expect((float) bonusRow($recurrence, 'leave', 2028)->net)->toBe(500.0);
+});
+
+test('the leaving date on the employee page ends the bonuses and pays them with the last salary', function () {
+    // The accountant's final settlement for an employee hired 08/05/2025 and leaving
+    // 30/10/2026: Christmas bonus 920 × 25/24 × 183/237.5 = 738.42 gross.
+    Carbon::setTestNow('2026-09-15');
+    $recurrence = payroll([['2026-10-01', null, 920, 25.33, 123, 200.47]]);
+    $recurrence->entity->employeeProfile()->create(['hire_date' => '2025-05-08', 'termination_date' => '2026-10-30']);
+
+    materialize($recurrence->fresh());
+
+    $christmas = bonusRow($recurrence, 'christmas', 2026);
+    expect((float) $christmas->net)->toBe(738.42);
+    expect($christmas->date->toDateString())->toBe('2026-10-30');
+    expect(bonusRow($recurrence, 'easter', 2027))->toBeNull();
 });
 
 test('contractors and non-payroll recurrences get no bonuses', function () {
