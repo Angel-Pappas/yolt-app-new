@@ -27,6 +27,8 @@ export type ColumnFilterMeta = {
 // Type the `meta` we attach to columns (align + filter) and name our custom
 // filter functions, app-wide.
 declare module '@tanstack/react-table' {
+    // TanStack's ColumnMeta must repeat both type parameters for the declaration
+    // to merge with theirs, even though our fields don't use them.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     interface ColumnMeta<TData extends RowData, TValue> {
         align?: 'left' | 'right' | 'center';

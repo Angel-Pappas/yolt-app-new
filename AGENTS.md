@@ -17,7 +17,7 @@ behavioural record — there is nothing left to run or fall back to.)
 
 ## Stack (verified 2026-08-28)
 
-- **Laravel 13** (PHP **8.4** locally / **8.5** in production on our VM),
+- **Laravel 13** (PHP **8.5** in dev, CI and production — keep CI's version in step with the server),
   official **React starter kit**: React 19, TypeScript, **Inertia 3**,
   **Tailwind 4**, **shadcn/ui** (new-york, neutral, **Instrument Sans** — bundled from `@fontsource/instrument-sans`, no font server at build time, **lucide**
   icons, light + dark), Vite (vite-plus), **Fortify** auth, **Pest** tests.
@@ -47,6 +47,10 @@ complete) and **aborts if the backup fails**, then pulls, installs (`--no-dev`),
 migrates (before the build, so new code never runs on old tables), clears cached
 routes, builds, caches and reloads php-fpm. `backup-db.sh` also runs daily from the
 `ploi` crontab.
+
+**Pre-push hook:** `.githooks/pre-push` (enabled with `git config core.hooksPath
+.githooks`, set in the dev checkout) refuses a push that fails format/lint, so a
+push made outside `ship.sh` can't go out unchecked.
 
 **Test-database guard:** `tests/TestCase.php` refuses to boot a test unless the
 connection is in-memory SQLite, and `phpunit.xml` points `APP_CONFIG_CACHE` at a

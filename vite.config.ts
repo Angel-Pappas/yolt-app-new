@@ -29,6 +29,10 @@ export default defineConfig({
                           // depends on a font server being up (Bunny Fonts timed out, 2026-11-20).
                           fontsource('Instrument Sans', {
                               weights: [400, 500, 600],
+                              // The font is served from our own server and preloaded,
+                              // so the brief fallback-font swap is negligible; metric-
+                              // matched fallbacks would need one more package (fontaine).
+                              optimizedFallbacks: false,
                           }),
                       ],
                   }),

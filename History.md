@@ -12,6 +12,17 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-20** — **First health check's fixes.** The new weekly health check
+  (`~/health-check`) found: no **pre-push hook** (added — `.githooks/pre-push`, the
+  same as cbfd's; a planted badly formatted file was refused); **CI on PHP 8.4**
+  while dev and live run 8.5 (CI now 8.5; `AGENTS.md` corrected); a **Dependabot PR**
+  open since October (its setup-php pin bump applied here, the PR closed); unused
+  starter-kit files — `app-header`, the header and two auth layouts, plus
+  `breadcrumbs` and the `breadcrumb`/`navigation-menu` UI pieces only they used, and
+  the packages `@radix-ui/react-navigation-menu` and `concurrently` (`artisan dev`
+  uses it only on Windows); a **lint suppression without a reason** (reason added);
+  and the build's **fontaine warning** (`optimizedFallbacks: false`, with why — the
+  font is ours and preloaded). The build now prints no warnings.
 - **2026-11-20** — **CI installs what we pinned, and keeps its downloads.** A check
   for anything else fetched on every build (after the font) found the pages and the
   deploy clean, but CI's `composer setup` ran **`npm install`**: with no npm lockfile

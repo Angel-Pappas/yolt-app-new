@@ -66,6 +66,15 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
       (`pages/users/index.tsx`), so it lacks search, column filters and sorting.
 - [ ] **Tick payroll periods to "calculated"** where wanted — existing periods kept
       their typed figures.
+- [ ] **Dependency day** (health check 2026-11-20): the minor updates in one ship
+      (Laravel 13.43, Inertia, Fortify, Pest, React 19.3…), then each major on its own
+      (TanStack Table 9 and TypeScript 7 most likely need code changes; lucide 1,
+      vite-plus 1).
+- [ ] **Move to the next Node LTS before 30/04/2027**, when Node 22 support ends
+      (dev, CI and live together).
+- [ ] **Page `breadcrumbs` are set but never shown** (health check 2026-11-20): many
+      pages pass a `breadcrumbs` list to the layout, which no longer draws them —
+      remove the prop and the type.
 
 ## Ideas / later
 
