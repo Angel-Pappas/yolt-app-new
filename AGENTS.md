@@ -25,7 +25,8 @@ behavioural record — there is nothing left to run or fall back to.)
   credentials in the VM's `.env`). Migrated off the Laravel Cloud MySQL on
   2026-09-30 (full dump → import, every table's row count + money totals verified
   identical). **SQLite locally** for tests/dev.
-- Package manager: **pnpm**.
+- Package manager: **pnpm**, version pinned in `package.json` (`packageManager`);
+  CI uses the same pnpm with `--frozen-lockfile` and caches pnpm/Composer downloads.
 
 ## Workflow on the VM (dev folder → `main` → live)
 
@@ -252,7 +253,7 @@ php artisan test                # Pest
 - **Gotcha:** a full-page GET test (`assertOk`) that renders a **new** Inertia page
   fails with a Vite-manifest error until you `pnpm run build`. Build before running
   those tests locally (CI builds via `composer setup` first).
-- **CI = `composer ci:check`** (npm check + tsc + frontend unit tests + pint --test +
+- **CI = `composer ci:check`** (pnpm check + tsc + frontend unit tests + pint --test +
   phpstan + pest).
 - **Frontend unit tests** cover pure logic only (no React): the amount maths
   (`lib/amounts.ts`, the client twin of `App\Support\AmountLines`), formatting

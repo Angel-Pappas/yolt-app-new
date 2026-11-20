@@ -12,6 +12,16 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-20** — **CI installs what we pinned, and keeps its downloads.** A check
+  for anything else fetched on every build (after the font) found the pages and the
+  deploy clean, but CI's `composer setup` ran **`npm install`**: with no npm lockfile
+  it ignored `pnpm-lock.yaml` and took the newest allowed version of every frontend
+  package on every run, so CI could test versions the app doesn't use. CI now sets up
+  **pnpm** (version from `package.json`'s new `packageManager` field — one source for
+  every machine) and installs `--frozen-lockfile`; pnpm's store and Composer's
+  downloads are cached between runs. `composer setup`/`ci:check` call pnpm. Also
+  removed the starter kit's **Repository** and **Documentation** links from the user
+  menu — they pointed at Laravel's site and were no use here.
 - **2026-11-20** — **The font ships with the app.** Every build used to download
   Instrument Sans from Bunny Fonts; Bunny timed out for GitHub's runners and CI failed
   three times in a row, holding back a finished change. The font now comes from the
