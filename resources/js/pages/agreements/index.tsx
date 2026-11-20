@@ -87,7 +87,3 @@ export default function AgreementsIndex({
         </>
     );
 }
-
-AgreementsIndex.layout = {
-    breadcrumbs: [{ title: 'Agreements', href: '/agreements' }],
-};

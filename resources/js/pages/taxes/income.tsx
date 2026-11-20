@@ -276,10 +276,3 @@ export default function TaxesIncome({ years, schedule, estimates }: Props) {
         </>
     );
 }
-
-TaxesIncome.layout = {
-    breadcrumbs: [
-        { title: 'Taxes', href: '/planning/taxes' },
-        { title: 'Income tax', href: '/planning/taxes/income' },
-    ],
-};

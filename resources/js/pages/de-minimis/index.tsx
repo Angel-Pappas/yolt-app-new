@@ -202,7 +202,3 @@ export default function DeMinimisIndex({ aids }: { aids: Aid[] }) {
         </>
     );
 }
-
-DeMinimisIndex.layout = {
-    breadcrumbs: [{ title: 'De minimis', href: '/de-minimis' }],
-};

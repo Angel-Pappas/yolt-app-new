@@ -333,7 +333,3 @@ export default function TaxesIndex({
         </>
     );
 }
-
-TaxesIndex.layout = {
-    breadcrumbs: [{ title: 'Taxes', href: '/planning/taxes' }],
-};

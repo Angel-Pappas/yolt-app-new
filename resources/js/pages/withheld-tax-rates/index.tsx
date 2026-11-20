@@ -65,12 +65,3 @@ export default function WithheldTaxRatesIndex({
         </>
     );
 }
-
-WithheldTaxRatesIndex.layout = {
-    breadcrumbs: [
-        {
-            title: 'Withheld tax rates',
-            href: '/configuration/withheld-tax-rates',
-        },
-    ],
-};

@@ -219,7 +219,3 @@ export default function CategoryShow({
         </>
     );
 }
-
-CategoryShow.layout = {
-    breadcrumbs: [{ title: 'Categories', href: '/configuration/categories' }],
-};

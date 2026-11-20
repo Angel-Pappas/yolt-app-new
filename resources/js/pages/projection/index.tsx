@@ -302,7 +302,3 @@ export default function ProjectionIndex({
         </>
     );
 }
-
-ProjectionIndex.layout = {
-    breadcrumbs: [{ title: 'Projection', href: '/projection' }],
-};

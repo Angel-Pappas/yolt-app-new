@@ -662,7 +662,3 @@ export default function TaxRulesIndex({ sets }: { sets: RuleSet[] }) {
         </>
     );
 }
-
-TaxRulesIndex.layout = {
-    breadcrumbs: [{ title: 'Tax rules', href: '/configuration/tax-rules' }],
-};

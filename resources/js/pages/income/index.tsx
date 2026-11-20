@@ -218,7 +218,3 @@ function CustomersView({
         </>
     );
 }
-
-IncomeIndex.layout = {
-    breadcrumbs: [{ title: 'Income', href: '/planning/income' }],
-};

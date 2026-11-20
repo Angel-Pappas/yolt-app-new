@@ -84,7 +84,3 @@ export default function EntitiesList({
         </>
     );
 }
-
-EntitiesList.layout = {
-    breadcrumbs: [{ title: 'Entities', href: '/entities/customers' }],
-};

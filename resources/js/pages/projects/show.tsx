@@ -77,7 +77,3 @@ export default function ProjectShow({ project }: { project: ProjectRow }) {
         </>
     );
 }
-
-ProjectShow.layout = {
-    breadcrumbs: [{ title: 'Projects', href: '/projects' }],
-};

@@ -79,7 +79,3 @@ export default function RateShow({ rate, changes, baseUrl, listTitle }: Props) {
         </>
     );
 }
-
-RateShow.layout = {
-    breadcrumbs: [{ title: 'Configuration', href: '/configuration' }],
-};

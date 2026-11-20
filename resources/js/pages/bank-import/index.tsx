@@ -84,7 +84,3 @@ export default function BankImportIndex({
         </>
     );
 }
-
-BankImportIndex.layout = {
-    breadcrumbs: [{ title: 'Bank import', href: '/bank-import' }],
-};

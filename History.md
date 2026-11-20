@@ -12,6 +12,14 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-20** — **Leftover cleanup, no more Dependabot PRs.** 32 pages passed a
+  `breadcrumbs` list that nothing has shown since the sidebar layout replaced the
+  header; removed with the `BreadcrumbItem` type, the layout prop and the unused
+  "header" layout variant (`AppShell`/`AppContent` are sidebar-only now). Pages look
+  the same. Removed `.github/dependabot.yml`: its weekly version PRs don't fit the
+  no-PR workflow and each left a branch the repo's "Protect all branches" rule
+  forbids deleting; the weekly health check now looks for outdated CI actions and
+  packages instead (GitHub's security alerts are separate and stay on).
 - **2026-11-20** — **First health check's fixes.** The new weekly health check
   (`~/health-check`) found: no **pre-push hook** (added — `.githooks/pre-push`, the
   same as cbfd's; a planted badly formatted file was refused); **CI on PHP 8.4**

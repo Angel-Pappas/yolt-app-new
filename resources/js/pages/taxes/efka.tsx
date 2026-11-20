@@ -42,10 +42,3 @@ export default function TaxesEfka({
         </>
     );
 }
-
-TaxesEfka.layout = {
-    breadcrumbs: [
-        { title: 'Taxes', href: '/planning/taxes' },
-        { title: 'EFKA', href: '/planning/taxes/efka' },
-    ],
-};

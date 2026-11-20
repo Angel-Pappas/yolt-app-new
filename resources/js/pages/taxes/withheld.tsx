@@ -40,10 +40,3 @@ export default function TaxesWithheld({
         </>
     );
 }
-
-TaxesWithheld.layout = {
-    breadcrumbs: [
-        { title: 'Taxes', href: '/planning/taxes' },
-        { title: 'Withholding tax', href: '/planning/taxes/withheld' },
-    ],
-};

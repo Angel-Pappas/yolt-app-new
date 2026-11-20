@@ -57,7 +57,3 @@ export default function VatRatesIndex({ vatRates }: { vatRates: VatRate[] }) {
         </>
     );
 }
-
-VatRatesIndex.layout = {
-    breadcrumbs: [{ title: 'VAT rates', href: '/configuration/vat-rates' }],
-};

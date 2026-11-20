@@ -312,7 +312,3 @@ export default function WalletsIndex({ wallets }: { wallets: Wallet[] }) {
         </>
     );
 }
-
-WalletsIndex.layout = {
-    breadcrumbs: [{ title: 'Wallets', href: '/wallets' }],
-};

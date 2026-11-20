@@ -236,7 +236,3 @@ export default function OneOffsIndex({
         </>
     );
 }
-
-OneOffsIndex.layout = {
-    breadcrumbs: [{ title: 'One-offs', href: '/planning/one-offs' }],
-};

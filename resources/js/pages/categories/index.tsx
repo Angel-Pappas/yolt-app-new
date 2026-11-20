@@ -158,7 +158,3 @@ export default function CategoriesIndex({
         </>
     );
 }
-
-CategoriesIndex.layout = {
-    breadcrumbs: [{ title: 'Categories', href: '/configuration/categories' }],
-};

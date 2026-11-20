@@ -50,7 +50,3 @@ export default function ConfigurationIndex() {
         </>
     );
 }
-
-ConfigurationIndex.layout = {
-    breadcrumbs: [{ title: 'Configuration', href: '/configuration' }],
-};

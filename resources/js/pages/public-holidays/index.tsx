@@ -54,12 +54,3 @@ export default function PublicHolidaysIndex({
         </>
     );
 }
-
-PublicHolidaysIndex.layout = {
-    breadcrumbs: [
-        {
-            title: 'Public holidays',
-            href: '/configuration/public-holidays',
-        },
-    ],
-};

@@ -335,7 +335,3 @@ export default function RecurringIndex({
         </>
     );
 }
-
-RecurringIndex.layout = {
-    breadcrumbs: [{ title: 'Recurring', href: '/planning/recurring' }],
-};

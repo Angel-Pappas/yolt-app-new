@@ -88,7 +88,3 @@ export default function TransactionsIndex({
         </>
     );
 }
-
-TransactionsIndex.layout = {
-    breadcrumbs: [{ title: 'Transactions', href: '/transactions' }],
-};

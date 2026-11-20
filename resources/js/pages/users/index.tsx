@@ -257,7 +257,3 @@ export default function UsersIndex({ users }: { users: ManagedUser[] }) {
         </>
     );
 }
-
-UsersIndex.layout = {
-    breadcrumbs: [{ title: 'Users', href: '/configuration/users' }],
-};

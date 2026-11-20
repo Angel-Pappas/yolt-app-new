@@ -166,7 +166,3 @@ function AddProjectDialog({
         </Dialog>
     );
 }
-
-ProjectsIndex.layout = {
-    breadcrumbs: [{ title: 'Projects', href: '/projects' }],
-};

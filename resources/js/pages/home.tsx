@@ -217,7 +217,3 @@ export default function Home({
         </>
     );
 }
-
-Home.layout = {
-    breadcrumbs: [{ title: 'Home', href: '/' }],
-};

@@ -72,9 +72,6 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
       vite-plus 1).
 - [ ] **Move to the next Node LTS before 30/04/2027**, when Node 22 support ends
       (dev, CI and live together).
-- [ ] **Page `breadcrumbs` are set but never shown** (health check 2026-11-20): many
-      pages pass a `breadcrumbs` list to the layout, which no longer draws them —
-      remove the prop and the type.
 
 ## Ideas / later
 

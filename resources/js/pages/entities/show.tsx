@@ -339,7 +339,3 @@ export default function EntityShow({
         </>
     );
 }
-
-EntityShow.layout = {
-    breadcrumbs: [{ title: 'Entities', href: '/entities/customers' }],
-};
