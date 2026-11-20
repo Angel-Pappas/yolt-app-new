@@ -253,7 +253,8 @@ Three views (Angel, 2026-11-19), tabs in the title spot:
   A line's decision is **pieces adding up to it**: an existing row, a **planned item**
   (all or part — a part asks when the rest is now due), a **new row** from the add
   form (with its bank fee), a row **like** an earlier one, or the **bank fee**.
-  Suggestions, in order: existing rows (as before), then **open planned items** of
+  An app row can also be **dragged** (its grip) onto a bank line; holding it near
+  the list's top or bottom edge scrolls the list. Suggestions, in order: existing rows (as before), then **open planned items** of
   the wallet going the same way with the line's open amount, dated up to **10 days
   after** the line, any month before it (two alike → the **oldest**), then the fee,
   groups and "add like…". The upload decides the sure ones (same-day exact row or

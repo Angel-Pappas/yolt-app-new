@@ -46,7 +46,8 @@ Angel sets the priorities — the order under **Next** is a suggestion until he 
       (2026-11-12).
 - [x] Finance ▸ Bank import (Alpha Bank CSV): the bank and the app side by side, each
       row a pair with a verdict (match / differs / missing on one side), sure pairs
-      and fees settled on upload, drag to pair; rows follow the bank's order within a
+      and fees settled on upload, drag to pair (the list scrolls while dragging,
+      2026-11-20); rows follow the bank's order within a
       day; Bank fee on the add form (2026-11-16, side by side 2026-11-17).
 - [x] Books, plan and income (2026-11-19): Transactions is history; the plan
       (recurrences and taxes live, one-offs and customer payment lines as planned

@@ -12,6 +12,14 @@ something came to be; read `Summary.md` for how the app works **now**.
 - Older entries describe the app as it was then (e.g. the Business/CRM area, removed
   2026-09-14); later entries supersede earlier ones.
 
+- **2026-11-20** — **Bank import: the list scrolls while dragging.** Angel couldn't
+  drag an app row onto a bank line further down: the list scrolls inside its own box
+  and the browser barely scrolls such a box during a drag. Now holding a dragged row
+  near the list's top or bottom edge scrolls it (faster the closer to the edge;
+  `hooks/use-drag-auto-scroll.ts`, speed rule `lib/drag-scroll.ts` with tests). The
+  scrolling stops on drop, on drag end, when the mouse moves normally again, or when
+  the browser stops reporting the drag — the list redraws mid-drag, so the browser's
+  own "drag ended" can land on a row that is no longer on the page.
 - **2026-11-19** — **Plan follow-up on the real data.** After the go-live, the live
   data showed "not matched" crumbs (AWS 1,01, Google 0,90, bonus differences): a
   real bill or payslip differs a little from the planned estimate, and the plan

@@ -36,6 +36,7 @@ import {
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useDragAutoScroll } from '@/hooks/use-drag-auto-scroll';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
     type AppRow,
@@ -279,6 +280,7 @@ export function WorkView({
     const [addKey, setAddKey] = useState(0);
     const [dragging, setDragging] = useState<number | null>(null);
     const [dropOn, setDropOn] = useState<number | null>(null);
+    const autoScroll = useDragAutoScroll();
 
     const walletId = wallet.id;
     const appOnly = rows
@@ -437,6 +439,7 @@ export function WorkView({
                     e.dataTransfer.setData('text/plain', String(t.id));
                     e.dataTransfer.effectAllowed = 'move';
                     setDragging(t.id);
+                    autoScroll(e.currentTarget);
                 }}
                 onDragEnd={() => {
                     setDragging(null);
